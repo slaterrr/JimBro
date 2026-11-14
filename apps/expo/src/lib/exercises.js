@@ -5,6 +5,7 @@ export const EXERCISES = [
   { id: 'deadlift', name: 'Deadlift', camera: false },
   { id: 'shoulder_press', name: 'Shoulder press', camera: true },
   { id: 'pull_up', name: 'Pull-up', camera: false },
+  { id: 'lunge', name: 'Lunge', camera: false },
 ];
 
 export const exerciseName = (id) => EXERCISES.find((e) => e.id === id)?.name ?? id;

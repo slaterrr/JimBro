@@ -88,7 +88,7 @@ const EMPTY = {
 };
 const MENTIONS = [
   ['shoulder_press', /(shoulder|overhead) press/i], ['bench', /bench/i], ['deadlift', /dead\s?lift/i],
-  ['pull_up', /pull[\s-]?ups?|chin[\s-]?ups?/i], ['squat', /squat/i], ['curl', /curl/i],
+  ['pull_up', /pull[\s-]?ups?|chin[\s-]?ups?/i], ['squat', /squat/i], ['lunge', /lunge/i], ['curl', /curl/i],
 ];
 
 /**

@@ -63,7 +63,7 @@ describe('validateProposal', () => {
   });
   it('rejects unknown exercises, negative numbers, unknown sets and odd types', () => {
     const bad = (sets) => ({ ...log, set: sets[0], sets });
-    assert.equal(validateProposal(bad([{ exercise: 'lunge', reps: 5, weight: 10, unit: 'lb' }]), state), null);
+    assert.equal(validateProposal(bad([{ exercise: 'zercher_row', reps: 5, weight: 10, unit: 'lb' }]), state), null);
     assert.equal(validateProposal(bad([{ exercise: 'curl', reps: -5, weight: 10, unit: 'lb' }]), state), null);
     assert.equal(validateProposal(bad([{ exercise: 'curl', reps: 5, weight: -10, unit: 'lb' }]), state), null);
     assert.equal(validateProposal(bad([{ exercise: 'curl', reps: 5, weight: 10, unit: 'stone' }]), state), null);
