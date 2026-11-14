@@ -1,5 +1,4 @@
 import { useCameraPermissions } from 'expo-camera';
-import * as Speech from 'expo-speech';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -24,7 +23,7 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active, settings } = useApp();
+  const { active, settings, voice: jim } = useApp();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -93,15 +92,9 @@ export function CoachScreen({ openLog }) {
       setCaught({ reason: out.blocked.reason, words });
       clearTimeout(caughtTimer.current);
       caughtTimer.current = setTimeout(() => setCaught(null), CAUGHT_MS);
-      if (voice) {
-        Speech.stop();
-        Speech.speak(`Not counted — ${words}.`);
-      }
+      if (voice) jim.cue(`Not counted — ${words}.`, { force: true });
     }
-    if (out.rep && voice) {
-      Speech.stop();
-      Speech.speak(String(out.count));
-    }
+    if (out.rep && voice) jim.cue(String(out.count), { force: true });
   };
 
   const stop = () => {

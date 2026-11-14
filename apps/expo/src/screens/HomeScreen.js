@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import * as Speech from 'expo-speech';
 import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
@@ -68,7 +67,7 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
@@ -89,8 +88,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const speak = (line) => {
     if (!line) return;
     if (!talkRef.current) return say(line);
-    Speech.stop();
-    Speech.speak(line, { rate: persona.voice.rate, pitch: persona.voice.pitch, onDone: () => talkRef.current && input.current?.focus() });
+    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
   };
 
   const send = async (raw) => {
@@ -143,7 +141,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       speak("I'm listening. Tap the mic on your keyboard and talk.");
       input.current?.focus();
     } else {
-      Speech.stop();
+      voice.stop();
     }
   };
 

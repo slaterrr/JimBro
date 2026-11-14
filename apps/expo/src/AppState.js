@@ -1,16 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
 import { migrateGoals } from './lib/goals.js';
-import { migrateSettings, speechOptions } from './lib/personas.js';
+import { migrateSettings } from './lib/personas.js';
+import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
-export const DEFAULT_SETTINGS = { persona: 'coach', speak: false, unit: 'lb', weeklyGoal: 3 }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
+export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3 }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
 const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -28,7 +30,7 @@ export function AppProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateSettings(saved.settings) }, goals: migrateGoals(saved.goals) });
+        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateVoiceSettings(migrateSettings(saved.settings)) }, goals: migrateGoals(saved.goals) });
       })
       .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
       .finally(() => setReady(true));
@@ -39,12 +41,15 @@ export function AppProvider({ children }) {
 
   const settings = data.settings;
   const update = (patch) => setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
-  // Jim speaks with the selected persona's voice. `force` plays even when spoken replies are off; `persona` overrides the voice (persona samples).
-  const say = useCallback((text, { force = false, persona = settings.persona } = {}) => {
-    if (!text || !(force || settings.speak)) return;
-    if (force) Speech.stop();
-    Speech.speak(text, speechOptions(persona));
-  }, [settings.speak, settings.persona]);
+  // All speech goes through lib/sound.js (persona voice, on/off, interruptions, iOS silent mode).
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const voice = useMemo(() => createVoice(
+    { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
+    () => settingsRef.current,
+  ), []);
+  useEffect(() => { voice.enableAudio(); }, [voice]);
+  const say = voice.say;
 
   /** All logged sets in order, including the workout in progress. */
   const allSets = [...data.history, ...(data.active ? [data.active] : [])].flatMap((w) => w.sets);
@@ -97,7 +102,7 @@ export function AppProvider({ children }) {
 
   const value = {
     goals: data.goals ?? [], addGoal, removeGoal,
-    ready, notice, setNotice, settings, update, say,
+    ready, notice, setNotice, settings, update, say, voice,
     active: data.active, history: data.history, plan: data.plan, allSets,
     startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
