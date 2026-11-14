@@ -31,3 +31,14 @@ describe('layout', () => {
     assert.equal(topInset('android', 24), 24);
   });
 });
+
+describe('segmentFits', () => {
+  it('six Progress tabs do not fit a 320 px phone but fit the 560 px column; three short ones fit anywhere', async () => {
+    const { segmentFits } = await import('./layout.js');
+    const six = ['Overview', 'Strength', 'Volume', 'PRs', 'History', 'Goals'];
+    assert.equal(segmentFits(six, 288), false);
+    assert.equal(segmentFits(six, 528), true);
+    assert.equal(segmentFits(['Workout', 'Month', 'Year'], 240), true);
+    assert.equal(segmentFits(six, 0), true); // not measured yet: keep the normal layout
+  });
+});
