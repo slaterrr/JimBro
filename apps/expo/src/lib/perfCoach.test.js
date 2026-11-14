@@ -77,3 +77,19 @@ describe('chat answers about performance', () => {
     assert.equal(answerPerformance('hello', { history: [], active: null }), null);
   });
 });
+
+describe('coaching principles in practice', () => {
+  it('after a set with fewer reps than last time, Jim asks about recovery', () => {
+    const l = afterSetLines({ completed: 6, target: 8, fatigue: { level: 'increasing_difficulty', signals: ['2 fewer reps than last time at 135 lb.'] } });
+    assert.match(l.ask, /sleep|stress/i);
+  });
+
+  it('an experienced user is asked for their own call first', () => {
+    const sets = [{ exercise: 'bench', weight: 135, unit: 'lb', reps: 8, target: 8, rpe: 7 }];
+    const history = Array.from({ length: 12 }, (_, i) => ({ id: `w${i}`, startedAt: '2026-11-01', sets }));
+    const a = answerPerformance('should I go heavier on bench?', { history, active: null });
+    assert.match(a, /what would you pick/i);
+    const fresh = answerPerformance('should I go heavier on bench?', { history: history.slice(0, 2), active: null });
+    assert.doesNotMatch(fresh, /what would you pick/i);
+  });
+});
