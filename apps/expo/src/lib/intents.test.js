@@ -24,6 +24,12 @@ describe('parseIntent: log', () => {
     assert.deepEqual(r.sets[2], { exercise: 'squat', reps: 5, weight: 225, unit: 'lb' });
     assert.equal(r.summary, 'Log 3 sets of 5 × squat at 225 lb?');
   });
+  it('logs lunges', () => {
+    const r = parseIntent('10 lunges at 30 pounds', ctx);
+    assert.equal(r.type, 'log');
+    assert.deepEqual(r.sets, [{ exercise: 'lunge', reps: 10, weight: 30, unit: 'lb' }]);
+    assert.equal(r.summary, 'Log 10 × lunge at 30 lb?');
+  });
   it('uses the default unit', () => {
     assert.equal(parseIntent('8 bench at 60', { ...ctx, unit: 'kg' }).set.unit, 'kg');
   });
