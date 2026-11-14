@@ -17,17 +17,35 @@ export function jointAngle(a, joint, c) {
 }
 
 const weakest = (pose, idx) => Math.min(...idx.map((i) => pose[i]?.visibility ?? 0));
-const better = (pose, sides) => (weakest(pose, sides.right) > weakest(pose, sides.left) ? sides.right : sides.left);
+const sidesFor = (movement) => movement === 'squat' ? LEG : ARM;
+const torsoFor = (movement, side) => movement === 'squat'
+  ? (side === 'left' ? 11 : 12) // shoulder, while squat tracks hip/knee/ankle
+  : (side === 'left' ? 23 : 24); // hip, while arm exercises track shoulder/elbow/wrist
+const quality = (pose, movement, side) => Math.min(
+  weakest(pose, sidesFor(movement)[side]), pose[torsoFor(movement, side)]?.visibility ?? 0,
+);
+const bestSide = (pose, movement) => quality(pose, movement, 'right') > quality(pose, movement, 'left')
+  ? 'right' : 'left';
 
-export function movementAngle(pose, movement) {
+/** Optional side lock prevents an arm swap from completing a rep. */
+export function movementAngle(pose, movement, side = null) {
   if (!pose || pose.length < POSE_LANDMARKS) return null;
-  const idx = better(pose, movement === 'squat' ? LEG : ARM);
+  const idx = sidesFor(movement)[side ?? bestSide(pose, movement)];
   const angle = jointAngle(pose[idx[0]], pose[idx[1]], pose[idx[2]]);
   return angle === null ? null : { angle, confidence: weakest(pose, idx) };
 }
 
-export function assessTracking(pose, threshold = 0.5) {
-  if (!pose || pose.length < POSE_LANDMARKS) return { status: 'lost', confidence: 0 };
-  const confidence = weakest(pose, better(pose, ARM));
-  return { status: confidence >= threshold ? 'ok' : 'low', confidence };
+/** Exercise-specific visibility includes the torso, not just three moving joints. */
+export function assessTracking(pose, threshold = 0.5, movement = 'curl', side = null) {
+  if (!pose || pose.length < POSE_LANDMARKS) return { status: 'lost', confidence: 0, side };
+  const selected = side ?? bestSide(pose, movement);
+  const confidence = quality(pose, movement, selected);
+  return { status: confidence >= threshold ? 'ok' : 'low', confidence, side: selected };
+}
+
+/** Shoulder angle between elbow and hip; large deviation suggests arm swing, not a curl. */
+export function curlUpperArmSwing(pose, side) {
+  const [shoulder, elbow] = sidesFor('curl')[side];
+  const hip = torsoFor('curl', side);
+  return jointAngle(pose[elbow], pose[shoulder], pose[hip]);
 }
