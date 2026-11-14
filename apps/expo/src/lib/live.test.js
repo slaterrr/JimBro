@@ -149,6 +149,60 @@ describe('LiveSession', () => {
     assert.equal(s.repsDetail().length, 1);
   });
 
+  describe('blocked movements ("caught it")', () => {
+    const swung = (deg) => {
+      const pose = armPose(deg);
+      pose[14] = P(0.5 + 0.3 * Math.sin(Math.PI / 3), 0.2 + 0.3 * Math.cos(Math.PI / 3)); // elbow swung 60° forward
+      pose[16] = P(pose[14].x, pose[14].y + 0.3);
+      return pose;
+    };
+
+    it('emits blocked when an in-progress rep is aborted by an issue', () => {
+      const frames = curlFrames(1);
+      const s = new LiveSession('curl');
+      for (const f of frames.slice(0, 25)) assert.equal(s.frame(f.t, f.pose).blocked, null);
+      assert.notEqual(s.counter.state, 'rest');
+      const out = s.frame(frames[24].t + 10, null);
+      assert.deepEqual(out.blocked, { reason: 'tracking', t: frames[24].t + 10 });
+      assert.deepEqual(s.blocked, [{ reason: 'tracking', t: frames[24].t + 10 }]);
+      // Continued trouble on the same aborted rep is not reported again.
+      assert.equal(s.frame(frames[24].t + 20, null).blocked, null);
+      assert.equal(s.blocked.length, 1);
+    });
+
+    it('names the reason, e.g. arm swing mid-rep', () => {
+      const frames = curlFrames(1);
+      const s = new LiveSession('curl');
+      for (const f of frames.slice(0, 25)) s.frame(f.t, f.pose);
+      const out = s.frame(frames[25].t, swung(90));
+      assert.equal(out.issue, 'arm_swing');
+      assert.equal(out.blocked.reason, 'arm_swing');
+      assert.equal(s.count, 0);
+    });
+
+    it('does not emit for issues during idle rest', () => {
+      const s = new LiveSession('curl');
+      assert.equal(s.frame(10, null).blocked, null);
+      for (let i = 1; i <= 15; i++) s.frame(10 + i * 33, armPose(170));
+      assert.equal(s.counter.state, 'rest');
+      assert.equal(s.frame(600, null).blocked, null);
+      assert.equal(s.frame(700, swung(170)).blocked, null);
+      assert.deepEqual(s.blocked, []);
+    });
+
+    it('does not emit for clean reps and resets with the set', () => {
+      const s = new LiveSession('curl');
+      for (const f of curlFrames(2)) assert.equal(s.frame(f.t, f.pose).blocked, null);
+      assert.equal(s.count, 2);
+      const frames = curlFrames(1);
+      const s2 = new LiveSession('curl');
+      for (const f of frames.slice(0, 25)) s2.frame(f.t, f.pose);
+      s2.frame(frames[24].t + 10, null);
+      s2.reset();
+      assert.deepEqual(s2.blocked, []);
+    });
+  });
+
   it('resets and switches movement', () => {
     const s = new LiveSession('curl');
     for (const f of curlFrames(1)) s.frame(f.t, f.pose);
