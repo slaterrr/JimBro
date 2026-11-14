@@ -70,3 +70,13 @@ describe('analyzer registry', () => {
     for (const e of EXERCISES) assert.equal(e.camera, countsWithCamera(e.id), e.id);
   });
 });
+
+describe('registry matches the angle code', () => {
+  it('joint triples and anchors are the ones angles.js reads', async () => {
+    const { jointsFor, anchorFor } = await import('./angles.js');
+    for (const a of Object.values(ANALYZERS).filter((x) => x.status !== 'manual')) {
+      assert.deepEqual(a.landmarks, jointsFor(a.id), a.id);
+      assert.deepEqual(a.anchor, anchorFor(a.id), a.id);
+    }
+  });
+});

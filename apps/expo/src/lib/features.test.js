@@ -23,7 +23,10 @@ const WIRING = {
   ],
   'lib/exercises.js': [
     [/id: 'lunge'/, 'lunge in the exercise catalog'],
-    [/id: 'push_up'[^}]*camera: true/, 'camera-counted push-ups'],
+    [/countsWithCamera/, 'camera flag from the analyzer registry'],
+  ],
+  'lib/analyzers.js': [
+    [/push_up: \{\s*id: 'push_up', status: 'tested_sim'/, 'camera-counted push-ups'],
   ],
   'lib/guidance.js': [
     [/exercise_change/, 'exercise-change guidance'],

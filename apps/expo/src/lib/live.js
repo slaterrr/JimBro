@@ -1,7 +1,8 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, armShape, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint, pushupShape } from './angles.js';
+import { armShape, assessTracking, curlUpperArmSwing, jointsFor, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint, pushupShape } from './angles.js';
 import { analyzeRep } from './form.js';
+import { analyzerFor } from './analyzers.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
 const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on real videos
@@ -53,7 +54,7 @@ export function torsoInFrame(pose, side) {
 /** Fastest tracked joint between two frames, in torso lengths per second. */
 export function jointSpeed(prev, pose, t, movement, side) {
   if (!prev || t - prev.t <= 0 || t - prev.t > MAX_SPEED_GAP_MS) return 0;
-  const idx = (movement === 'squat' ? LEG : ARM)[side];
+  const idx = jointsFor(movement)[side];
   const sh = pose[side === 'left' ? 11 : 12];
   const hip = pose[side === 'left' ? 23 : 24];
   const torso = Math.hypot(sh.x - hip.x, sh.y - hip.y);
@@ -64,6 +65,8 @@ export function jointSpeed(prev, pose, t, movement, side) {
 
 export class LiveSession {
   constructor(movement) {
+    const analyzer = analyzerFor(movement);
+    if (analyzer?.status === 'manual') throw new Error(`No camera counting for ${movement}: ${analyzer.reason} Tap to count.`);
     if (!MOVEMENTS[movement]) throw new Error(`no camera counting for ${movement}`);
     this.movement = movement;
     this.counter = new RepCounter(MOVEMENTS[movement]);

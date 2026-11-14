@@ -26,7 +26,13 @@ export const SQUAT = movementConfig({ name: 'squat', rest_deg: 165, peak_deg: 95
 export const SHOULDER_PRESS = movementConfig({ name: 'shoulder_press', rest_deg: 85, peak_deg: 160 });
 // Push-up: elbow angle, arms straight at the top (rest) to ~90° at the bottom (peak).
 export const PUSH_UP = movementConfig({ name: 'push_up', rest_deg: 165, peak_deg: 95, hysteresis_deg: 10 });
-export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS, push_up: PUSH_UP };
+// EXPERIMENTAL (simulation-tested only; see lib/analyzers.js). Pull-up: elbow angle facing the
+// camera, hanging with straight arms (rest) to chin over the bar (~80°).
+export const PULL_UP = movementConfig({ name: 'pull_up', rest_deg: 160, peak_deg: 80 });
+// Deadlift: hip angle (shoulder–hip–knee) from the side. The bottom (bar near the floor) is rest
+// so a set that starts from the floor arms immediately; lockout (~165°) is the peak.
+export const DEADLIFT = movementConfig({ name: 'deadlift', rest_deg: 110, peak_deg: 165, hysteresis_deg: 10 });
+export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS, push_up: PUSH_UP, pull_up: PULL_UP, deadlift: DEADLIFT };
 
 export class RepCounter {
   constructor(config) {
