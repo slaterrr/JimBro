@@ -38,6 +38,8 @@ import {
   stopCamera,
   type BodySide,
   type CameraErrorCode,
+  type LandmarkLike,
+  type WorldLandmarkLike,
   type CameraOptions,
   type DetectorOptions,
   type SkeletonStyle,
@@ -176,6 +178,7 @@ export class ExerciseTracker {
 
   private stream: MediaStream | null = null;
   private source: TrackerSource | null = null;
+  private replayAspect: number | null = null;
   private fileUrl: string | null = null;
   private fileEpoch = 0;
   private fileCleanup: (() => void) | null = null;
@@ -420,6 +423,41 @@ export class ExerciseTracker {
     return session;
   }
 
+  // ---- headless replay (validation) -------------------------------------
+
+  /**
+   * Start a session fed with pre-extracted landmarks instead of a camera or
+   * video, e.g. to evaluate a recording against annotations. No camera, model
+   * or canvas is used. Follow with ingest() per frame and endReplay().
+   * @param aspectRatio the source video's width ÷ height
+   */
+  beginReplay(aspectRatio: number): void {
+    this.loop?.stop();
+    this.source = "file";
+    this.fileEpoch = 0;
+    this.replayAspect = aspectRatio;
+    this.beginSession();
+    this.setState({ status: "tracking", error: null, source: "file", videoProgress: null }, true);
+  }
+
+  /** Feed one frame of a replay. `tMs` is the frame's time in the recording. */
+  ingest(
+    landmarks: readonly LandmarkLike[] | undefined,
+    world: readonly WorldLandmarkLike[] | undefined,
+    tMs: number,
+  ): void {
+    this.processFrame(landmarks as NormalizedLandmark[] | undefined, world as Landmark[] | undefined, tMs);
+  }
+
+  /** Finish a replay and return its session. */
+  endReplay(): WorkoutSession {
+    const session = this.buildSession(new Date());
+    this.sessionId = null;
+    this.replayAspect = null;
+    this.setState({ status: "stopped" }, true);
+    return session;
+  }
+
   /** Snapshot of the session so far, without stopping. */
   getSession(): WorkoutSession {
     return this.buildSession(null);
@@ -537,7 +575,9 @@ export class ExerciseTracker {
       this.resetSignals();
     }
     this.lastTs = ts;
-    const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 1;
+    const aspect =
+      this.replayAspect ??
+      (this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 1);
     const ex = this.exercise;
 
     const reading = this.reader(lm, {
