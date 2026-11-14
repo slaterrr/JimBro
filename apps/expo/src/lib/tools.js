@@ -1,5 +1,6 @@
 // Lifter tools that run on the phone.
 import { EXERCISES } from './exercises.js';
+import { chronologicalHistory } from './historyOrder.js';
 
 const STEP = { kg: 0.5, lb: 2.5 };
 
@@ -58,7 +59,7 @@ export function parseImport(text) {
 export function mergeHistory(current, incoming) {
   const byId = new Map(current.map((w) => [w.id, w]));
   for (const w of incoming) if (!byId.has(w.id)) byId.set(w.id, w);
-  return [...byId.values()].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  return chronologicalHistory([...byId.values()]);
 }
 
 /** A past workout as a plan-day checklist (same exercises, set counts and rep range). */

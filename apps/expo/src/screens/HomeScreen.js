@@ -214,8 +214,8 @@ export function HomeScreen({ openLog, openActivity, go }) {
           <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
           {compact ? null : <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>}
         </TouchableOpacity>
-        <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
-          <Icon name="bell" size={24} color={T.textDim} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={{ flexShrink: 0, padding: 10 }}>
+          <Icon name="cog-outline" size={24} color={T.textDim} />
         </TouchableOpacity>
       </View>
 

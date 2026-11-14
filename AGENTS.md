@@ -142,3 +142,6 @@ Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-
 
 ## Shared preview delivery
 EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after all quality jobs pass, once the repository `expo_access_token` secret exists. README has a persistent preview-page QR. First preview builds/signing and device acceptance remain required. Config: `apps/expo/eas.json`, `apps/expo/app.json`, `.github/workflows/ci.yml`.
+
+## Progression date navigation
+Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
