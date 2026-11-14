@@ -112,6 +112,17 @@ torso angle changed about 18° more than on your usual reps". Fixed thresholds
 are kept only where a fixed number is defensible (a sagging push-up, a lunge
 step too short to be a lunge).
 
+### Learned check (experimental): squat movement pattern
+
+A small model trained on the public-domain UI-PRMD dataset scores each counted
+side-view squat: the probability that its knee/hip/torso/hip-drop trajectory
+looks like the dataset's *incorrect* squats. It's stored on every rep as
+`RepEvent.movementQuality` (estimated) and shown on the test page, but it
+**doesn't give feedback yet** (`quality.raiseFlag: false`): the dataset's
+correct squats are very deep overhead squats, so ordinary parallel gym squats
+score as "incorrect". It needs recalibrating on labelled gym recordings
+first. Training, results and caveats: `ml/README.md` and `ml/uiprmd/REPORT.md`.
+
 ### Evidence rules: no guessing
 
 - A form signal is judged only if it was seen in **≥ 70% of the rep's frames**
@@ -168,6 +179,7 @@ step too short to be a lunge).
 | Front-on squat knee angle | **measured**, less precise | From the model's 3D estimate rather than a side-on 2D angle |
 | Knees caving | **estimated** | A 2D knee-to-ankle ratio, front-on only: a screening proxy, not a true 3D valgus angle |
 | Personal checks, set-level insights | **estimated** | Comparisons that assume your earlier reps were representative |
+| Movement-pattern score (squat) | **estimated** | Learned from a reference dataset; not yet validated on phone video |
 | Tempo consistency (CV of rep time, %) | **estimated** | Depends on tracking quality. Confidence scales with rep count and fraction of frames tracked |
 | Range consistency (SD of peak angle, °) | **estimated** | Same |
 | `UNEVEN_TEMPO`, `RANGE_VARIES` flags | **estimated** | Comparisons against the session median, after 3 reps |
@@ -211,6 +223,8 @@ are shown, not spoken.
 | `pose_detection.ts` | Camera, model loading (GPU → CPU fallback), detection loop, side picking, overlay drawing |
 | `angle_calculator.ts` | `calculateAngle`, `calculateAngle3D`, `AngleSmoother` (legacy EMA) |
 | `signal_filter.ts` | `SignalFilter`: One Euro smoothing, gap bridging, glitch rejection |
+| `ml/rep_features.ts` | Rep → feature vector, shared with the offline training code |
+| `ml/quality_model.ts`, `ml/models/*.json` | Learned movement-quality model (logistic regression, JSON weights) |
 | `voice_coach.ts` | `VoiceCoach` |
 | `index.ts` | Public exports. Import from here only. |
 
@@ -221,7 +235,8 @@ are shown, not spoken.
   synthetic tests and need checking on real users. The test bench sliders and
   video upload make that quick.
 - Bench press isn't supported yet (it needs a side-on camera at bench height).
-- Form checks are rules; there is no learned model yet (see the ML plan).
+- Form feedback comes from rules. The one learned model (squat movement
+  pattern) only records a score; see above.
 - Bicep curls from the side count only the arm nearest the camera. Alternating
   curls need two sets, one facing each way.
 - Single-leg squats (pistols) and other variations are not supported.

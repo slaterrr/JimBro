@@ -102,11 +102,21 @@ thresholds scale with the person), personal baselines, 70% evidence rule.
   error taxonomy is also useful for aligning our flag codes and wording.
 - Everything else needs our own data (see `form-analysis-ml-plan.md`).
 
-## 6. Next steps
+## 6. UI-PRMD model: done, with a finding
 
-1. Download UI-PRMD (open; needs approval: about 420 MB for the two segmented
-   packages) and build the squat/lunge movement-quality classifier: Kinect/Vicon
-   → MediaPipe joint mapping, side/front projection, the same features the app
-   computes, subject-wise evaluation.
+Built and evaluated (`ml/`, report in `ml/uiprmd/REPORT.md`): a squat
+movement-quality model on UI-PRMD deep squats, using the app's own filter and
+feature code. Held-out subjects: AUC 0.88, and 0.83 on reps deep enough for the
+app to count, so it adds something beyond depth. But a normal parallel gym squat
+at the app's minimum depth scores 87% "incorrect", because the dataset's correct
+squats are deep overhead squats. So the app records the score and gives no
+feedback from it until it's recalibrated on labelled gym recordings. Lunges were
+not trained (UI-PRMD's inline lunge is a different movement).
+
+## 7. Next steps
+
+1. Record button on the test page and a small labelled set of real gym squats,
+   to recalibrate the UI-PRMD model (or retrain it with gym data mixed in) and
+   then turn its feedback on.
 2. Fit3D angle-accuracy study (research licence; requires accepting its terms).
 3. Model comparison (lite / full / heavy) on recorded sets.

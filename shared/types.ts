@@ -65,6 +65,12 @@ export interface RepEvent {
   formFlags: FormFlag[];
   /** Camera view the rep was measured from. Front-view angles are less precise. */
   view: "side" | "front";
+  /**
+   * Learned movement-quality score, when the exercise has a model and the rep
+   * had enough clean data: probability (%) that the rep resembles the reference
+   * dataset's incorrect examples. Always estimated. null when not judged.
+   */
+  movementQuality: Metric | null;
 }
 
 export interface FormFlag {

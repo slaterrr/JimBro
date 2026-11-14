@@ -40,6 +40,7 @@ class FakeTracker implements CoachableTracker {
       fullRange: true,
       formFlags: flags,
       view: "side",
+      movementQuality: null,
     };
     this.r.forEach((l) => l(e));
   }

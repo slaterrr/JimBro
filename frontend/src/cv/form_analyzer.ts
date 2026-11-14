@@ -150,9 +150,11 @@ export function toRepEvent(
   rep: CompletedRep,
   formFlags: FormFlag[],
   view: "side" | "front" = "side",
+  movementQuality: Metric | null = null,
 ): RepEvent {
   return {
     view,
+    movementQuality,
     exercise: exercise.id,
     repNumber: rep.repNumber,
     startedAt: rep.startedAt,

@@ -8,6 +8,7 @@
 import type { ExerciseId, FormFlag, PrimaryJoint, RepPhase } from "../../../../shared/types";
 import type { CameraView } from "../form_analyzer";
 import type { BodySide, LandmarkLike, WorldLandmarkLike } from "../pose_detection";
+import type { QualityModel } from "../ml/quality_model";
 import type { CompletedRep, RejectionReason, RepCounterConfig } from "../rep_counter";
 
 /** How the progress signal is measured each frame. */
@@ -113,4 +114,21 @@ export interface ExerciseDefinition {
   personalChecks: readonly PersonalCheck[];
   /** Spoken versions of this exercise's form-flag codes. */
   spoken: Record<string, string>;
+  /**
+   * Optional learned movement-quality check (see cv/ml). Runs on each counted
+   * rep from the given views; flags `code` when the model's probability is
+   * above its threshold.
+   */
+  quality?: {
+    model: QualityModel;
+    views: readonly ("side" | "front")[];
+    code: string;
+    message: string;
+    /**
+     * Raise `code` as a form flag above the threshold. When false the score is
+     * still recorded on each rep (RepEvent.movementQuality) but never shown to
+     * the user as feedback: for models not yet validated on this app's users.
+     */
+    raiseFlag: boolean;
+  };
 }

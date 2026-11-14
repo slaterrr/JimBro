@@ -10,7 +10,8 @@
  */
 
 import type { Landmark, NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
-import type { ExerciseId, FormFlag, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
+import type { ExerciseId, FormFlag, Metric, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
+import { repFeatures, type RepFrame } from "./ml/rep_features";
 import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
 import { getExercise } from "./exercises";
 import type { ExerciseDefinition, FormStats } from "./exercises/types";
@@ -167,6 +168,9 @@ export class ExerciseTracker {
   private prevPhase: RepPhase = "start";
   private repStats: FormStats[] = [];
   private lastTs = -Infinity;
+  /** Recent per-frame measurements for the learned quality check (about 15 s). */
+  private trace: RepFrame[] = [];
+  private lastForm: Record<string, number | null> = {};
 
   private stream: MediaStream | null = null;
   private source: TrackerSource | null = null;
@@ -495,6 +499,8 @@ export class ExerciseTracker {
     this.phaseFrames = {};
     this.prevPhase = "start";
     this.lastTs = -Infinity;
+    this.trace = [];
+    this.lastForm = {};
   }
 
   private beginSession(): void {
@@ -552,6 +558,7 @@ export class ExerciseTracker {
 
     const event = this.counter.update(ts, angle, progress);
     this.recordForm(reading.form, ts);
+    this.recordTrace(ts, angle, progress);
 
     const frame: PoseFrame = {
       timestamp: ts,
@@ -589,7 +596,9 @@ export class ExerciseTracker {
         view: reading.view,
         history: this.repStats,
       });
-      const repEvent = toRepEvent(ex, event.rep, flags, reading.view);
+      const quality = this.judgeQuality(event.rep, reading.view);
+      if (quality.flag) flags.push(quality.flag);
+      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric);
       this.reps.push(event.rep);
       this.repStats.push(stats);
       this.repEvents.push(repEvent);
@@ -652,10 +661,44 @@ export class ExerciseTracker {
         this.formFilters.set(key, f);
       }
       const v = f.next(raw, ts);
+      this.lastForm[key] = v;
       if (v === null || phase === "start") continue;
       this.addFormValue(key, v);
       this.addFormValue(`${key}@${phase}`, v);
     }
+  }
+
+  private recordTrace(t: number, knee: number | null, drop: number | null): void {
+    const lean = this.lastForm.torsoLean;
+    this.trace.push({
+      t,
+      knee,
+      hip: this.lastForm.hipAngle ?? null,
+      lean: lean === null || lean === undefined ? null : Math.abs(lean),
+      drop,
+    });
+    while (this.trace.length > 0 && t - this.trace[0]!.t > 15_000) this.trace.shift();
+  }
+
+  /** Learned movement-quality check for a counted rep, if this exercise has one. */
+  private judgeQuality(rep: CompletedRep, view: "side" | "front"): { metric: Metric | null; flag: FormFlag | null } {
+    const q = this.exercise.quality;
+    if (!q || !q.views.includes(view)) return { metric: null, flag: null };
+    // The rep plus a second of context before it (standing), as in training.
+    const frames = this.trace.filter((f) => f.t >= rep.startedAt - 1000 && f.t <= rep.endedAt);
+    const features = repFeatures(frames);
+    if (!features) return { metric: null, flag: null };
+    const p = q.model.predict(features);
+    const metric: Metric = {
+      value: Math.round(p * 100),
+      unit: "%",
+      source: "estimated",
+      // Confidence = how far from the decision boundary, scaled 0–1.
+      confidence: Math.round(Math.min(1, Math.abs(p - q.model.spec.threshold) * 2) * 100) / 100,
+    };
+    const flag =
+      q.raiseFlag && p >= q.model.spec.threshold ? { code: q.code, message: q.message, source: "estimated" as const } : null;
+    return { metric, flag };
   }
 
   private addFormValue(key: string, v: number): void {

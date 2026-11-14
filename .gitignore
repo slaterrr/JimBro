@@ -24,3 +24,6 @@ dist-check*/
 npm-debug.log*
 .vite/
 .DS_Store
+
+# Small trained CV models shipped with the app (JSON weights)
+!frontend/src/cv/ml/models/

@@ -15,7 +15,12 @@ import type { FormFlag } from "../../../../shared/types";
 import { calculateAngle, calculateAngle3D } from "../angle_calculator";
 import { facingSign, kneeAnkleRatio, torsoLean } from "../body_metrics";
 import { POSE_LANDMARKS as L, pickSide, distance, vis, type LandmarkLike, type WorldLandmarkLike } from "../pose_detection";
+import squatModelJson from "../ml/models/squat_uiprmd.json";
+import { QualityModel, type QualityModelJson } from "../ml/quality_model";
 import type { ExerciseDefinition, ExerciseReading } from "./types";
+
+/** Trained on UI-PRMD deep squats (public domain); see ml/uiprmd/REPORT.md. */
+export const squatQualityModel = new QualityModel(squatModelJson as QualityModelJson);
 
 const LEGS = {
   left: { shoulder: L.LEFT_SHOULDER, hip: L.LEFT_HIP, knee: L.LEFT_KNEE, ankle: L.LEFT_ANKLE },
@@ -61,7 +66,7 @@ export const squat: ExerciseDefinition = {
       visible: false,
       primaryAngle: null,
       progress: null,
-      form: { torsoLean: null, kneeRatio: null },
+      form: { torsoLean: null, kneeRatio: null, hipAngle: null },
       side: null,
       highlight: [],
       positionHint: null,
@@ -116,6 +121,21 @@ export const squat: ExerciseDefinition = {
     KNEES_CAVING: "Push your knees out.",
     TORSO_SHIFT: "Keep your chest up.",
   },
+
+  // Learned check, side view only (it was trained on side-view projections).
+  // Score only, no flag: UI-PRMD's "correct" squats are very deep overhead
+  // squats, so ordinary parallel gym squats score as "incorrect" (a parallel
+  // squat at the counter's minimum depth scores ~87%). It needs calibrating on
+  // labelled gym recordings before it can give feedback. See ml/uiprmd/REPORT.md.
+  quality: {
+    raiseFlag: false,
+    model: squatQualityModel,
+    views: ["side"],
+    code: "MOVEMENT_PATTERN",
+    message:
+      "This rep's movement pattern looked more like the incorrect squats in our reference data than the correct ones. " +
+      "Check your depth, and that your hips and chest move together.",
+  },
 };
 
 function readSide(
@@ -139,10 +159,9 @@ function readSide(
   const knee = landmarks[i.knee]!;
   const ankle = landmarks[i.ankle]!;
   const kneeAngle = calculateAngle(hip, knee, ankle, aspectRatio);
-  const lean =
-    shoulder && vis(shoulder) >= minVisibility
-      ? torsoLean(shoulder, hip, aspectRatio, facingSign(landmarks, side, minVisibility))
-      : null;
+  const shoulderOk = shoulder && vis(shoulder) >= minVisibility;
+  const lean = shoulderOk ? torsoLean(shoulder, hip, aspectRatio, facingSign(landmarks, side, minVisibility)) : null;
+  const hipAngle = shoulderOk ? calculateAngle(shoulder, hip, knee, aspectRatio) : null;
   // Average both hips' height so it doesn't jump when the counting leg switches.
   const otherHip = landmarks[side === "left" ? L.RIGHT_HIP : L.LEFT_HIP];
   const hipY = otherHip ? (hip.y + otherHip.y) / 2 : hip.y;
@@ -152,7 +171,7 @@ function readSide(
     visible: kneeAngle !== null,
     primaryAngle: kneeAngle,
     progress: legLength > 1e-6 ? { kind: "drop", y: hipY, refLength: legLength } : null,
-    form: { torsoLean: lean, kneeRatio: null },
+    form: { torsoLean: lean, kneeRatio: null, hipAngle },
     side,
     highlight: [i.shoulder, i.hip, i.knee, i.ankle],
     positionHint: null,
@@ -197,7 +216,7 @@ function readFront(
     visible: true,
     primaryAngle: (left + right) / 2,
     progress: legLength > 1e-6 ? { kind: "drop", y: hipY, refLength: legLength } : null,
-    form: { torsoLean: lean, kneeRatio: kneeAnkleRatio(landmarks, minVisibility) },
+    form: { torsoLean: lean, kneeRatio: kneeAnkleRatio(landmarks, minVisibility), hipAngle: null },
     side: "both",
     highlight: legIdx,
     positionHint: null,

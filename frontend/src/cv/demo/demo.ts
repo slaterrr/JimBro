@@ -182,6 +182,17 @@ function render(s: TrackerState) {
   rows.push(
     row("Last rep time", s.lastRep ? `${(s.lastRep.durationMs / 1000).toFixed(2)} s` : "–", "measured"),
     row("Last rep range", s.lastRep ? fmt(s.lastRep.peakAngle.value, "°") : "–", "measured"),
+    ...(ex.quality
+      ? [
+          row(
+            ex.quality.raiseFlag
+              ? `Pattern vs. reference (flag ≥ ${Math.round(ex.quality.model.spec.threshold * 100)}%)`
+              : "Pattern vs. reference (experimental, no feedback)",
+            s.lastRep?.movementQuality ? `${s.lastRep.movementQuality.value}% off` : "–",
+            "estimated",
+          ),
+        ]
+      : []),
     row(
       "Tracking (visible · glitches · gaps)",
       s.status === "idle"
@@ -231,6 +242,7 @@ tracker.subscribe(render);
 tracker.onRep((r) =>
   addLog(
     `✓ rep ${r.repNumber}: ${Math.round(r.peakAngle.value)}°, ${(r.durationMs / 1000).toFixed(2)}s` +
+      (r.movementQuality ? `, pattern score ${r.movementQuality.value}% (estimated)` : "") +
       (r.formFlags.length ? `  [${r.formFlags.map((f) => `${f.code}/${f.source}`).join(", ")}]` : ""),
   ),
 );
