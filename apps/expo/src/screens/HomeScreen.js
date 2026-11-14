@@ -6,7 +6,7 @@ import { useApp } from '../AppState.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { coachReply } from '../lib/coach.js';
 import { exerciseName } from '../lib/exercises.js';
-import { parseSetUtterance } from '../lib/parse.js';
+import { parseIntent } from '../lib/intents.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
@@ -64,7 +64,7 @@ function PlanCard({ goal }) {
 }
 
 export function HomeScreen({ openLog, openActivity }) {
-  const { settings, say, allSets, logSet } = useApp();
+  const { settings, say, allSets, logSet, updateSet, deleteSet, active, history } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const scroll = useRef(null);
@@ -79,9 +79,15 @@ export function HomeScreen({ openLog, openActivity }) {
     const message = raw.trim();
     if (!message) return;
     setText('');
-    const parsed = goal ? null : parseSetUtterance(message);
-    if (parsed) {
-      push({ me: true, text: message }, { kind: 'confirm', set: { unit: settings.unit, ...parsed } });
+    const intent = goal ? null : parseIntent(message, { history, active, unit: settings.unit });
+    if (intent && ['log', 'correct', 'delete'].includes(intent.type)) {
+      // Never change data here: show a confirm card and wait for the user.
+      push({ me: true, text: message }, { kind: 'confirm', intent });
+      return;
+    }
+    if (intent?.type === 'clarify') {
+      push({ me: true, text: message }, { me: false, text: intent.question });
+      say(intent.question);
       return;
     }
     if (goal) {
@@ -99,9 +105,22 @@ export function HomeScreen({ openLog, openActivity }) {
     say(r.text);
   };
 
-  const confirmSet = (i, s) => {
-    logSet({ ...s, rpe: s.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim');
-    setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: `Logged ${s.reps} × ${exerciseName(s.exercise)} at ${s.weight} ${s.unit}.` } : m)));
+  const confirmIntent = (i, intent) => {
+    let reply;
+    if (intent.type === 'log') {
+      intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
+      const x = intent.sets[0];
+      const n = intent.sets.length > 1 ? `${intent.sets.length} sets of ` : '';
+      reply = `Logged ${n}${x.reps} × ${exerciseName(x.exercise)} at ${x.weight} ${x.unit}.`;
+    } else if (intent.type === 'correct') {
+      updateSet(intent.target.setId, intent.changes);
+      reply = 'Done, I fixed that set.';
+    } else {
+      deleteSet(intent.target.setId);
+      reply = 'Done, that set is gone.';
+    }
+    setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: reply } : m)));
+    say(reply);
   };
 
   return (
@@ -139,11 +158,11 @@ export function HomeScreen({ openLog, openActivity }) {
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>
-                  <Text style={type.title}>Log this set?</Text>
-                  <Text style={type.body}>{m.set.reps} × {exerciseName(m.set.exercise)} at {m.set.weight} {m.set.unit}{m.set.rpe ? ` · RPE ${m.set.rpe}` : ''}</Text>
+                  <Text style={type.title}>{{ log: 'Log this?', correct: 'Fix this set?', delete: 'Delete this set?' }[m.intent.type]}</Text>
+                  <Text style={type.body}>{m.intent.summary}</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmSet(i, m.set)}>Confirm</PrimaryButton>
-                    <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Discard</PrimaryButton>
+                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
+                    <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Cancel</PrimaryButton>
                   </View>
                 </Card>
               );

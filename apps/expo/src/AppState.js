@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
+import { applyDelete, applyUpdate } from './lib/intents.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 
@@ -57,7 +58,11 @@ export function AppProvider({ children }) {
     return { set, isPR };
   };
 
-  const deleteSet = (id) => setData((d) => (d.active ? { ...d, active: { ...d.active, sets: d.active.sets.filter((x) => x.id !== id) } } : d));
+  /** Remove a set from the active workout or from history. */
+  const deleteSet = (id) => setData((d) => applyDelete(d, id));
+
+  /** Change fields of one set (active or history). Nothing else is recomputed. */
+  const updateSet = (id, changes) => setData((d) => applyUpdate(d, id, changes));
 
   const finishWorkout = () =>
     setData((d) => {
@@ -83,7 +88,7 @@ export function AppProvider({ children }) {
   const value = {
     ready, notice, setNotice, settings, update, say,
     active: data.active, history: data.history, plan: data.plan, allSets,
-    startWorkout, logSet, deleteSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
