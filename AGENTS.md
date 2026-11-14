@@ -84,6 +84,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Switch suggestion card + lunge as manual exercise | 🧪 #32 | `lib/switchExercise.js`, CoachScreen, exercises.js | unit + wiring | card position on device |
 | Beginner/comeback first-run setup (pain → safety, no plan) | 🧪 #33 | `lib/onboarding.js`, `Onboarding.js` | unit + wiring | device |
 | Weekly health card on Home | 🧪 #33 | `lib/healthSummary.js` | unit (demo fixture, hand-computed) | device with data |
+| Push-ups: camera-counted, per-rep type (standard / knee / incline) from body line; upright elbow bends not counted; push-up ↔ other-lift exercise_change + suggestion | 🧪 feat/pushup-variants | `angles.js` `pushupShape`, `live.js`, `reps.js` `PUSH_UP`, CoachScreen | **sim only**: 480/480 per variant, 0 mislabels (20 seeds × 2 noise); upright bends 0 FP / 80 sets; push-ups in curl/squat/press 0 counted, 40/40 suggested; real clips unchanged | a real knee + standard push-up clip; front-view push-ups not handled |
+| Effort estimate (RPE / RIR) from velocity loss + ROM decay, labelled estimate, in set report + Coach screen | 🧪 feat/pushup-variants | `lib/effort.js`, `sessionReport.js` | 8 unit tests | uncalibrated bands; validate against user-entered RPE |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.
