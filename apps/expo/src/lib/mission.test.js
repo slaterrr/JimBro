@@ -77,6 +77,17 @@ describe('planMission', () => {
   });
 });
 
+describe('mission wording', () => {
+  it('describes bodyweight history in reps and joins lists naturally', async () => {
+    const { listText } = await import('./mission.js');
+    assert.equal(listText(['squat', 'shoulder press', 'bicep curl']), 'squat, shoulder press and bicep curl');
+    const m = planMission({ minutes: 30, focus: 'back', history: [workout(4, [set('pull_up', 0, 8, 8)])], settings: { unit: 'lb' }, now: NOW });
+    const pull = m.items.find((i) => i.exercise === 'pull_up');
+    assert.match(pull.why, /8 reps, bodyweight/);
+    assert.doesNotMatch(pull.why, /0 lb/);
+  });
+});
+
 describe('guided session', () => {
   const mission = {
     title: 'Chest',
