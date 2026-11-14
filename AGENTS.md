@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 evening (demo branch `feat/integration-v4` = #30–#34 on top of v3).
+Last updated: 2026-11-14 night (demo branch `feat/integration-v5` = #35–#38 on top of v4).
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
@@ -94,7 +94,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Plan toward a physique photo (consent → `/physique` → muscle emphasis → plan confirm card); offline rule plan from `fitnessGoal` + `focusMuscles` + history | 🧪 feat/import-plan | `server/jim-proxy/physique.js`, `lib/jimAI.js` `askPhysique`, `lib/planFromGoal.js` | 11 proxy (SDK mocked) + 16 app unit tests | **live API smoke test with a real photo**; device image picker |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 
-Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.
+Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged.
 
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
