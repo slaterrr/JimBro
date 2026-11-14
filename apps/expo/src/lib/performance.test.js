@@ -122,3 +122,12 @@ describe('live session reports an unfinished attempt after the last rep', () => 
     assert.equal(mid.quality().partialAfterLastRep, false);
   });
 });
+
+describe('no claims without measurements', () => {
+  it('a tap-counted set never says the reps were steady', () => {
+    const f = assessFatigue({ movement: 'bench', reps: [], target: 5, completed: 5, rir: 3 });
+    assert.equal(f.level, 'normal');
+    assert.doesNotMatch(f.text, /steady|variation/i);
+    assert.match(f.text, /reported/i);
+  });
+});
