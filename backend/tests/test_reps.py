@@ -3,7 +3,6 @@
 from collections.abc import Iterable, Sequence
 
 import pytest
-
 from backend.jimbro.reps import (
     CURL,
     MOVEMENTS,
