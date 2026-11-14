@@ -195,7 +195,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
           <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
           <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
           <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI, compact && { padding: 4 }]}>

@@ -31,6 +31,7 @@ export function PersonaPicker() {
                 accessibilityRole="button"
                 accessibilityLabel={`Play ${p.name} sample`}
                 hitSlop={8}
+                style={{ minHeight: 44, minWidth: 44, justifyContent: 'center', paddingHorizontal: 8 }}
               >
                 <Text style={[type.small, { color: T.accentText, fontWeight: '700' }]}>▶ sample</Text>
               </TouchableOpacity>

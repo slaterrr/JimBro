@@ -84,6 +84,7 @@ const WIRING = {
   'screens/ProgressScreen.js': [
     [/Goals/, 'Goals tab'],
     [/History/, 'History tab with comparisons'],
+    [/<Dropdown[\s\S]*label="Compare by"/, 'History tab time frame from a dropdown'],
     [/Estimate my activity level/, 'activity level entry card'],
     [/<HealthConnect\b/, 'health history import sheet mounted'],
   ],
@@ -105,6 +106,17 @@ const WIRING = {
     [/migrateGoals/, 'goals persisted'],
     [/updateSet/, 'Jim can correct sets'],
     [/onboarded: isOnboarded\(/, 'onboarded flag migrated (old saves with history skip setup)'],
+  ],
+  'components/kit.js': [
+    [/export function Dropdown\(/, 'scrollable dropdown picker'],
+    [/horizontal/, 'segmented control scrolls when it has many options'],
+  ],
+  'components/Comparisons.js': [
+    [/<Dropdown[\s\S]*label="Compare by"/, 'time frame chosen from a dropdown'],
+    [/label="From"[\s\S]*label="To"/, 'from/to periods chosen from scrollable dropdowns'],
+  ],
+  'components/TabBar.js': [
+    [/accessibilityLabel=\{t\.id\}/, 'tab bar buttons are labelled (screen readers + UI smoke test)'],
   ],
   'lib/live.js': [
     [/torsoInFrame/, 'framing gate (gesture false reps)'],

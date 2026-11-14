@@ -20,6 +20,7 @@ export function TabBar({ tab, onChange }) {
           <TouchableOpacity
             key={t.id}
             accessibilityRole="tab"
+            accessibilityLabel={t.id}
             accessibilityState={{ selected: on }}
             onPress={() => onChange(t.id)}
             style={[st.item, on && st.itemOn]}

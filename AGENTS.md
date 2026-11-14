@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`.
+Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`. **Agentic Jim work: follow `docs/AGENT_SPRINTS.md`.**
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
@@ -40,6 +40,7 @@ Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see 
 | Bundles | `cd apps/expo && npx expo export --platform android` (and `ios`) |
 | Vision lab tests (simulator + scoring) | `cd tools/vision-lab && npm ci && npm test` (15 pass) |
 | Real-video replay | `cd tools/vision-lab && node run.mjs` (needs Chrome + ffmpeg; videos downloaded per `labels/*.json` `source`) |
+| UI smoke (every screen at 320/390px: overlap, clipped, off-screen, covered, invisible labels, tap targets, dropdowns) | `cd apps/expo && npm run test:ui` (needs Chrome; CI job `ui-smoke`, screenshots artifact) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
 ## Feature status

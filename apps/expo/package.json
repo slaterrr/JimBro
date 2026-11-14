@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "test": "node --test src/lib/*.test.js",
-    "harness": "node scripts/engine-harness.mjs"
+    "harness": "node scripts/engine-harness.mjs",
+    "test:ui": "expo export --platform web --output-dir dist-web && node e2e/ui-smoke.mjs dist-web"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -29,5 +30,8 @@
     "react-native-svg": "15.16.0",
     "react-native-web": "^0.21.4",
     "react-native-webview": "14.0.1"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.43.1"
   }
 }
