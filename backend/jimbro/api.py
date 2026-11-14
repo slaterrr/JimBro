@@ -29,6 +29,7 @@ from .coach import (
 )
 from .db import Conflict, Database, NotFound
 from .live import LiveSession
+from .plans import Plan, PlanRequest, build_plan
 from .reps import MOVEMENTS
 from .schemas import (
     ATHLETE_PATTERN,
@@ -125,6 +126,11 @@ def coach(
     focus = body.exercise or (sets[-1].exercise if sets else None)
     suggestion = suggest_next([s for s in sets if s.exercise == focus]) if focus else None
     return coach_reply(facts, body.message, body.tone, model, suggestion)
+
+
+@router.post("/plans")
+def plan(body: PlanRequest) -> Plan:
+    return build_plan(body)
 
 
 @router.get("/suggestions/{exercise}")
