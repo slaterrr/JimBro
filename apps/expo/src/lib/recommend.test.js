@@ -102,3 +102,36 @@ describe('evaluateRecommendations', () => {
     assert.match(e.text, /not enough|too early/i);
   });
 });
+
+describe('measured speed vs reported effort', () => {
+  const easy = { ...base, rir: 3, rpe: null };
+  const metrics = (velocityLossPct) => ({ velocityLossPct, calibrated: false });
+
+  it('agreeing evidence: cites both sources and is more confident', () => {
+    const r = recommendNext({ ...easy, fatigue: fatigue('normal'), metrics: metrics(5) });
+    assert.equal(r.action, 'increase');
+    assert.equal(r.agreement, 'agree');
+    assert.equal(r.confidence, 'higher');
+    assert.deepEqual(r.evidence.map((e) => e.source).sort(), ['measured', 'reported']);
+  });
+
+  it('reps slowed a lot but the user felt fresh: no increase, asks to check', () => {
+    const r = recommendNext({ ...easy, fatigue: fatigue('normal'), metrics: metrics(35) });
+    assert.notEqual(r.action, 'increase');
+    assert.equal(r.agreement, 'measured_harder');
+    assert.ok(r.reasons.some((x) => /slowed|slower/i.test(x) && /check|one more/i.test(x)));
+  });
+
+  it('user says it was very hard while speed held: the user wins', () => {
+    const r = recommendNext({ ...base, rir: 0, fatigue: fatigue('increasing_difficulty'), metrics: metrics(4) });
+    assert.notEqual(r.action, 'increase');
+    assert.equal(r.agreement, 'reported_harder');
+    assert.ok(r.evidence.some((e) => e.source === 'reported'));
+  });
+
+  it('only one source: lower confidence and says what is missing', () => {
+    const r = recommendNext({ ...easy, fatigue: fatigue('normal') });
+    assert.equal(r.confidence, 'lower');
+    assert.equal(r.agreement, 'reported_only');
+  });
+});
