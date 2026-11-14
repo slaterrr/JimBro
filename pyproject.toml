@@ -24,6 +24,8 @@ where = ["backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+# Repo root on sys.path so tests can import backend.jimbro (as mutmut needs) under bare `pytest`.
+pythonpath = ["."]
 addopts = "-ra"
 
 [tool.ruff]
