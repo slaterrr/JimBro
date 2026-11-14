@@ -43,6 +43,10 @@ mypy_path = "backend"
 
 [tool.mutmut]
 source_paths = ["backend/jimbro/motion.py", "backend/jimbro/reps.py"]
-pytest_add_cli_args_test_selection = ["backend/tests/test_motion.py", "backend/tests/test_reps.py"]
+pytest_add_cli_args_test_selection = [
+  "backend/tests/test_motion.py",
+  "backend/tests/test_reps.py",
+  "backend/tests/test_reps_boundaries.py",
+]
 also_copy = ["backend/tests", "backend/jimbro/__init__.py"]
 debug = true
