@@ -6,6 +6,9 @@ import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
 import { setReport } from '../lib/sessionReport.js';
+import { assessFatigue } from '../lib/performance.js';
+import { recLine } from '../lib/perfCoach.js';
+import { recommendNext } from '../lib/recommend.js';
 import { spokenReport } from '../lib/speech.js';
 import { loggedText, restText } from '../lib/voice.js';
 import { restFor } from '../lib/rest.js';
@@ -124,11 +127,25 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       return;
     }
     const fromCamera = Boolean(camera && camera.movement === exercise && camera.reps.length === r);
+    const rpeN = rpe === '' ? null : Number(rpe);
+    const target = fromCamera ? camera.target ?? null : null;
+    // Performance record and an optional next-set suggestion, from measurements and the user's RPE.
+    const prior = allSets.filter((x) => x.exercise === exercise);
+    const fatigue = assessFatigue({
+      movement: exercise, reps: fromCamera ? camera.reps : [], target, completed: r, rpe: rpeN,
+      partials: fromCamera ? camera.quality?.partials ?? 0 : 0, partialAfterLastRep: fromCamera ? camera.quality?.partialAfterLastRep ?? false : false,
+      weight: w, unit, history: prior,
+    });
+    const rec = recommendNext({ exercise, unit, weight: w, target: target ?? r, completed: r, rpe: rpeN, fatigue, history: prior, metrics: fatigue.metrics });
+    const m = fatigue.metrics;
     const { isPR } = logSet({
-      exercise, weight: w, unit, reps: r, rpe: rpe === '' ? null : Number(rpe),
+      exercise, weight: w, unit, reps: r, rpe: rpeN,
       source: fromCamera ? 'camera' : initial?.source ?? 'manual',
       reps_detail: fromCamera ? camera.reps : [],
-      ...(fromCamera ? { camera_quality: camera.quality ?? null, target: camera.target ?? null } : {}),
+      ...(fromCamera ? { camera_quality: camera.quality ?? null, target } : {}),
+      ...(fromCamera && m ? { metrics: { calibrated: false, meanLiftMs: m.meanLiftMs, velocityLossPct: m.velocityLossPct, romLossPct: m.romLossPct, consistencyCv: m.consistencyCv } } : {}),
+      fatigue: fatigue.level,
+      rec: rec.action === 'none' ? null : { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: false },
     });
     const report = fromCamera
       ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
@@ -136,7 +153,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     say(report
       ? `${isPR ? 'New record! ' : ''}${spokenReport(report, settings.persona)}`
       : loggedText(settings.persona, { exercise, reps: r, weight: w, unit, isPR }, allSets.length));
-    setSaved({ isPR, report, rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe), fitnessGoal: settings.fitnessGoal, experience: settings.experience, activityLevel: settings.activityLevel }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
+    setSaved({ isPR, report, fatigue: fatigue.level === 'uncertain' ? null : fatigue.text, next: rec.action === 'none' ? null : `${recLine({ ...rec, unit }, { history: prior.length > 0 }) ?? ''} ${rec.reasons.join(' ')}`.trim(), rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe), fitnessGoal: settings.fitnessGoal, experience: settings.experience, activityLevel: settings.activityLevel }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
   return (
@@ -146,6 +163,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
           <Card style={{ borderColor: saved.isPR ? T.green : T.border }}>
             <Text style={type.title}>{saved.isPR ? '🏆 New personal record' : 'Set saved'}</Text>
             <Text style={type.body}>{saved.text}</Text>
+            {saved.fatigue ? <Text style={[type.small, { marginTop: 6 }]}>{saved.fatigue}</Text> : null}
+            {saved.next ? <Text style={[type.small, { marginTop: 4 }]}>Next time: {saved.next}</Text> : null}
           </Card>
           {saved.report ? <SetReportCard report={saved.report} clips={camera?.clips} movement={camera?.movement} /> : null}
           <RestTimer rest={saved.rest} onDone={onClose} />

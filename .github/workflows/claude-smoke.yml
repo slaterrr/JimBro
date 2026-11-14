@@ -1,0 +1,46 @@
+# Live Claude smoke test for server/jim-proxy, using the repository secret CLAUD_TOKEN.
+# The key stays in GitHub: it is passed as ANTHROPIC_API_KEY to this job only, and Actions masks it
+# in logs. It makes ONE real call (a plain reply) and prints PASS/FAIL; it never prints the key or
+# request bodies. Run all three checks locally with `npm run smoke`.
+name: Claude smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/engines]
+    paths:
+      - '.github/workflows/claude-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install proxy dependencies
+        working-directory: server/jim-proxy
+        run: npm ci
+      - name: Proxy unit tests (Claude mocked)
+        working-directory: server/jim-proxy
+        run: npm test
+      - name: Live check (real Claude calls)
+        working-directory: server/jim-proxy
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUD_TOKEN }}
+          # Default: one plain call. A commit message tag like [smoke:vision,physique] picks checks
+          # (plain, read, write, vision, physique). The message is read from env and filtered to
+          # letters and commas, so it cannot inject shell.
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          checks=$(printf '%s' "$COMMIT_MSG" | grep -o '\[smoke:[a-z,]*\]' | head -1 | sed -E 's/\[smoke:([a-z,]*)\]/\1/')
+          if [ -n "$checks" ]; then npm run smoke -- --checks="$checks"; else npm run smoke -- --one; fi

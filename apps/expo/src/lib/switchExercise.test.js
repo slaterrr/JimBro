@@ -20,12 +20,17 @@ describe('switchPlan', () => {
   it('no counted reps: nothing to log first', () => {
     assert.equal(switchPlan({ current: 'curl', suggested: 'squat', counted: 0 }).logFirst, false);
   });
-  it('manual-log suggestion (lunge) offers logging with +', () => {
-    const p = switchPlan({ current: 'squat', suggested: 'lunge', counted: 2 });
+  it('manual-log suggestion (bench) offers logging with +', () => {
+    const p = switchPlan({ current: 'push_up', suggested: 'bench', counted: 2 });
     assert.equal(p.kind, 'manual');
     assert.equal(p.logFirst, true);
-    assert.equal(p.label, 'Looks like Lunge. Switch?');
-    assert.deepEqual(p.actions.map((a) => [a.id, a.label]), [['log', 'Log lunges with +'], ['keep', 'Keep Squat']]);
+    assert.equal(p.label, 'Looks like Bench press. Switch?');
+    assert.deepEqual(p.actions.map((a) => [a.id, a.label]), [['log', 'Log bench presses with +'], ['keep', 'Keep Push-up']]);
+  });
+  it('lunges are camera-countable now (experimental): the switch moves the live counter', () => {
+    const p = switchPlan({ current: 'squat', suggested: 'lunge', counted: 2 });
+    assert.equal(p.kind, 'camera');
+    assert.deepEqual(p.actions.map((a) => a.id), ['switch', 'keep']);
   });
   it('unknown suggestion is treated as manual with its id as name', () => {
     assert.equal(switchPlan({ current: 'curl', suggested: 'row', counted: 0 }).kind, 'manual');
@@ -37,8 +42,8 @@ describe('switchPlan', () => {
 });
 
 describe('lunge catalog entry', () => {
-  it('is a manual-log exercise with lower-body muscles and compound rest', () => {
-    assert.deepEqual(EXERCISES.find((e) => e.id === 'lunge'), { id: 'lunge', name: 'Lunge', camera: false });
+  it('is camera-counted (experimental) with lower-body muscles and compound rest', () => {
+    assert.deepEqual(EXERCISES.find((e) => e.id === 'lunge'), { id: 'lunge', name: 'Lunge', camera: true });
     assert.deepEqual(EXERCISE_MUSCLES.lunge, ['quads', 'glutes', 'hamstrings']);
     assert.equal(restFor({ exercise: 'lunge', reps: 10 }).seconds, 120);
   });

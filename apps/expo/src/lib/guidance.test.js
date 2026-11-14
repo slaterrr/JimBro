@@ -28,7 +28,7 @@ test('a detected exercise change is explained and tells the user what to do', ()
   const g = cameraGuidance('exercise_change', 'lunge', 'squat');
   assert.match(g, /lunge/i);
   assert.match(g, /squat/i);
-  assert.match(g, /\+|log/i);
+  assert.match(g, /\+|log|switch/i); // lunges are camera-counted now: the action is to switch
 });
 
 test('arm-lift exercise changes are explained neutrally and say how to count them', () => {

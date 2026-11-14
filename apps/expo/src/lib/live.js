@@ -1,7 +1,8 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, armShape, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint, pushupShape } from './angles.js';
+import { armShape, assessTracking, curlUpperArmSwing, jointsFor, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint, pushupShape } from './angles.js';
 import { analyzeRep } from './form.js';
+import { analyzerFor } from './analyzers.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
 const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on real videos
@@ -35,6 +36,24 @@ const FORM_REVIEW = new Set(['curl', 'squat', 'shoulder_press']);
 // Push-up mode: arms straight again (elbow >= this) in a push-up position releases the latch.
 const ARMS_STRAIGHT_DEG = 150;
 const ARM_SUGGEST = { curl: 'curl', press: 'shoulder_press' };
+// Velocity window margin: the counter starts a phase at a threshold crossing, after motion began.
+const VEL_MARGIN_MS = 100;
+// EXPERIMENTAL gates (simulation-tested only). Pull-up: hands overhead (wrist above the shoulder by
+// a tenth of a torso) and fixed on the bar; if the wrist travels > 0.35 torso lengths during a rep,
+// the hands are moving, not the body (a press), so the rep is not a pull-up.
+const PULLUP_OVERHEAD_TORSO = 0.1;
+const PULLUP_WRIST_DRIFT_TORSO = 0.35;
+// Deadlift: a knee bent below this at any point looks like a squat, not a hinge. Heuristic: real
+// deep deadlift starts and quarter squats overlap; validate on real clips.
+const DEADLIFT_SQUAT_KNEE_DEG = 100;
+// EXPERIMENTAL lunge mode: a deep knee bend with both legs level (no split) is a squat.
+const LUNGE_DEEP_DEG = 130; // lead-leg sampling
+// The split only shows near the bottom (mid-descent both knees look level), so judge squat vs lunge there.
+const LUNGE_JUDGE_DEG = 110;
+// A split stance (feet apart front-to-back, side view) is lunge evidence; one borderline frame must not
+// abort a rep, so a squat needs a few consecutive frames even mid-rep.
+const LUNGE_SPLIT_TORSO = 0.8;
+const LUNGE_SQUAT_FRAMES = 3;
 
 /** Evenly pick at most n items, keeping the first and last. */
 export function downsample(items, n) {
@@ -53,7 +72,7 @@ export function torsoInFrame(pose, side) {
 /** Fastest tracked joint between two frames, in torso lengths per second. */
 export function jointSpeed(prev, pose, t, movement, side) {
   if (!prev || t - prev.t <= 0 || t - prev.t > MAX_SPEED_GAP_MS) return 0;
-  const idx = (movement === 'squat' ? LEG : ARM)[side];
+  const idx = jointsFor(movement)[side];
   const sh = pose[side === 'left' ? 11 : 12];
   const hip = pose[side === 'left' ? 23 : 24];
   const torso = Math.hypot(sh.x - hip.x, sh.y - hip.y);
@@ -64,6 +83,8 @@ export function jointSpeed(prev, pose, t, movement, side) {
 
 export class LiveSession {
   constructor(movement) {
+    const analyzer = analyzerFor(movement);
+    if (analyzer?.status === 'manual') throw new Error(`No camera counting for ${movement}: ${analyzer.reason} Tap to count.`);
     if (!MOVEMENTS[movement]) throw new Error(`no camera counting for ${movement}`);
     this.movement = movement;
     this.counter = new RepCounter(MOVEMENTS[movement]);
@@ -142,6 +163,7 @@ export class LiveSession {
       const knee = frontalKneeAngle(pose, this.side, (this._cal ??= {}));
       m = knee === null ? null : { ...m, angle: knee };
     }
+    if (this.movement === 'lunge' && m) m = this._lungeAngle(pose, t) ?? m;
     if (!m) {
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
@@ -157,7 +179,10 @@ export class LiveSession {
       this.counter.interrupt();
       return this.result(null, tracking, m.angle, 'implausible_motion');
     }
-    const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle) : this._pushupElsewhere(pose);
+    const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle)
+      : this.movement === 'pull_up' ? this._pullupGate(pose, m.angle)
+      : this.movement === 'lunge' ? (this._lungeGate(pose, m.angle) || this._pushupElsewhere(pose))
+        : (this.movement === 'deadlift' && this._deadliftGate(pose)) || this._pushupElsewhere(pose);
     if (changed) {
       this.counter.interrupt();
       return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: changed, suggested: this.suggested ?? null };
@@ -202,7 +227,9 @@ export class LiveSession {
       }
     }
     this._buf.push({ t, pose: pose.map(({ x, y, visibility }) => ({ x, y, visibility })), angle: m.angle });
+    const partialsBefore = this.counter.partials;
     const rep = this.counter.update({ t_ms: t, angle_deg: m.angle, confidence: m.confidence });
+    if (this.counter.partials > partialsBefore) this._lastPartialT = t; // an attempt that didn't reach full range
     if (rep) {
       this._describeRep(rep);
       this.reps.push(rep);
@@ -238,6 +265,80 @@ export class LiveSession {
     return this._latched ? (this.suggested ?? 'upright') : null;
   }
 
+  /** Pull-up mode: arms overhead with the hands fixed on the bar (see PULLUP_* above). */
+  _pullupGate(pose, elbow) {
+    const L = this.side === 'left' ? { sh: 11, wr: 15, hip: 23 } : { sh: 12, wr: 16, hip: 24 };
+    const sh = pose[L.sh];
+    const wr = pose[L.wr];
+    const torso = Math.hypot(sh.x - pose[L.hip].x, sh.y - pose[L.hip].y);
+    if (!(torso > 0.01)) return null;
+    const overhead = wr.y < sh.y - PULLUP_OVERHEAD_TORSO * torso;
+    const moving = this.counter.state !== 'rest';
+    if (!moving && overhead) this._wristRef = this._wristRef == null ? wr.y : 0.7 * this._wristRef + 0.3 * wr.y;
+    const drift = moving && this._wristRef != null ? Math.abs(wr.y - this._wristRef) / torso : 0;
+    const hands = drift > PULLUP_WRIST_DRIFT_TORSO;
+    const other = !overhead || hands;
+    if (other) {
+      const cand = hands ? 'shoulder_press' : ARM_SUGGEST[armShape(pose, this.side)] ?? null;
+      if (cand) {
+        const seen = (this._seen ??= {});
+        seen[cand] = (seen[cand] ?? 0) + 1;
+        if (seen[cand] >= SUGGEST_FRAMES) this.suggested = cand;
+      }
+    }
+    this._other = other ? (this._other ?? 0) + 1 : 0;
+    if (other && (this._other >= ARM_CHANGE_FRAMES || moving)) this._latched = true;
+    if (this._latched && !other && elbow >= ARMS_STRAIGHT_DEG) {
+      this._latched = false;
+      this._wristRef = wr.y;
+    }
+    return this._latched ? (this.suggested ?? 'hang') : null;
+  }
+
+  /**
+   * Lunge mode: depth is the more-bent knee of the two (both must be visible); the lead leg at depth
+   * is the one whose knee is higher (the back knee drops toward the floor).
+   */
+  _lungeAngle(pose, t) {
+    const L = movementAngle(pose, 'squat', 'left');
+    const R = movementAngle(pose, 'squat', 'right');
+    if (!L || !R || L.confidence < 0.5 || R.confidence < 0.5) return null;
+    const angle = Math.min(L.angle, R.angle);
+    if (angle < LUNGE_DEEP_DEG) (this._leads ??= []).push({ t, lead: pose[25].y < pose[26].y ? 'left' : 'right' });
+    return { angle, confidence: Math.min(L.confidence, R.confidence) };
+  }
+
+  /** Lunge mode: a deep bend with level knees and no split stance is a squat (latched until standing). */
+  _lungeGate(pose, knee) {
+    const sh = { x: (pose[11].x + pose[12].x) / 2, y: (pose[11].y + pose[12].y) / 2 };
+    const hp = { x: (pose[23].x + pose[24].x) / 2, y: (pose[23].y + pose[24].y) / 2 };
+    const torso = Math.hypot(sh.x - hp.x, sh.y - hp.y);
+    const split = torso > 0.01 && !isFrontal(pose) && Math.abs(pose[27].x - pose[28].x) / torso > LUNGE_SPLIT_TORSO;
+    const squatLike = knee < LUNGE_JUDGE_DEG && !split && lowerBodyShape(pose, knee) === 'squat';
+    this._other = squatLike ? (this._other ?? 0) + 1 : 0;
+    if (squatLike) {
+      this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = 'squat';
+    }
+    if (this._other >= (this.counter.state !== 'rest' ? LUNGE_SQUAT_FRAMES : CHANGE_FRAMES)) this._latched = true;
+    if (this._latched && knee >= STANDING_DEG) this._latched = false;
+    return this._latched ? 'squat' : null;
+  }
+
+  /** Deadlift mode: a deep knee bend is a squat, not a hip hinge (until standing again). */
+  _deadliftGate(pose) {
+    const knee = movementAngle(pose, 'squat', this.side)?.angle;
+    if (!Number.isFinite(knee)) return null;
+    const squat = knee < DEADLIFT_SQUAT_KNEE_DEG;
+    if (squat) {
+      this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = 'squat';
+      this._latched = true;
+    }
+    if (this._latched && knee >= STANDING_DEG) this._latched = false;
+    return this._latched ? 'squat' : null;
+  }
+
   /** Other modes: hands and knees/feet on the floor with a flat body is a push-up, not this lift. */
   _pushupElsewhere(pose) {
     const ps = pushupShape(pose, this.side);
@@ -250,10 +351,42 @@ export class LiveSession {
     return this._puLatched ? 'push_up' : null;
   }
 
-  /** Adds range of motion (degrees) and, for push-ups, the majority rep type to a counted rep. */
+  /**
+   * Lifting-phase angular speed measured from the joint-angle trace (degrees/s, relative): peak of a
+   * 3-frame moving average of frame-to-frame speed, and mean = angle travelled / phase time.
+   */
+  _velocity(rep) {
+    const phase = analyzerFor(this.movement)?.liftPhase ?? 'concentric_ms';
+    const peakT = rep.start_ms + rep.concentric_ms;
+    const leaveT = peakT + rep.peak_pause_ms;
+    const [a, b] = phase === 'concentric_ms' ? [rep.start_ms, peakT] : [leaveT, rep.end_ms];
+    const fr = this._buf.filter((f) => f.t >= a - VEL_MARGIN_MS && f.t <= b + VEL_MARGIN_MS);
+    if (fr.length < 4 || b <= a) return;
+    const speed = [];
+    for (let i = 1; i < fr.length; i += 1) {
+      const dt = (fr[i].t - fr[i - 1].t) / 1000;
+      if (dt > 0) speed.push(Math.abs(fr[i].angle - fr[i - 1].angle) / dt);
+    }
+    const smooth = speed.map((_, i) => {
+      const w = speed.slice(Math.max(0, i - 1), i + 2);
+      return w.reduce((s, x) => s + x, 0) / w.length;
+    });
+    const inPhase = fr.filter((f) => f.t >= a && f.t <= b).map((f) => f.angle);
+    rep.peak_dps = Math.round(Math.max(...smooth));
+    rep.mean_dps = inPhase.length >= 2 ? Math.round((Math.max(...inPhase) - Math.min(...inPhase)) / ((b - a) / 1000)) : null;
+  }
+
+  /** Adds range of motion (degrees), measured speed and, for push-ups, the majority rep type. */
   _describeRep(rep) {
     const angles = this._buf.filter((f) => f.t >= rep.start_ms - CLIP_PRE_MS && f.t <= rep.end_ms).map((f) => f.angle);
     rep.rom_deg = angles.length ? Math.round(Math.max(...angles) - Math.min(...angles)) : null;
+    this._velocity(rep);
+    if (this.movement === 'lunge') {
+      const tally = {};
+      for (const { t, lead } of this._leads ?? []) if (t >= rep.start_ms && t <= rep.end_ms) tally[lead] = (tally[lead] ?? 0) + 1;
+      rep.lead = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      this._leads = (this._leads ?? []).filter((x) => x.t > rep.end_ms);
+    }
     if (this.movement !== 'push_up') return;
     const tally = {};
     for (const { t, v } of this._variants ?? []) if (v && t >= rep.start_ms && t <= rep.end_ms) tally[v] = (tally[v] ?? 0) + 1;
@@ -265,7 +398,11 @@ export class LiveSession {
   /** Set-level evidence for the report: frames, usable frames, issue episodes, partial reps. */
   quality() {
     const q = this._q ?? { frames: 0, okFrames: 0, issues: {} };
-    return { frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials };
+    const lastRepEnd = this.reps.length ? this.reps[this.reps.length - 1].end_ms : -Infinity;
+    return {
+      frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials,
+      partialAfterLastRep: this._lastPartialT != null && this._lastPartialT > lastRepEnd,
+    };
   }
 
   /** Changing the physical camera may mirror sides; preserve completed reps. */
@@ -287,13 +424,17 @@ export class LiveSession {
     this._pending = [];
     this._clips = [];
     this._variants = [];
+    this._lastPartialT = null;
   }
 
   /** Reps in the shape a logged set stores. */
   repsDetail() {
-    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant }) => ({
+    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant, peak_dps, mean_dps, lead }) => ({
       index, concentric_ms, peak_pause_ms, eccentric_ms,
       ...(rom_deg != null ? { rom_deg } : {}),
+      ...(peak_dps != null ? { peak_dps } : {}),
+      ...(mean_dps != null ? { mean_dps } : {}),
+      ...(lead !== undefined ? { lead } : {}),
       ...(variant !== undefined ? { variant } : {}),
     }));
   }

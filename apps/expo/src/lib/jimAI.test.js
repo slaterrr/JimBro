@@ -155,3 +155,42 @@ describe('askJim', () => {
     assert.deepEqual(r.proposals, []);
   });
 });
+
+describe('proxy key and workout context', () => {
+  it('sends X-Jim-Key only when configured', async () => {
+    const seen = [];
+    const fetchImpl = async (url, init) => { seen.push(init.headers); return { ok: true, json: async () => ({ reply: 'Hi.', proposals: [] }) }; };
+    await askJim({ message: 'hello', state: { history: [], settings: {} }, url: 'http://x', fetchImpl, key: 'k-123' });
+    await askJim({ message: 'hello', state: { history: [], settings: {} }, url: 'http://x', fetchImpl });
+    assert.equal(seen[0]['X-Jim-Key'], 'k-123');
+    assert.equal('X-Jim-Key' in seen[1], false);
+  });
+
+  it('reads the key like the URL: env first, then app.json extra', async () => {
+    const { proxyKey } = await import('./jimAI.js');
+    assert.equal(proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: 'a' }, { jimProxyKey: 'b' }), 'a');
+    assert.equal(proxyKey({}, { jimProxyKey: 'b' }), 'b');
+    assert.equal(proxyKey({}, {}), null);
+  });
+
+  it('the context snapshot carries today, sets left and the stated profile', () => {
+    const plan = { days: [{ day: 1, items: [{ exercise: 'squat', sets: 3, reps_low: 5, reps_high: 5 }] }] };
+    const ctx = buildContext({ history: [], plan, settings: { profile: { equipment: ['dumbbells'] } } });
+    assert.match(ctx.workout.today, /squat/i);
+    assert.match(ctx.workout.setsLeft, /no planned workout/i);
+    assert.deepEqual(ctx.workout.profile, { equipment: ['dumbbells'] });
+  });
+});
+
+describe('Claude sees measured speed, labelled as relative', () => {
+  it('lastSetReport carries velocity loss and peak speeds with their trust class', () => {
+    const reps = [700, 720, 760, 820, 900, 1000].map((l, i) => ({ index: i + 1, concentric_ms: l, peak_pause_ms: 100, eccentric_ms: 900, rom_deg: 110, peak_dps: 260 - i * 25, mean_dps: 150 - i * 12 }));
+    const state = { history: [{ id: 'w1', startedAt: new Date().toISOString(), sets: [{ id: 's1', exercise: 'curl', reps: 6, weight: 30, unit: 'lb', source: 'camera', reps_detail: reps }] }], settings: {} };
+    const ctx = buildContext(state);
+    const m = ctx.lastSetReport.measured;
+    assert.ok(m.velocityLossPct > 0);
+    assert.equal(m.peakDps.length, 6);
+    assert.match(m.note, /relative/i);
+    assert.match(m.note, /not bar speed|not m\/s/i);
+  });
+});

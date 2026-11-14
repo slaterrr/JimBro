@@ -1,16 +1,24 @@
 import { useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
+import { MissionPanel } from '../components/Mission.js';
+// No extension on purpose: Metro then loads PoseView.web.js on web and PoseView.js on phones.
+import { PoseView } from '../components/PoseView';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
 import { estimateEffort } from '../lib/effort.js';
+import { perfLabel, PerfTracker } from '../lib/cameraPerf.js';
+import { liveSlowdownCue } from '../lib/perfCoach.js';
+import { repMetrics } from '../lib/performance.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
+import { stageHeight } from '../lib/layout.js';
+import { analyzerFor, cameraLabel } from '../lib/analyzers.js';
+import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { switchPlan } from '../lib/switchExercise.js';
 import { R, T, type } from '../theme.js';
@@ -26,7 +34,10 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active, settings, voice: jim } = useApp();
+  const { active, settings, voice: jim, mission, stepMission } = useApp();
+  const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
+  const [lastRepAt, setLastRepAt] = useState(0);
+  const stageH = stageHeight(useWindowDimensions().height); // fits any screen; controls stay visible
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -57,9 +68,16 @@ export function CoachScreen({ openLog }) {
   // Live effort estimate (labelled "est.") and, for push-ups, the last rep's type.
   const effort = useMemo(() => estimateEffort({ movement, reps: session.current.repsDetail() }), [view.count, movement]);
   const lastVariant = movement === 'push_up' ? view.lastRep?.variant ?? null : null;
+  // Measured, relative numbers for the overlay (degrees and ms from the camera; not m/s).
+  const perf = useMemo(() => repMetrics(movement, session.current.repsDetail()), [view.count, movement]);
+  const lastLiftS = perf.reps.length ? perf.reps[perf.reps.length - 1].lift_ms / 1000 : null;
+  const slowCued = useRef(false);
+  const speed = useRef(new PerfTracker({ targetFps: 20 }));
+  const [speedText, setSpeedText] = useState(null);
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
+    slowCued.current = false;
     setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
     setSuggestion(null);
     seenSuggestion.current = null;
@@ -74,10 +92,24 @@ export function CoachScreen({ openLog }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movement]);
 
+  // Mission mode: the mission decides the lift and the target; the camera follows.
+  useEffect(() => {
+    if (!mt) return;
+    if (mt.camera && mt.exercise !== movement) setMovement(mt.exercise);
+    setTarget(mt.reps);
+    setSets(mt.sets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mt?.exercise, mt?.reps, mt?.sets]);
+
   const onMessage = (e) => {
     let m;
     try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
     if (m.type === 'ready') setReady(true);
+    if (m.type === 'perf') {
+      speed.current.add(m); // measured on this device by the pose page
+      setSpeedText(perfLabel(m));
+      return;
+    }
     if (m.type === 'error') {
       setError(m.kind === 'camera'
         ? 'The camera could not start. Allow camera access for Expo Go in Settings.'
@@ -107,7 +139,16 @@ export function CoachScreen({ openLog }) {
       caughtTimer.current = setTimeout(() => setCaught(null), CAUGHT_MS);
       if (voice) jim.cue(`Not counted — ${words}.`, { force: true });
     }
+    if (out.rep) setLastRepAt(Date.now());
     if (out.rep && voice) jim.cue(String(out.count), { force: true });
+    if (out.rep && voice) {
+      // At most one short line per set, between reps, and only for a clear slowdown.
+      const line = liveSlowdownCue(movement, session.current.repsDetail(), slowCued.current);
+      if (line) {
+        slowCued.current = true;
+        jim.say(line, { force: true });
+      }
+    }
   };
 
   const stop = () => {
@@ -124,6 +165,11 @@ export function CoachScreen({ openLog }) {
       openLog({ exercise: next });
       return;
     }
+    if (mt) {
+      stepMission({ type: 'switch', exercise: next }); // the mission swaps the lift; the effect above follows it
+      resetSet(next);
+      return;
+    }
     if (plan?.logFirst) stop(); // log the reps already counted for the current lift, as Stop does
     setMovement(next); // the movement effect resets the session for the new exercise
   };
@@ -137,7 +183,7 @@ export function CoachScreen({ openLog }) {
   if (!permission) return null;
   if (!permission.granted) {
     return (
-      <View style={{ padding: 20 }}>
+      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
         <Header live={false} />
         <Card style={{ marginTop: 20 }}>
           <Text style={type.title}>Camera access</Text>
@@ -146,28 +192,27 @@ export function CoachScreen({ openLog }) {
             ? <PrimaryButton onPress={requestPermission}>Allow camera</PrimaryButton>
             : <PrimaryButton onPress={() => Linking.openSettings()}>Open Settings</PrimaryButton>}
         </Card>
-      </View>
+        {mission ? (
+          <MissionPanel count={0} lastRepAt={0} tracking="lost" repsDetail={() => []} resetCounter={() => resetSet()} voiceOn={voice} />
+        ) : null}
+      </ScrollView>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <Header live={ready && view.tracking === 'ok'} />
-      <View style={st.stage}>
-        <WebView
-          ref={web}
-          source={{ html, baseUrl: 'https://localhost/' }}
-          originWhitelist={['*']}
-          onMessage={onMessage}
-          javaScriptEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          mediaCapturePermissionGrantType="grant"
-          style={{ backgroundColor: '#000' }}
-        />
+      <View style={[st.stage, { height: stageH }]}>
+        <PoseView ref={web} html={html} onMessage={onMessage} style={{ backgroundColor: '#000' }} />
         <TouchableOpacity style={[st.glass, st.exerciseBox]} onPress={() => setSetup(true)} accessibilityLabel="Change exercise">
           <Text style={{ color: T.text, fontSize: 18, fontWeight: '700' }}>{exerciseName(movement)}</Text>
           <Text style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>Set {setNo} of {Math.max(sets, setNo)}</Text>
+          {analyzerFor(movement)?.status !== 'tested_real' ? (
+            // Honest about how well the camera has been tested for this lift.
+            <Text style={{ color: T.amber, fontSize: 12, marginTop: 4 }} accessibilityLabel={cameraLabel(movement)}>
+              {analyzerFor(movement)?.status === 'experimental' ? 'Experimental counting' : 'Tested in simulation only'}
+            </Text>
+          ) : null}
         </TouchableOpacity>
         <View style={[st.glass, st.repsBox]}>
           <Text style={{ color: T.text, fontSize: 15, fontWeight: '600' }}>Reps</Text>
@@ -180,9 +225,19 @@ export function CoachScreen({ openLog }) {
               {lastVariant === 'standard' ? 'Standard' : lastVariant === 'knee' ? 'Knee' : 'Incline'} push-up
             </Text>
           ) : null}
+          {lastLiftS ? (
+            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Last rep lifted in ${lastLiftS.toFixed(1)} seconds`}>
+              Last rep {lastLiftS.toFixed(1)} s up
+            </Text>
+          ) : null}
+          {perf.velocityLossPct != null ? (
+            <Text style={{ color: perf.velocityLossPct >= 30 ? T.amber : T.textDim, fontSize: 13 }} accessibilityLabel={`Rep speed ${perf.velocityLossPct} percent below your first reps`}>
+              Speed −{perf.velocityLossPct}% vs first reps
+            </Text>
+          ) : null}
           {effort.rpe != null ? (
-            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Estimated effort RPE ${effort.rpe}, ${effort.confidence} confidence`}>
-              Effort est. RPE {effort.rpe}{effort.confidence === 'low' ? ' (low conf.)' : ''}
+            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Rough effort range RPE ${Math.max(6, effort.rpe - 1)} to ${Math.min(10, effort.rpe + 1)}, an estimate`}>
+              Effort est. RPE {Math.max(6, effort.rpe - 1)}–{Math.min(10, effort.rpe + 1)}
             </Text>
           ) : null}
         </View>
@@ -223,15 +278,28 @@ export function CoachScreen({ openLog }) {
         </View>
       </View>
 
+      {mission ? (
+        <MissionPanel
+          count={view.count}
+          lastRepAt={lastRepAt}
+          tracking={ready ? view.tracking : 'lost'}
+          repsDetail={() => session.current.repsDetail()}
+          resetCounter={() => resetSet()}
+          setQuality={() => session.current.quality()}
+          voiceOn={voice}
+        />
+      ) : null}
       <View style={st.controls}>
         <IconButton icon={voice ? 'microphone-outline' : 'microphone-off'} label="Voice cues" onPress={() => setVoice((v) => !v)} />
-        <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
-          <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
-        </IconButton>
+        {mission ? null : (
+          <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
+            <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
+          </IconButton>
+        )}
         <IconButton icon="camera-flip-outline" label="Flip camera" onPress={flip} />
       </View>
       <Text style={[type.small, { textAlign: 'center', marginTop: 12 }]}>
-        Pose tracking runs on this phone. Bench, deadlift and pull-ups: log them with + on Home.
+        Pose tracking runs on this device{speedText ? ` (${speedText})` : ''}. Bench press and lunges: log them with + on Home.
       </Text>
 
       <Sheet visible={setup} onClose={() => setSetup(false)} title="This set">
@@ -265,10 +333,10 @@ function Header({ live }) {
 }
 
 const st = StyleSheet.create({
-  stage: { height: 520, borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: T.border },
+  stage: { borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: T.border },
   glass: { position: 'absolute', backgroundColor: 'rgba(16,13,22,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: R.md, padding: 14 },
-  exerciseBox: { top: 12, left: 12, minWidth: 160 },
-  repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 110 },
+  exerciseBox: { top: 12, left: 12, maxWidth: '55%' },
+  repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 96 },
   cue: { left: 12, right: 12, bottom: 12 },
   caught: { position: 'absolute', top: 110, alignSelf: 'center', backgroundColor: 'rgba(16,13,22,0.88)', borderWidth: 2, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 8 },
   suggest: { top: 160, left: 12, right: 12 },

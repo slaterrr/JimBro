@@ -1,10 +1,11 @@
 // Shared building blocks for the JimBro UI.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
 import { R, T, type } from '../theme.js';
+import { FRAME_MAX } from '../lib/layout.js';
 
 export const Icon = ({ name, size = 22, color = T.text, style }) => (
   <MaterialCommunityIcons name={name} size={size} color={color} style={style} />
@@ -190,7 +191,7 @@ export const st = StyleSheet.create({
   buttonText: { color: T.onAccent, fontSize: 15, fontWeight: '700' },
   input: { backgroundColor: T.surface, color: T.text, borderWidth: 1, borderColor: T.border, borderRadius: R.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { maxHeight: '88%', backgroundColor: T.cardSolid, borderTopLeftRadius: R.xl, borderTopRightRadius: R.xl, borderWidth: 1, borderColor: T.border, paddingHorizontal: 20 },
+  sheet: { width: '100%', maxWidth: FRAME_MAX, alignSelf: 'center', maxHeight: '88%', backgroundColor: T.cardSolid, borderTopLeftRadius: R.xl, borderTopRightRadius: R.xl, borderWidth: 1, borderColor: T.border, paddingHorizontal: 20 },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: T.borderStrong, marginTop: 10 },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
 });

@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "test": "node --test src/lib/*.test.js",
+    "harness": "node scripts/engine-harness.mjs",
     "test:ui": "expo export --platform web --output-dir dist-web && node e2e/ui-smoke.mjs dist-web"
   },
   "dependencies": {

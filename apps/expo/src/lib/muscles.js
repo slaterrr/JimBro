@@ -23,6 +23,18 @@ export const EXERCISE_MUSCLES = {
   shoulder_press: ['shoulders', 'triceps', 'traps'],
   pull_up: ['lats', 'biceps', 'forearms'],
   lunge: ['quads', 'glutes', 'hamstrings'],
+  push_up: ['chest', 'triceps', 'shoulders', 'abs'],
+  dumbbell_bench: ['chest', 'shoulders', 'triceps'],
+  goblet_squat: ['quads', 'glutes', 'abs'],
+  romanian_deadlift: ['hamstrings', 'glutes', 'lower_back'],
+  bent_over_row: ['lats', 'traps', 'biceps', 'lower_back'],
+  seated_cable_row: ['lats', 'traps', 'biceps'],
+  lat_pulldown: ['lats', 'biceps'],
+  chin_up: ['lats', 'biceps', 'forearms'],
+  dips: ['chest', 'triceps', 'shoulders'],
+  hammer_curl: ['biceps', 'forearms'],
+  lateral_raise: ['shoulders'],
+  tricep_pushdown: ['triceps'],
 };
 
 const DAY = 86400000;

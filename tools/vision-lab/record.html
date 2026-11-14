@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JimBro landmark recorder</title>
+<style>
+  :root { --bg:#0b0f0e; --fg:#e8f1ee; --dim:#9db0aa; --acc:#3fc9a8; --warn:#f0c674; --bad:#ef6b6b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: var(--dim); margin: 4px 0 12px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; margin: 8px 0; align-items:center; }
+  label { color: var(--dim); font-size: 13px; }
+  select, input[type=text] { background:#111816; color:var(--fg); border:1px solid #2a3633; border-radius:8px; padding:6px 8px; }
+  button { background:var(--acc); color:#04120e; border:0; border-radius:999px; padding:9px 16px; font-weight:700; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--acc); border:1px solid var(--acc); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  #stage { position:relative; width:100%; aspect-ratio: 4/3; background:#000; border-radius:14px; overflow:hidden; margin: 10px 0; }
+  video, canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform: scaleX(-1); }
+  #hud { position:absolute; left:10px; top:10px; background:rgba(0,0,0,.6); padding:8px 10px; border-radius:10px; font-variant-numeric: tabular-nums; }
+  #status { color: var(--warn); min-height: 1.4em; }
+  .big { font-size: 28px; font-weight: 800; }
+  code { color: var(--acc); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Landmark recorder</h1>
+  <p>Records body landmarks only, never video. Each saved file is a labeled clip for
+    <code>node validate.mjs</code>. Record only people who agreed to it.</p>
+
+  <div class="row">
+    <label>Exercise <select id="exercise"></select></label>
+    <label>View <select id="view"><option>side</option><option>front</option><option>back</option><option>diagonal</option></select></label>
+    <label>Split <select id="split"><option value="dev">dev</option><option value="heldout">heldout (never tune on it)</option></select></label>
+  </div>
+  <div class="row">
+    <label>Participant code <input id="participant" type="text" placeholder="e.g. P03 (no names)" maxlength="12"></label>
+    <label><input id="adversarial" type="checkbox"> No real reps in this clip (walking, waving, wrong exercise)</label>
+  </div>
+  <div class="row">
+    <label><input id="consent" type="checkbox"> The person recorded agreed to their body landmarks being stored for testing JimBro.</label>
+  </div>
+
+  <div id="stage">
+    <video id="v" playsinline muted autoplay></video><canvas id="c"></canvas>
+    <div id="hud"><div>Labeled reps</div><div class="big" id="reps">0</div><div id="time">0.0 s</div></div>
+  </div>
+  <div id="status">Loading the pose model…</div>
+  <div class="row">
+    <button id="start" disabled>Start recording</button>
+    <button id="rep" class="secondary" disabled>Rep done (Space)</button>
+    <button id="undo" class="secondary" disabled>Undo last rep</button>
+    <button id="stop" class="secondary" disabled>Stop and save</button>
+  </div>
+  <p>Press <b>Space</b> the moment each rep ends (back at the start position). The recorder does not show
+    JimBro's own count, so labels stay independent. Move saved files into <code>tools/vision-lab/recordings/</code>.</p>
+</main>
+<script type="module">
+import { ANALYZERS, countsWithCamera } from '../../apps/expo/src/lib/analyzers.js';
+import { MEDIAPIPE_CDN, POSE_MODEL_URL } from '../../apps/expo/src/lib/poseHtml.js';
+
+const FPS = 20;
+const $ = (id) => document.getElementById(id);
+const status = (t, bad = false) => { $('status').textContent = t; $('status').style.color = bad ? 'var(--bad)' : 'var(--warn)'; };
+for (const id of Object.keys(ANALYZERS).filter(countsWithCamera)) {
+  $('exercise').append(new Option(`${id}${ANALYZERS[id].status === 'tested_real' ? '' : ` (${ANALYZERS[id].status})`}`, id));
+}
+
+const v = $('v'), c = $('c'), ctx = c.getContext('2d');
+let landmarker = null, recording = false, t0 = 0, last = 0, frames = [], reps = [];
+const BONES = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+
+async function init() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 640 }, height: { ideal: 480 } } });
+    v.srcObject = stream;
+    await v.play().catch(() => {});
+  } catch (e) { return status(`Camera unavailable: ${e.name}. Allow camera access and reload.`, true); }
+  try {
+    const { FilesetResolver, PoseLandmarker } = await import(`${MEDIAPIPE_CDN}/vision_bundle.mjs`);
+    const files = await FilesetResolver.forVisionTasks(`${MEDIAPIPE_CDN}/wasm`);
+    const opts = (delegate) => ({ baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate }, runningMode: 'VIDEO', numPoses: 1 });
+    try { landmarker = await PoseLandmarker.createFromOptions(files, opts('GPU')); } catch { landmarker = await PoseLandmarker.createFromOptions(files, opts('CPU')); }
+  } catch (e) { return status(`Pose model failed to load (needs internet the first time): ${e.message}`, true); }
+  status('Ready. Fill in the fields, tick consent, then Start.');
+  $('start').disabled = false;
+  requestAnimationFrame(tick);
+}
+
+function tick() {
+  const now = performance.now();
+  if (v.readyState >= 2 && now - last >= 1000 / FPS) {
+    last = now;
+    const lm = landmarker.detectForVideo(v, now).landmarks?.[0] ?? null;
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (lm) {
+      ctx.strokeStyle = '#3fc9a8'; ctx.lineWidth = 4;
+      for (const [a, b] of BONES) { ctx.beginPath(); ctx.moveTo(lm[a].x * c.width, lm[a].y * c.height); ctx.lineTo(lm[b].x * c.width, lm[b].y * c.height); ctx.stroke(); }
+    }
+    if (recording) {
+      // Same rounding the app applies before counting.
+      frames.push({ t: Math.round(now - t0), pose: lm ? lm.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4), +(p.visibility ?? 0).toFixed(3)]) : null });
+      $('time').textContent = `${((now - t0) / 1000).toFixed(1)} s`;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+const markRep = () => { if (!recording) return; reps.push({ end_ms: Math.round(performance.now() - t0) }); $('reps').textContent = reps.length; };
+$('start').onclick = () => {
+  if (!$('consent').checked) return status('Tick the consent box first.', true);
+  frames = []; reps = []; $('reps').textContent = '0';
+  t0 = performance.now(); recording = true;
+  for (const id of ['rep', 'undo', 'stop']) $(id).disabled = false;
+  $('start').disabled = true;
+  status('Recording. Press Space at the end of each rep.');
+};
+$('rep').onclick = markRep;
+$('undo').onclick = () => { reps.pop(); $('reps').textContent = reps.length; };
+document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); markRep(); } });
+$('stop').onclick = () => {
+  recording = false;
+  for (const id of ['rep', 'undo', 'stop']) $(id).disabled = true;
+  $('start').disabled = false;
+  const movement = $('exercise').value, view = $('view').value;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const clip = {
+    clip: `${movement}_${view}_${stamp}`, movement, view, split: $('split').value,
+    adversarial: $('adversarial').checked, reps: $('adversarial').checked ? [] : reps,
+    kind: 'real', recordedWith: 'record.html', consent: true, participant: $('participant').value.trim() || null,
+    note: `Landmarks only (MediaPipe pose_landmarker_lite, ${FPS} fps), no video. Rep ends labeled live with Space.`,
+    frames,
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(clip)], { type: 'application/json' }));
+  Object.assign(document.createElement('a'), { href: url, download: `${clip.clip}.json` }).click();
+  URL.revokeObjectURL(url);
+  status(`Saved ${frames.length} frames, ${clip.reps.length} labeled reps. Move the file into tools/vision-lab/recordings/.`);
+};
+init();
+</script>
+</body>
+</html>

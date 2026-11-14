@@ -1,12 +1,22 @@
 // Jim's brain on the server: builds the persona prompt, runs Claude's tool loop for read
 // tools (answered from the app's context snapshot), and turns write tools into PROPOSALS
 // shaped exactly like apps/expo/src/lib/intents.js output. Nothing is stored or applied here.
+import { timingSafeEqual } from 'node:crypto';
+
 import { SAFETY, SAFETY_TEXT } from '../../apps/expo/src/lib/coach.js';
+import { principleRules } from '../../apps/expo/src/lib/coachingPrinciples.js';
 import { EXERCISES, exerciseName } from '../../apps/expo/src/lib/exercises.js';
 import { GROUND_RULES, personaFor } from '../../apps/expo/src/lib/personas.js';
 
-export const MODEL = 'claude-sonnet-5-5';
-export const MAX_TOKENS = 400;
+// The team's model choice; override with JIM_MODEL. Claude Sonnet 5.5 thinks by default and
+// thinking counts against max_tokens, so leave room; the prompt keeps replies to two sentences.
+export const MODEL = process.env.JIM_MODEL || 'claude-sonnet-5-5';
+export const MAX_TOKENS = 2048;
+export const EFFORT = 'low'; // chat: low effort keeps replies quick
+// Server-side refusal fallbacks (beta). Default on; JIM_FALLBACKS=0 turns them off if the account
+// does not have the beta (the smoke test shows a 400 in that case).
+const FALLBACKS_DEFAULT = process.env.JIM_FALLBACKS !== '0';
+const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 const MAX_TOOL_ROUNDS = 4;
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 2000;
@@ -25,6 +35,8 @@ export function buildSystemPrompt(personaId) {
     `Focus on: ${p.focus.join(', ')}.`,
     'Rules:',
     ...GROUND_RULES.map((r) => `- ${r}`),
+    'Coaching approach (from interviews with experienced personal trainers):',
+    ...principleRules().map((r) => `- ${r}`),
     '- Your reply is read aloud: plain sentences, no markdown, no lists, no emoji.',
     '- Use the get_* tools for any number you cite. To log, fix or delete a set, call log_sets, correct_set or delete_set: they only PROPOSE the change and the user confirms it on screen, so say "confirm and I will..." rather than claiming it is done.',
     `- Exercises the app knows: ${EXERCISE_IDS.join(', ')}. For anything else, say you cannot log it yet.`,
@@ -78,6 +90,7 @@ export const TOOLS = [
   { name: 'get_goal_progress', description: "The user's goals with percent progress and next step.", input_schema: { type: 'object', properties: {} } },
   { name: 'get_weekly_checkin', description: "This week's wins, misses, plan adherence and suggestion.", input_schema: { type: 'object', properties: {} } },
   { name: 'get_last_set_report', description: 'Measured report of the last camera-counted set.', input_schema: { type: 'object', properties: {} } },
+  { name: 'get_workout_context', description: "Today's planned workout, sets left in the current workout, and the user's stated equipment and limits.", input_schema: { type: 'object', properties: {} } },
 ];
 const WRITE_TOOLS = new Set(['log_sets', 'correct_set', 'delete_set']);
 
@@ -91,6 +104,7 @@ export function runReadTool(tool, input, context = {}) {
     case 'get_goal_progress': return { goals: context.goals ?? [] };
     case 'get_weekly_checkin': return context.weeklyCheckIn ?? { none: 'No check-in data yet.' };
     case 'get_last_set_report': return context.lastSetReport ?? { none: 'No camera set report yet.' };
+    case 'get_workout_context': return context.workout ?? { none: 'No workout context yet.' };
     default: return { error: `Unknown tool ${tool}` };
   }
 }
@@ -145,8 +159,27 @@ function validate(body) {
 
 const textOf = (res) => res.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
 
-/** POST /chat body -> { reply, proposals[, safety] }. `client` is an Anthropic SDK client. */
-export async function handleChat(body, client) {
+const REFUSED = "I can't help with that one. Ask me about your training, your sets or your plan.";
+const CUT_OFF = 'Sorry, that answer got cut off. Ask me again, a bit more specifically?';
+
+/** One Messages call; uses server-side fallbacks when the SDK client exposes the beta namespace. */
+function callClaude(client, req, fallbacks) {
+  if (fallbacks && client.beta?.messages?.create) {
+    return client.beta.messages.create({ ...req, betas: [FALLBACK_BETA], fallbacks: 'default' });
+  }
+  return client.messages.create(req);
+}
+
+/** Shared-secret check for X-Jim-Key (timing-safe). No key configured = LAN development. */
+export function authorized(headers = {}, key = process.env.JIM_PROXY_KEY ?? '') {
+  if (!key) return true;
+  const got = Buffer.from(String(headers['x-jim-key'] ?? ''));
+  const want = Buffer.from(key);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+
+/** POST /chat body -> { reply, proposals[, safety][, refused] }. `client` is an Anthropic SDK client. */
+export async function handleChat(body, client, { fallbacks = FALLBACKS_DEFAULT } = {}) {
   const messages = validate(body);
   const latest = messages.at(-1).content;
   if (SAFETY.test(latest)) return { reply: SAFETY_TEXT, proposals: [], safety: true };
@@ -156,7 +189,9 @@ export async function handleChat(body, client) {
   const convo = [...messages];
   let reply = '';
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-    const res = await client.messages.create({ model: MODEL, max_tokens: MAX_TOKENS, system, tools: TOOLS, messages: convo });
+    const res = await callClaude(client, { model: MODEL, max_tokens: MAX_TOKENS, output_config: { effort: EFFORT }, system, tools: TOOLS, messages: convo }, fallbacks);
+    if (res.stop_reason === 'refusal') return { reply: REFUSED, proposals: [], refused: true };
+    if (res.stop_reason === 'max_tokens') return { reply: CUT_OFF, proposals };
     reply = textOf(res) || reply;
     const uses = res.content.filter((b) => b.type === 'tool_use');
     if (res.stop_reason !== 'tool_use' || !uses.length || round === MAX_TOOL_ROUNDS) break;

@@ -71,3 +71,11 @@ The tests mock the Anthropic SDK client; they make no network calls and need no 
   shared secret before exposing it publicly.
 - `handleChat` in `jim.js` only needs an object with `messages.create`, so a Cloudflare Worker
   wrapper is straightforward, but one is not included.
+
+## Security, model and live check
+- `JIM_PROXY_KEY`: set a shared secret; requests then need the `X-Jim-Key` header (the app sends
+  `EXPO_PUBLIC_JIM_PROXY_KEY`). It keeps strangers on the network out; it is not user auth.
+- `JIM_MODEL` (default `claude-sonnet-5-5`); `JIM_FALLBACKS=0` turns off server-side refusal fallbacks.
+- **Live check:** `npm ci && npm run smoke` makes three real calls (plain reply, read tool, confirm-first
+  proposal) and prints PASS/FAIL. It needs `ANTHROPIC_API_KEY` or an `ant auth login` profile, and costs a few cents.
+- Full contract: `docs/engines/BACKEND_GUIDE.md`.

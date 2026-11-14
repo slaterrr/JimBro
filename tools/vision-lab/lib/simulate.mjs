@@ -294,3 +294,139 @@ export function simulateUprightElbowBends({ reps = 8, kneeling = false, repMs = 
   }
   return { frames, trueEnds: [] };
 }
+
+// ---- Deadlift (side view) and pull-up (facing the camera). SIMULATED: logic tests only. ----
+const up = (p, len, tiltDeg, fwd = 1) => ({ x: p.x + fwd * len * Math.sin(rad(tiltDeg)), y: p.y - len * Math.cos(rad(tiltDeg)) });
+
+/**
+ * Hip hinge from the side. hip: shoulder–hip–knee angle; knee: hip–knee–ankle angle; shin: forward
+ * shin tilt (deg). Arms hang straight down holding the bar.
+ */
+export function deadliftBody({ hip = 175, knee = 175, shin = 0, cx = 0.45 } = {}) {
+  const ankle = { x: cx, y: 0.92 };
+  const kneeP = up(ankle, BONE.shank, shin);
+  const thighBack = Math.max(0, 180 - knee - shin);
+  const hipP = up(kneeP, BONE.thigh, -thighBack);
+  const torsoFwd = Math.max(0, 180 - hip - thighBack);
+  const shoulder = up(hipP, BONE.torso, torsoFwd);
+  const elbowP = { x: shoulder.x, y: shoulder.y + BONE.upper };
+  const wrist = { x: shoulder.x, y: elbowP.y + BONE.fore };
+  const pose = Array.from({ length: 33 }, () => ({ x: shoulder.x + 0.03, y: shoulder.y - 0.08, visibility: 0.99 }));
+  const near = { 11: shoulder, 13: elbowP, 15: wrist, 23: hipP, 25: kneeP, 27: ankle };
+  for (const [i, p] of Object.entries(near)) {
+    pose[+i] = { ...p, visibility: 0.98 };
+    pose[+i + 1] = { x: p.x + 0.015, y: p.y, visibility: 0.55 };
+  }
+  return pose;
+}
+
+/** p 0 = bar at the floor (hip 100°, knee 125°), 1 = lockout. */
+const deadliftAt = (p) => deadliftBody({ hip: 100 + 75 * p, knee: 125 + 50 * p, shin: 20 * (1 - p) });
+
+/**
+ * Pull-up facing the camera: hands fixed on the bar at barY; the body rises as the elbows bend.
+ * elbow: interior elbow angle (170 hanging, ~60 chin over the bar).
+ */
+export function pullupBody({ elbow = 170, cx = 0.5, barY = 0.1 } = {}) {
+  const thetaU = 15 + (170 - elbow) * 0.45; // upper arm from vertical, outward
+  const phi = thetaU - (180 - elbow); // forearm direction, bends inward
+  const elbowRel = { x: BONE.upper * Math.sin(rad(thetaU)), y: -BONE.upper * Math.cos(rad(thetaU)) };
+  const wristRel = { x: elbowRel.x + BONE.fore * Math.sin(rad(phi)), y: elbowRel.y - BONE.fore * Math.cos(rad(phi)) };
+  const shoulderY = barY - wristRel.y;
+  const pose = Array.from({ length: 33 }, () => ({ x: cx, y: shoulderY - 0.1, visibility: 0.99 }));
+  for (const [side, sx] of [[0, 1], [1, -1]]) { // subject's left appears on the image right
+    const sh = { x: cx + sx * 0.09, y: shoulderY };
+    const v = (p) => ({ ...p, visibility: p.y > 1 ? 0.2 : 0.97 });
+    pose[11 + side] = v(sh);
+    pose[13 + side] = v({ x: sh.x + sx * elbowRel.x, y: sh.y + elbowRel.y });
+    pose[15 + side] = v({ x: sh.x + sx * wristRel.x, y: sh.y + wristRel.y });
+    pose[23 + side] = v({ x: cx + sx * 0.06, y: shoulderY + BONE.torso });
+    pose[25 + side] = v({ x: cx + sx * 0.065, y: shoulderY + BONE.torso + BONE.thigh });
+    pose[27 + side] = v({ x: cx + sx * 0.06, y: shoulderY + BONE.torso + BONE.thigh + BONE.shank });
+  }
+  return pose;
+}
+
+const pullupAt = (p) => pullupBody({ elbow: 170 - 105 * p });
+
+function repSet(at, { reps = 8, repMs = 2400, slowdown = 0, rom = 1, restMs = 500, noise = 0.003, fps = 20, seed = 91, leadMs = 1000 } = {}) {
+  const r = rng(seed);
+  const durs = Array.from({ length: reps }, (_, i) => repMs * (1 + (slowdown * i) / Math.max(1, reps - 1)) * (0.9 + 0.2 * r.next()));
+  const starts = [];
+  const trueEnds = [];
+  let t = leadMs;
+  for (const d of durs) {
+    starts.push(t);
+    t += d;
+    if (rom >= 0.9) trueEnds.push(Math.round(t));
+    t += restMs;
+  }
+  const frames = [];
+  for (let tt = 0; tt <= t + leadMs; tt += 1000 / fps) {
+    let p = 0;
+    for (let i = 0; i < reps; i++) if (tt >= starts[i] && tt < starts[i] + durs[i]) p = rom * Math.sin((Math.PI * (tt - starts[i])) / durs[i]) ** 2;
+    frames.push({ t: Math.round(tt), pose: jitter(at(p), r, noise, 0) });
+  }
+  return { frames, trueEnds };
+}
+
+/** Deadlift set from the floor (starts and ends at the bottom). */
+export const simulateDeadlifts = (o = {}) => repSet(deadliftAt, { seed: 91, ...o });
+/** Pull-up set from a dead hang. */
+export const simulatePullups = (o = {}) => repSet(pullupAt, { seed: 101, ...o });
+
+/**
+ * Adversarial: walking across the frame, side view. The near knee bends to ~140° in swing and the
+ * body travels in x. Zero true squats (or any reps).
+ */
+export function simulateWalk({ steps = 10, stepMs = 550, fps = 20, seed = 111, noise = 0.003, fromX = 0.25, toX = 0.75 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const dur = 1000 + steps * stepMs + 1000;
+  for (let t = 0; t <= dur; t += 1000 / fps) {
+    const u = Math.min(1, Math.max(0, (t - 1000) / (steps * stepMs)));
+    const phase = ((t - 1000) / stepMs) * Math.PI;
+    const swing = t > 1000 && u < 1 ? Math.max(0, Math.sin(phase)) : 0;
+    const pose = body({ knee: 175 - 35 * swing, upperArm: 15 * Math.sin(phase), elbow: 160, cx: fromX + (toX - fromX) * u });
+    frames.push({ t: Math.round(t), pose: jitter(pose, r, noise, 0) });
+  }
+  return { frames, trueEnds: [] };
+}
+
+/**
+ * Labeled lunge set (side view by default). alternate: legs swap every rep (left leg forward on odd
+ * reps). Returns trueEnds and the lead leg per rep. SIMULATED: logic tests only.
+ */
+export function simulateLungeSet({ reps = 8, repMs = 2200, restMs = 400, view = 'side', alternate = true, fps = 20, seed = 141, noise = 0.003, rom = 1 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const trueEnds = [];
+  const leads = [];
+  const cycle = repMs + restMs;
+  const end = 1000 + reps * cycle + 1000;
+  for (let i = 0; i < reps; i += 1) {
+    if (rom >= 0.9) trueEnds.push(Math.round(1000 + i * cycle + repMs));
+    leads.push(alternate && i % 2 ? 'right' : 'left');
+  }
+  // Mirror the leg roles: the right leg leads (swap left/right hip, knee, ankle).
+  const mirror = (pose) => {
+    const m = pose.map((q) => ({ ...q }));
+    for (const [a, b] of [[23, 24], [25, 26], [27, 28]]) [m[a], m[b]] = [{ ...pose[b] }, { ...pose[a] }];
+    return m;
+  };
+  const stance = (lead, p) => (lead === 'right' ? mirror(lungeBody(p)) : lungeBody(p));
+  const lerp = (A, B, f) => A.map((q, i) => ({ x: q.x + (B[i].x - q.x) * f, y: q.y + (B[i].y - q.y) * f, visibility: Math.min(q.visibility, B[i].visibility) }));
+  for (let t = 0; t <= end; t += 1000 / fps) {
+    const u = t - 1000;
+    const k = Math.min(reps - 1, Math.floor(Math.max(0, u) / cycle));
+    const inRep = u > 0 && u < reps * cycle && u % cycle < repMs;
+    const p = inRep ? rom * Math.sin((Math.PI * (u % cycle)) / repMs) ** 2 : 0;
+    let pose = stance(leads[k], p);
+    // Between reps the feet step over smoothly when the lead leg changes (a person can't teleport).
+    if (!inRep && u > 0 && k + 1 < reps && leads[k + 1] !== leads[k] && u % cycle >= repMs) {
+      pose = lerp(stance(leads[k], 0), stance(leads[k + 1], 0), ((u % cycle) - repMs) / restMs);
+    }
+    frames.push({ t: Math.round(t), pose: jitter(view === 'front' ? frontView(pose) : pose, r, noise, 0) });
+  }
+  return { frames, trueEnds, leads };
+}

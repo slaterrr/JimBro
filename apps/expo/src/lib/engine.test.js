@@ -74,7 +74,7 @@ describe('RepCounter (port of reps.py)', () => {
   it('handles squat and the increasing shoulder press', () => {
     assert.equal(feed(curlReps(2, { low: 172, high: 85 }), SQUAT)[0].count, 2);
     assert.equal(feed(curlReps(3, { low: 80, high: 168 }), SHOULDER_PRESS)[0].count, 3);
-    assert.deepEqual(Object.keys(MOVEMENTS), ['curl', 'squat', 'shoulder_press', 'push_up']);
+    assert.deepEqual(Object.keys(MOVEMENTS), ['curl', 'squat', 'shoulder_press', 'push_up', 'pull_up', 'deadlift', 'lunge']); // last three experimental (lib/analyzers.js)
   });
   it('matches the exact threshold boundaries of the backend', () => {
     const cfg = movementConfig({ name: 't', rest_deg: 170, peak_deg: 50, hysteresis_deg: 10, smoothing: 1, min_rep_ms: 0, cooldown_ms: 0 });

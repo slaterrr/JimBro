@@ -1,21 +1,27 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp } from '../AppState.js';
 import { ImportSheet } from '../components/ImportSheet.js';
+import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
+import { askJim, historyFor, proxyKey, proxyUrl } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
+import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
+import { answerContext } from '../lib/coachQA.js';
+import { answerPerformance } from '../lib/perfCoach.js';
+import { isCompact } from '../lib/layout.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
 const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
+const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
@@ -69,8 +75,10 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission } = useApp();
+  const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
   const [text, setText] = useState('');
+  const compact = isCompact(useWindowDimensions().width);
   const [messages, setMessages] = useState([]);
   const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
   const [thinking, setThinking] = useState(false);
@@ -100,8 +108,26 @@ export function HomeScreen({ openLog, openActivity, go }) {
     setText('');
     const prior = historyFor(messages);
     push({ me: true, text: message });
+    // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
+    // recorded sets on the phone, so every claim comes from data.
+    const perfReply = answerPerformance(message, { history, active })
+      ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
+    if (perfReply) {
+      push({ me: false, text: perfReply });
+      speak(perfReply);
+      return;
+    }
+    // Workout Mission: a time-boxed session request is planned on the phone (no AI call), then confirmed.
+    const ask = parseMission(message);
+    if (ask.recognized) {
+      const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
+      const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. ${history.length ? 'I picked it from your history.' : "No history yet, so we start light and I adjust after each set."} Start when you're ready.`.replace('  ', ' ');
+      push({ me: false, text: intro }, { kind: 'mission', mission });
+      speak(intro);
+      return;
+    }
     setThinking(true);
-    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
     setThinking(false);
     if (r.source !== 'safety') setSource(r.source);
     // Never change data here: proposals become confirm cards and wait for the user.
@@ -170,15 +196,17 @@ export function HomeScreen({ openLog, openActivity, go }) {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
-          <Icon name="arm-flex" size={30} color={T.accent} />
-          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
-          <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
-            <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
+          <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
+          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
+          <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI, compact && { padding: 4 }]}>
+            {compact
+              ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: source === 'ai' ? T.accent : T.textMute }} />
+              : <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>}
           </View>
         </View>
         <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
           <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
-          <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
+          {compact ? null : <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>}
         </TouchableOpacity>
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />
@@ -206,11 +234,29 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 </TouchableOpacity>
               ))}
             </View>
+            <Text style={[type.label, { marginTop: 22 }]}>Short on time? Give Jim a mission</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+              {MISSION_CHIPS.map((c) => (
+                <TouchableOpacity key={c} accessibilityRole="button" onPress={() => send(c)} style={{ borderWidth: 1, borderColor: T.accent, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
+                  <Text style={{ color: T.accentText, fontWeight: '600', fontSize: 13 }}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         ) : (
           messages.map((m, i) => {
             if (m.kind === 'plan') return <PlanCard key={i} />;
-            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} onDone={speak} />;
+            if (m.kind === 'mission') {
+              return (
+                <MissionCard
+                  key={i}
+                  mission={m.mission}
+                  onStart={() => { startMission(m.mission); go?.('Coach'); }}
+                  onCancel={() => setMessages((cur) => cur.filter((_, j) => j !== i))}
+                />
+              );
+            }
+            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={speak} />;
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>
@@ -276,7 +322,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
 const st = StyleSheet.create({
   health: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: R.md, borderWidth: 1, borderColor: T.border, backgroundColor: T.card },
   healthText: { flex: 1, color: T.textDim, fontSize: 14, lineHeight: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   goals: { flexDirection: 'row', gap: 12, marginTop: 40, alignSelf: 'stretch' },
   goal: { flex: 1, alignItems: 'center', paddingVertical: 18, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8 },
   goalText: { color: T.text, fontSize: 15, fontWeight: '600', textAlign: 'center' },

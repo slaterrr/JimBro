@@ -23,7 +23,10 @@ const WIRING = {
   ],
   'lib/exercises.js': [
     [/id: 'lunge'/, 'lunge in the exercise catalog'],
-    [/id: 'push_up'[^}]*camera: true/, 'camera-counted push-ups'],
+    [/countsWithCamera/, 'camera flag from the analyzer registry'],
+  ],
+  'lib/analyzers.js': [
+    [/push_up: \{\s*id: 'push_up', status: 'tested_sim'/, 'camera-counted push-ups'],
   ],
   'lib/guidance.js': [
     [/exercise_change/, 'exercise-change guidance'],
@@ -130,6 +133,31 @@ const WIRING = {
     [/estimateEffort\(/, 'effort estimate in the set report'],
     [/variants/, 'push-up rep types in the set report'],
   ],
+  'AppState.js#safety': [
+    [/if \(ready && canSave\)/, 'never saves over stored workouts after a failed load'],
+  ],
+  'components/Mission.js': [
+    [/recommendNext\(/, 'mission next-set recommendation'],
+    [/>Use it</, 'recommendation needs approval (Use it)'],
+    [/How many more could you have done\?/, 'user-reported reps in reserve'],
+    [/assessFatigue\(/, 'fatigue assessment after each mission set'],
+  ],
+  'components/Sheets.js#perf': [
+    [/assessFatigue\(/, 'fatigue and metrics stored with logged sets'],
+    [/recommendNext\(/, 'next-time suggestion after logging a set'],
+  ],
+  'screens/CoachScreen.js#trust': [
+    [/cameraLabel\(movement\)/, 'experimental / sim-only camera lifts are labelled on the camera screen'],
+  ],
+  'screens/CoachScreen.js#perf': [
+    [/liveSlowdownCue\(/, 'one short live slowdown cue'],
+    [/setQuality=/, 'camera set quality reaches the mission check'],
+    [/Speed −/, 'relative speed change on the camera overlay'],
+  ],
+  'screens/HomeScreen.js#perf': [
+    [/answerPerformance\(/, 'chat answers about the last set from recorded data'],
+    [/answerContext\(/, 'workout-context answers (today, sets left, swaps, progress, rest)'],
+  ]
 };
 
 for (const [file, checks] of Object.entries(WIRING)) {

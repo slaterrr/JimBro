@@ -6,7 +6,10 @@ import { EXERCISES, exerciseName } from './exercises.js';
 import { parseSetUtterance } from './parse.js';
 describe('exercises', () => {
   it('maps the catalog lifts to display names', () => {
-    assert.deepEqual(EXERCISES.map((e) => e.id), ['curl', 'squat', 'bench', 'deadlift', 'shoulder_press', 'pull_up', 'lunge', 'push_up']);
+    // The original eight stay first and in order (saved data and pickers rely on them); the library
+    // grew with tap-to-log exercises for planning and substitutions (lib/substitute.js).
+    assert.deepEqual(EXERCISES.slice(0, 8).map((e) => e.id), ['curl', 'squat', 'bench', 'deadlift', 'shoulder_press', 'pull_up', 'lunge', 'push_up']);
+    assert.equal(EXERCISES.length, 19);
     assert.equal(exerciseName('shoulder_press'), 'Shoulder press');
     assert.equal(exerciseName('mystery'), 'mystery');
   });

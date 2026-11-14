@@ -6,7 +6,10 @@
   "description": "Dev-only: replay MP4 workouts through production MediaPipe and the JimBro rep counter.",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "run": "node run.mjs"
+    "run": "node run.mjs",
+    "validate": "node validate.mjs",
+    "record": "node serve.mjs",
+    "bench": "node bench.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.0.0"
