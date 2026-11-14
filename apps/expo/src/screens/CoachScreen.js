@@ -156,7 +156,7 @@ export function CoachScreen({ openLog }) {
   if (!permission) return null;
   if (!permission.granted) {
     return (
-      <View style={{ padding: 20 }}>
+      <ScrollView contentContainerStyle={{ padding: 20 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
         <Header live={false} />
         <Card style={{ marginTop: 20 }}>
           <Text style={type.title}>Camera access</Text>
@@ -165,12 +165,15 @@ export function CoachScreen({ openLog }) {
             ? <PrimaryButton onPress={requestPermission}>Allow camera</PrimaryButton>
             : <PrimaryButton onPress={() => Linking.openSettings()}>Open Settings</PrimaryButton>}
         </Card>
-      </View>
+        {mission ? (
+          <MissionPanel count={0} lastRepAt={0} tracking="lost" repsDetail={() => []} resetCounter={() => resetSet()} voiceOn={voice} />
+        ) : null}
+      </ScrollView>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <Header live={ready && view.tracking === 'ok'} />
       <View style={st.stage}>
         <WebView
@@ -242,7 +245,7 @@ export function CoachScreen({ openLog }) {
         </View>
       </View>
 
-      {mt ? (
+      {mission ? (
         <MissionPanel
           count={view.count}
           lastRepAt={lastRepAt}
@@ -254,7 +257,7 @@ export function CoachScreen({ openLog }) {
       ) : null}
       <View style={st.controls}>
         <IconButton icon={voice ? 'microphone-outline' : 'microphone-off'} label="Voice cues" onPress={() => setVoice((v) => !v)} />
-        {mt ? null : (
+        {mission ? null : (
           <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
             <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
           </IconButton>

@@ -2,7 +2,7 @@
 // MissionPanel: the Coach screen's hands-free runner (position -> set -> check -> rest -> summary).
 // All decisions come from lib/mission.js; this file only shows them and forwards events.
 import React, { useEffect, useRef, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Keyboard, Text, TouchableOpacity, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
 import { estimateEffort } from '../lib/effort.js';
@@ -55,9 +55,10 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
   const t = currentTarget(s);
   const [taps, setTaps] = useState(0);
   const [rpe, setRpe] = useState(null);
-  const [reps, setReps] = useState(0);
-  const [weight, setWeight] = useState('');
-  const [restLeft, setRestLeft] = useState(0);
+  // Seeded from the mission state so a remount (tab switch) mid-check keeps the counted reps.
+  const [reps, setReps] = useState(s.pending?.reps ?? 0);
+  const [weight, setWeight] = useState(t?.weight == null ? '' : String(t.weight));
+  const [restLeft, setRestLeft] = useState(s.phase === 'rest' ? t?.rest_s ?? 0 : 0); // non-zero on a remount mid-rest, so rest isn't skipped
   const [effort, setEffort] = useState(null);
   const okSince = useRef(null);
   const say = (line) => voiceOn && line && voice.say(line, { force: true });
@@ -115,7 +116,7 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
       reps_detail: t.camera && pending?.reps_detail?.length === reps ? pending.reps_detail : [],
       target: t.reps,
     }, `Mission: ${s.mission.title}`);
-    stepMission({ type: 'confirm', rpe });
+    stepMission({ type: 'confirm', rpe, weight: w });
   };
 
   // Check: confirms itself after a few seconds (with the estimated or chosen RPE).
@@ -189,6 +190,9 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
           {t.camera ? (tracking === 'ok' ? 'Got you. Starting…' : 'Get into frame, side-on. The set starts when I can see you.') : 'Get set up. Starting in a moment…'}
         </Text>
       ) : null}
+      {s.phase === 'position' && t.camera ? (
+        <PrimaryButton secondary onPress={() => { resetCounter(); setTaps(0); stepMission({ type: 'ready' }); say(announce(t)); }}>Start set now</PrimaryButton>
+      ) : null}
 
       {s.phase === 'set' && !t.camera ? (
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
@@ -207,15 +211,19 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
         <View style={{ marginTop: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={type.label}>Reps</Text>
-            <PrimaryButton secondary onPress={() => setReps((n) => Math.max(0, n - 1))}>−</PrimaryButton>
+            <Step label="One rep less" onPress={() => setReps((n) => Math.max(0, n - 1))}>−</Step>
             <Text style={[type.title, { minWidth: 30, textAlign: 'center' }]}>{reps}</Text>
-            <PrimaryButton secondary onPress={() => setReps((n) => n + 1)}>+</PrimaryButton>
+            <Step label="One rep more" onPress={() => setReps((n) => n + 1)}>+</Step>
           </View>
-          {needsWeight ? <Field label={`Weight used (${t.unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" /> : null}
+          {needsWeight ? (
+            <View style={{ flexDirection: 'row', marginTop: 10 }}>
+              <Field label={`Weight used (${t.unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="e.g. 95" returnKeyType="done" />
+            </View>
+          ) : null}
           <Text style={[type.label, { marginVertical: 6 }]}>
             How hard? {effort?.rpe != null ? `(estimate from rep speed: ~RPE ${Math.round(effort.rpe)}, ${effort.confidence} confidence)` : ''}
           </Text>
-          <Chips options={RPES.map((n) => [n, String(n)])} value={rpe} onChange={setRpe} />
+          <Chips options={RPES.map((n) => [n, String(n)])} value={rpe} onChange={(v) => { Keyboard.dismiss(); setRpe(v); }} />
           <PrimaryButton disabled={needsWeight && !(Number(weight) >= 0 && weight !== '')} onPress={confirm}>
             {needsWeight ? 'Save set' : 'Save set (auto in a few seconds)'}
           </PrimaryButton>
@@ -244,5 +252,14 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
         </TouchableOpacity>
       ) : null}
     </Card>
+  );
+}
+
+function Step({ children, onPress, label }) {
+  return (
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress}
+      style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: T.accent, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: T.accentText, fontSize: 22, fontWeight: '700' }}>{children}</Text>
+    </TouchableOpacity>
   );
 }

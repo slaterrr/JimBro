@@ -107,7 +107,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
     const ask = parseMission(message);
     if (ask.recognized) {
       const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
-      const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. I picked it from your history. Start when you're ready.`.replace('  ', ' ');
+      const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. ${history.length ? 'I picked it from your history.' : "No history yet, so we start light and I adjust after each set."} Start when you're ready.`.replace('  ', ' ');
       push({ me: false, text: intro }, { kind: 'mission', mission });
       speak(intro);
       return;
