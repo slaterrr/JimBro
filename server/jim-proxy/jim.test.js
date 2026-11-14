@@ -79,7 +79,7 @@ describe('proposals', () => {
   });
   it('rejects unknown set ids, unknown exercises and bad numbers', () => {
     assert.equal(proposalFrom('delete_set', { setId: 'nope' }, context), null);
-    assert.equal(proposalFrom('log_sets', { exercise: 'lunge', reps: 5, weight: 10 }, context), null);
+    assert.equal(proposalFrom('log_sets', { exercise: 'zercher_row', reps: 5, weight: 10 }, context), null);
     assert.equal(proposalFrom('log_sets', { exercise: 'curl', reps: -1, weight: 10 }, context), null);
     assert.equal(proposalFrom('log_sets', { exercise: 'curl', reps: 5, weight: 10, count: 50 }, context), null);
     assert.equal(proposalFrom('correct_set', { setId: 's1', changes: { weight: -5 } }, context), null);
