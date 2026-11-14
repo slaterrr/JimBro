@@ -14,7 +14,7 @@ const LEGEND = [
   ['rest', 'Rest', '(≥ 8d)'],
 ];
 
-export function MusclesScreen({ openLog, openHistory }) {
+export function MusclesScreen({ openProgress, openHistory }) {
   const { history, active } = useApp();
   const workouts = useMemo(() => [...history, ...(active?.sets.length ? [active] : [])], [history, active]);
   const status = useMemo(() => muscleStatus(workouts), [workouts]);
@@ -33,11 +33,11 @@ export function MusclesScreen({ openLog, openHistory }) {
         </TouchableOpacity>
       </View>
 
+      <Text style={[type.title, { textAlign: 'center', fontWeight: '500', marginTop: 16 }]}>Tap a muscle group</Text>
       <View style={st.figures}>
         <BodyFigure side="front" status={status} onSelect={setGroup} width={figure} />
         <BodyFigure side="back" status={status} onSelect={setGroup} width={figure} />
       </View>
-      <Text style={[type.title, { textAlign: 'center', fontWeight: '500', marginTop: 8 }]}>Tap a muscle group</Text>
 
       <View style={st.legend}>
         {LEGEND.map(([k, label, sub]) => (
@@ -61,13 +61,7 @@ export function MusclesScreen({ openLog, openHistory }) {
               <Text style={type.body}>{detail.setsThisWeek} set{detail.setsThisWeek === 1 ? '' : 's'} in the last 7 days</Text>
               {detail.exercises.length ? <Text style={type.small}>From: {detail.exercises.map(exerciseName).join(', ')}</Text> : null}
             </Card>
-            <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Lifts that train it</Text>
-            {detail.trainers.map((e) => (
-              <PrimaryButton key={e} secondary onPress={() => { setGroup(null); openLog({ exercise: e }); }}>
-                Log {exerciseName(e)}
-              </PrimaryButton>
-            ))}
-            {!detail.trainers.length ? <Text style={type.body}>None of the six tracked lifts target this group yet.</Text> : null}
+            <PrimaryButton onPress={() => { const selected = group; setGroup(null); openProgress(selected); }}>Progress</PrimaryButton>
           </>
         ) : null}
       </Sheet>

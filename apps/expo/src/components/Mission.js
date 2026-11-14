@@ -140,7 +140,7 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
     const camera = t.camera && pending?.reps_detail?.length === reps;
     const m = view?.fatigue.metrics;
     const rec = view && view.rec.action !== 'none' ? view.rec : null;
-    logSet({
+    const logged = logSet({
       exercise: t.exercise, weight: w, unit: t.unit, reps, rpe: rir == null ? null : 10 - rir, rir,
       source: camera ? 'camera' : 'manual',
       reps_detail: camera ? pending.reps_detail : [],
@@ -150,6 +150,7 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
       fatigue: view?.fatigue.level ?? null,
       rec: rec ? { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: Boolean(accepted && offer) } : null,
     }, `Mission: ${s.mission.title}`);
+    if (!logged) return;
     stepMission({ type: 'confirm', rpe: rir == null ? null : 10 - rir, weight: w, rec, accepted: Boolean(accepted && offer) });
   };
 

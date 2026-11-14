@@ -4,6 +4,7 @@ import * as Speech from 'expo-speech';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
+import { appendWorkoutSet } from './lib/workoutLogging.js';
 import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
 import { migrateGoals } from './lib/goals.js';
 import { missionPlanned, missionStart, missionStep } from './lib/mission.js';
@@ -65,16 +66,18 @@ export function AppProvider({ children }) {
   const startWorkout = (name, planned = null) =>
     setData((d) => ({ ...d, active: { id: newId(), name: name || 'Strength session', startedAt: new Date().toISOString(), sets: [], planned } }));
 
-  /** Log a set (starting a workout if needed). Returns the set and any record it beat. */
-  const logSet = (body, workoutName = 'Quick log') => {
+  /** Logging requires an explicitly started workout. */
+  const logSet = (body) => {
+    if (!data.active) {
+      setNotice('Start a workout before recording a set.');
+      return null;
+    }
+    const workoutId = data.active.id;
     const workouts = [...data.history, ...(data.active ? [data.active] : [])];
     const record = personalRecords(workouts, body).find((r) => r.exercise === body.exercise && r.unit === body.unit);
     const isPR = Boolean(record && (record.is_new_heaviest || record.is_new_volume));
     const set = { id: newId(), ...body, loggedAt: new Date().toISOString(), pr: isPR };
-    setData((d) => {
-      const cur = d.active ?? { id: newId(), name: workoutName, startedAt: set.loggedAt, sets: [], planned: null };
-      return { ...d, active: { ...cur, sets: [...cur.sets, set] } };
-    });
+    setData((d) => appendWorkoutSet(d, set, workoutId));
     return { set, isPR };
   };
 

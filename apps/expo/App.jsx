@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, StatusBar, Text, View } from 'react-native';
+import { Alert, Platform, StatusBar, Text, View } from 'react-native';
 
 import { AppProvider, useApp } from './src/AppState.js';
 import { Onboarding } from './src/components/Onboarding.js';
@@ -13,7 +13,8 @@ import { FRAME_MAX, topInset } from './src/lib/layout.js';
 import { T } from './src/theme.js';
 
 function Shell() {
-  const { ready, notice, settings } = useApp();
+  const { ready, notice, settings, active } = useApp();
+  const [progressGroup, setProgressGroup] = useState(null);
   // Web preview only (expo export -p web): ?tab=Muscles opens a tab, for design screenshots.
   const [tab, setTab] = useState(() => {
     const q = Platform.OS === 'web' && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
@@ -25,7 +26,13 @@ function Shell() {
   // Web preview only: ?setup=skip hides the first-run setup so Home can be screenshotted.
   const skipSetup = Platform.OS === 'web' && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('setup') === 'skip';
   const firstRun = ready && !settings.onboarded && !skipSetup;
-  const openLog = (initial = null, camera = null) => setLog({ initial, camera });
+  const openLog = (initial = null, camera = null) => {
+    if (!active) {
+      Alert.alert('Start a workout first', 'Use Start a Workout on Home before recording sets.');
+      return;
+    }
+    setLog({ initial, camera, workoutId: active.id });
+  };
 
   return (
     // One phone-width column on every screen: full width on phones, centered on tablets and desktop web.
@@ -37,15 +44,15 @@ function Shell() {
         {!ready ? null : tab === 'Home' ? (
           <HomeScreen openLog={openLog} openActivity={() => setActivity(true)} go={setTab} />
         ) : tab === 'Muscles' ? (
-          <MusclesScreen openLog={openLog} openHistory={() => setTab('Progress')} />
+          <MusclesScreen openHistory={() => { setProgressGroup(null); setTab('Progress'); }} openProgress={(group) => { setProgressGroup(group); setTab('Progress'); }} />
         ) : tab === 'Coach' ? (
           <CoachScreen openLog={openLog} />
         ) : (
-          <ProgressScreen go={setTab} />
+          <ProgressScreen go={setTab} muscleGroup={progressGroup} onClearMuscle={() => setProgressGroup(null)} />
         )}
       </View>
       <TabBar tab={tab} onChange={setTab} />
-      <LogSetSheet visible={Boolean(log)} initial={log?.initial} camera={log?.camera} onClose={() => setLog(null)} />
+      <LogSetSheet visible={Boolean(log && active?.id === log.workoutId)} initial={log?.initial} camera={log?.camera} onClose={() => setLog(null)} />
       <ActivitySheet visible={activity} onClose={() => setActivity(false)} openSetup={() => { setActivity(false); setSetup(true); }} />
       <Onboarding visible={firstRun || setup} onClose={() => setSetup(false)} />
     </View>
