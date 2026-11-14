@@ -1,0 +1,11 @@
+{
+  "video": "fs_press.webm",
+  "movement": "shoulder_press",
+  "split": "dev",
+  "adversarial": false,
+  "reps": [{ "end_ms": 5400 }],
+  "labeling": "end_ms = bar back at shoulders (app rep = bottom -> lockout -> bottom). Clip starts at lockout and ends at lockout, so only one full cycle exists; the final press is truncated and excluded. Labeled from 4 fps contact sheet before viewing predictions; needs a second human check.",
+  "conditions": "rear view, barbell, text overlay",
+  "source": "https://commons.wikimedia.org/wiki/File:Shoulder_press_-_exercise_demonstration_video.webm",
+  "license": "CC BY 3.0, FitnessScape. Not redistributed; download locally."
+}

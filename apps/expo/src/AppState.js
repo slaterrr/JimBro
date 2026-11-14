@@ -1,14 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
+import { applyDelete, applyUpdate } from './lib/intents.js';
+import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
+import { migrateGoals } from './lib/goals.js';
+import { isOnboarded } from './lib/onboarding.js';
+import { migrateSettings } from './lib/personas.js';
+import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
-export const DEFAULT_SETTINGS = { tone: 'friendly', speak: false, unit: 'lb', weeklyGoal: 3, restSeconds: 90 };
-const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null };
+export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3, onboarded: false, ...DEFAULT_GOAL_SETTINGS }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
+const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -25,7 +32,7 @@ export function AppProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...saved.settings } });
+        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
       })
       .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
       .finally(() => setReady(true));
@@ -36,7 +43,15 @@ export function AppProvider({ children }) {
 
   const settings = data.settings;
   const update = (patch) => setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
-  const say = useCallback((text) => { if (settings.speak) Speech.speak(text); }, [settings.speak]);
+  // All speech goes through lib/sound.js (persona voice, on/off, interruptions, iOS silent mode).
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const voice = useMemo(() => createVoice(
+    { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
+    () => settingsRef.current,
+  ), []);
+  useEffect(() => { voice.enableAudio(); }, [voice]);
+  const say = voice.say;
 
   /** All logged sets in order, including the workout in progress. */
   const allSets = [...data.history, ...(data.active ? [data.active] : [])].flatMap((w) => w.sets);
@@ -57,7 +72,11 @@ export function AppProvider({ children }) {
     return { set, isPR };
   };
 
-  const deleteSet = (id) => setData((d) => (d.active ? { ...d, active: { ...d.active, sets: d.active.sets.filter((x) => x.id !== id) } } : d));
+  /** Remove a set from the active workout or from history. */
+  const deleteSet = (id) => setData((d) => applyDelete(d, id));
+
+  /** Change fields of one set (active or history). Nothing else is recomputed. */
+  const updateSet = (id, changes) => setData((d) => applyUpdate(d, id, changes));
 
   const finishWorkout = () =>
     setData((d) => {
@@ -77,13 +96,17 @@ export function AppProvider({ children }) {
   };
 
   const savePlan = (plan) => setData((d) => ({ ...d, plan }));
+  // Goals: measurable targets checked against logged history (see lib/goals.js).
+  const addGoal = (goal) => setData((d) => ({ ...d, goals: [...(d.goals ?? []), { id: newId(), createdAt: new Date().toISOString(), ...goal }] }));
+  const removeGoal = (id) => setData((d) => ({ ...d, goals: (d.goals ?? []).filter((g) => g.id !== id) }));
   const exportJSON = () => JSON.stringify({ format: 'jimbro-phone-export-v1', exportedAt: new Date().toISOString(), ...data }, null, 2);
   const eraseAll = () => setData({ ...EMPTY, settings: data.settings });
 
   const value = {
-    ready, notice, setNotice, settings, update, say,
+    goals: data.goals ?? [], addGoal, removeGoal,
+    ready, notice, setNotice, settings, update, say, voice,
     active: data.active, history: data.history, plan: data.plan, allSets,
-    startWorkout, logSet, deleteSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

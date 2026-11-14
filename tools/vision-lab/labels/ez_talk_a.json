@@ -1,0 +1,11 @@
+{
+  "video": "ez_talk_a.mp4",
+  "movement": "curl",
+  "split": "dev",
+  "adversarial": true,
+  "reps": [],
+  "labeling": "Talking to camera with hand gestures; no exercise reps. Verified on a 1 fps contact sheet before replay.",
+  "conditions": "frontal, waist-up, gestures with both hands, gym background with other people",
+  "source": "https://commons.wikimedia.org/wiki/File:Video_of_EZ_Bar_Curl_and_Straight_Bar_Curl.webm (trim: 62-87 s)",
+  "license": "CC BY 3.0, Colossus Fitness. Not redistributed; download and trim locally."
+}

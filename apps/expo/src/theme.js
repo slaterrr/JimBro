@@ -1,26 +1,26 @@
-// JimBro design tokens (dark violet glass, neon green for gains), from the UI mockup.
+// JimBro design tokens (dark glass with a seafoam accent, neon green for gains).
 import { StyleSheet } from 'react-native';
 
+import { ACCENT, BG, SURFACES } from './lib/palette.js';
+
 export const T = {
-  bg: '#070c0b',
-  surface: '#101a17',
-  card: 'rgba(22, 38, 32, 0.92)',
-  cardSolid: '#15231e',
-  border: '#23382f',
-  borderStrong: '#305044',
-  purple: '#80d8be',
-  purpleDeep: '#369f87',
-  purpleSoft: 'rgba(128, 216, 190, 0.18)',
-  violetText: '#b6efdf',
+  bg: BG,
+  ...SURFACES,
+  ...ACCENT,
+  // Legacy names kept for other branches: they now resolve to seafoam, not purple.
+  purple: ACCENT.accent,
+  purpleDeep: ACCENT.accentDeep,
+  purpleSoft: ACCENT.accentSoft,
+  violetText: ACCENT.accentText,
   green: '#4ade80',
   greenBright: '#39ff5a',
   greenSoft: '#a3f0a8',
   red: '#ef4444',
   amber: '#f5c451',
   text: '#ffffff',
-  textDim: '#b8b3c4',
-  textMute: '#7d7789',
-  rest: '#5a5763',
+  textDim: '#b3c2be',
+  textMute: '#7a8a86',
+  rest: '#56605e',
 };
 
 export const R = { sm: 10, md: 16, lg: 22, xl: 28, pill: 999 };

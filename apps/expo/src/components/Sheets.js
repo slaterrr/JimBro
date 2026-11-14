@@ -1,20 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Keyboard, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
+import { Alert, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
-import { restSeconds } from '../lib/rest.js';
 import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
+import { setReport } from '../lib/sessionReport.js';
+import { spokenReport } from '../lib/speech.js';
+import { loggedText, restText } from '../lib/voice.js';
+import { restFor } from '../lib/rest.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
+import { FormReviewSheet } from './FormReview.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
+import { PersonaPicker } from './PersonaPicker.js';
 
 const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
 const RPE = [['', '–'], ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['10', '10']];
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-export function RestTimer({ seconds, onDone }) {
+/** Rest after a set; `rest` comes from restFor() so the length is curated per lift. */
+export function RestTimer({ rest, onDone }) {
+  const { seconds } = rest;
+  const { settings, allSets } = useApp();
+  const [line] = useState(() => restText(settings.persona, seconds, allSets.length));
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
     const t = setInterval(() => setLeft((l) => l - 1), 1000);
@@ -29,6 +38,8 @@ export function RestTimer({ seconds, onDone }) {
   return (
     <Card style={{ alignItems: 'center', marginTop: 14 }}>
       <Text style={type.label}>REST</Text>
+      <Text style={[type.body, { textAlign: 'center', marginTop: 2 }]}>{rest.text}</Text>
+      <Text style={[type.small, { textAlign: 'center', marginTop: 2 }]}>{line}</Text>
       <Text style={{ color: T.text, fontSize: 44, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(Math.max(0, left))}</Text>
       <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'stretch' }}>
         <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setLeft((l) => l + 30)}>+30s</PrimaryButton>
@@ -42,6 +53,46 @@ export function RestTimer({ seconds, onDone }) {
  * Log one set. `initial` can prefill exercise/reps/weight; `camera` attaches counted reps
  * ({ movement, reps: reps_detail[] }) when the rep count is left unchanged.
  */
+const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', implausible_motion: 'tracking jump', framing: 'out of frame' };
+
+/** Evidence-backed post-set camera report. */
+export function SetReportCard({ report, clips = [], movement }) {
+  const { say, settings } = useApp();
+  const [review, setReview] = useState(false);
+  const flagged = (clips ?? []).reduce((n, c) => n + (c.analysis?.faults?.length ?? 0), 0);
+  const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
+  return (
+    <Card style={{ marginTop: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={type.title}>Set report</Text>
+        <TouchableOpacity onPress={() => say(spokenReport(report, settings.persona))} accessibilityRole="button" accessibilityLabel="Hear report" hitSlop={8}>
+          <Text style={[type.small, { color: T.violetText, fontWeight: '700' }]}>🔊 Hear report</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={type.body}>
+        {report.counted} rep{report.counted === 1 ? '' : 's'} counted{report.target ? ` of ${report.target}` : ''}
+        {report.partials ? ` · ${report.partials} partial` : ''}
+        {report.trackingPct !== null ? ` · tracking ${report.trackingPct}%` : ''}
+      </Text>
+      {Object.entries(report.issues).length ? (
+        <Text style={type.small}>Not counted: {Object.entries(report.issues).map(([k, n]) => `${n}× ${ISSUE_LABEL[k] ?? 'tracking uncertain'}`).join(', ')}</Text>
+      ) : null}
+      {report.repDurationsMs.length ? <Text style={type.small}>Rep times: {report.repDurationsMs.map(sec).join(' · ')}</Text> : null}
+      {report.tempo ? <Text style={type.small}>Tempo: first 3 avg {sec(report.tempo.firstMs)} → last 3 avg {sec(report.tempo.lastMs)} ({report.tempo.changePct > 0 ? '+' : ''}{report.tempo.changePct}%)</Text> : null}
+      {report.rpe != null ? <Text style={type.small}>Your RPE: {report.rpe}</Text> : null}
+      {report.suggestions.map((x) => (
+        <Text key={x.id} style={[type.small, { color: T.violetText, marginTop: 6 }]}>• {x.text} ({x.evidence})</Text>
+      ))}
+      {flagged > 0 && movement ? (
+        <>
+          <PrimaryButton secondary onPress={() => setReview(true)}>Review form ({flagged})</PrimaryButton>
+          <FormReviewSheet visible={review} onClose={() => setReview(false)} movement={movement} clips={clips} />
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
 export function LogSetSheet({ visible, onClose, initial, camera }) {
   const { settings, allSets, logSet, say } = useApp();
   const [exercise, setExercise] = useState('bench');
@@ -77,9 +128,15 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       exercise, weight: w, unit, reps: r, rpe: rpe === '' ? null : Number(rpe),
       source: fromCamera ? 'camera' : initial?.source ?? 'manual',
       reps_detail: fromCamera ? camera.reps : [],
+      ...(fromCamera ? { camera_quality: camera.quality ?? null, target: camera.target ?? null } : {}),
     });
-    say(isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
-    setSaved({ isPR, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
+    const report = fromCamera
+      ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
+      : null;
+    say(report
+      ? `${isPR ? 'New record! ' : ''}${spokenReport(report, settings.persona)}`
+      : loggedText(settings.persona, { exercise, reps: r, weight: w, unit, isPR }, allSets.length));
+    setSaved({ isPR, report, rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe), fitnessGoal: settings.fitnessGoal, experience: settings.experience, activityLevel: settings.activityLevel }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
   return (
@@ -90,7 +147,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={type.title}>{saved.isPR ? '🏆 New personal record' : 'Set saved'}</Text>
             <Text style={type.body}>{saved.text}</Text>
           </Card>
-          <RestTimer seconds={restSeconds(exercise, Number(reps))} onDone={onClose} />
+          {saved.report ? <SetReportCard report={saved.report} clips={camera?.clips} movement={camera?.movement} /> : null}
+          <RestTimer rest={saved.rest} onDone={onClose} />
         </>
       ) : (
         <>
@@ -127,10 +185,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
   );
 }
 
-const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
-
 /** The bell: what happened lately, plus settings and data controls. */
-export function ActivitySheet({ visible, onClose }) {
+export function ActivitySheet({ visible, onClose, openSetup }) {
   const { settings, update, history, allSets, exportJSON, eraseAll, importData } = useApp();
   const [pasted, setPasted] = useState('');
   const [msg, setMsg] = useState(null);
@@ -138,7 +194,6 @@ export function ActivitySheet({ visible, onClose }) {
   const prs = allSets.filter((s) => s.pr).slice(-3).reverse();
 
   const restore = () => {
-    Keyboard.dismiss();
     try {
       const n = importData(pasted);
       setMsg(n ? `Restored ${n} workout${n === 1 ? '' : 's'}.` : 'Nothing new to restore.');
@@ -162,8 +217,9 @@ export function ActivitySheet({ visible, onClose }) {
       ))}
 
       <Text style={[type.h2, { marginTop: 24, marginBottom: 6 }]}>Settings</Text>
-      <Text style={[type.label, { marginVertical: 8 }]}>Jim's tone</Text>
-      <Chips options={TONES} value={settings.tone} onChange={(tone) => update({ tone })} />
+      {openSetup ? <PrimaryButton secondary onPress={openSetup}>Beginner / comeback setup</PrimaryButton> : null}
+      <Text style={[type.label, { marginVertical: 8 }]}>Jim's persona</Text>
+      <PersonaPicker />
       <Text style={[type.label, { marginVertical: 8 }]}>Spoken replies</Text>
       <Chips options={[[true, 'On'], [false, 'Off']]} value={settings.speak} onChange={(speak) => update({ speak })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Units</Text>
@@ -175,7 +231,7 @@ export function ActivitySheet({ visible, onClose }) {
       <Text style={type.body}>{history.length} workouts on this phone. Nothing is uploaded.</Text>
       <PrimaryButton secondary onPress={() => Share.share({ message: exportJSON(), title: 'JimBro workouts' })}>Export workouts</PrimaryButton>
       <View style={{ marginTop: 12 }}>
-        <Field value={pasted} onChangeText={setPasted} multiline autoCorrect={false} autoCapitalize="none" placeholder="Paste an export here to restore" style={{ height: 100, textAlignVertical: 'top' }} />
+        <Field value={pasted} onChangeText={setPasted} multiline placeholder="Paste an export here to restore" style={{ minHeight: 70, textAlignVertical: 'top' }} />
       </View>
       <PrimaryButton secondary disabled={!pasted.trim()} onPress={restore}>Restore</PrimaryButton>
       {msg ? <Text style={[type.small, { marginTop: 8 }]}>{msg}</Text> : null}

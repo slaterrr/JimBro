@@ -2,13 +2,14 @@
 // the UI always asks for confirmation before saving.
 
 
-const EXERCISE_PATTERNS = [
+export const EXERCISE_PATTERNS = [
   ["shoulder_press", /\b(shoulder|overhead|military)\s+press(es)?\b/],
   ["bench", /\bbench(\s+press(es)?)?\b/],
   ["deadlift", /\bdead\s?lifts?\b/],
   ["pull_up", /\b(pull|chin)[\s-]?ups?\b/],
   ["squat", /\bsquats?\b/],
-  ["curl", /\b(bicep\s+)?curls?\b/],
+  ["lunge", /\blunges?\b/],
+  ["curl",/\b(bicep\s+)?curls?\b/],
 ];
 
 const WORDS = {
@@ -19,7 +20,7 @@ const WORDS = {
 };
 
 /** Turn number words into digits ("twenty five" -> "25"). */
-function normalise(text) {
+export function normalise(text) {
   return text
     .toLowerCase()
     .replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-](one|two|three|four|five|six|seven|eight|nine)\b/g,

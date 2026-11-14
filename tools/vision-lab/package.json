@@ -1,0 +1,14 @@
+{
+  "name": "jimbro-vision-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only: replay MP4 workouts through production MediaPipe and the JimBro rep counter.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "run": "node run.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
