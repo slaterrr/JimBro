@@ -84,6 +84,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Switch suggestion card + lunge as manual exercise | 🧪 #32 | `lib/switchExercise.js`, CoachScreen, exercises.js | unit + wiring | card position on device |
 | Beginner/comeback first-run setup (pain → safety, no plan) | 🧪 #33 | `lib/onboarding.js`, `Onboarding.js` | unit + wiring | device |
 | Weekly health card on Home | 🧪 #33 | `lib/healthSummary.js` | unit (demo fixture, hand-computed) | device with data |
+| Activity level estimate from health history (Tudor-Locke steps, WHO 150 min/wk; confidence; never shames) → `settings.activityLevel` | 🧪 feat/health-activity | `lib/activityLevel.js`, `components/HealthConnect.js`, Progress › Goals card | 20 unit tests (bands, gaps, outliers, <7 days) | device check; nothing reads the level yet |
+| Health import: Apple Health `export.xml` (streamed, 1 MB chunks) + CSV in Expo Go; native HealthKit / Health Connect adapter | 🧪 feat/health-activity | `lib/healthData.js` | 5 unit tests on fake fixture | big real export on a phone; native path **needs a dev build** (`registerNativeHealth`), not in Expo Go; `.zip` must be unzipped first |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.
