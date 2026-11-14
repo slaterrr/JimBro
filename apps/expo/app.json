@@ -26,7 +26,17 @@
       "expo-audio"
     ],
     "extra": {
-      "jimProxyUrl": ""
+      "jimProxyUrl": "",
+      "eas": {
+        "projectId": "88d6298a-9d41-4f4a-a6e6-41c90e8cf6d9"
+      }
+    },
+    "owner": "slaterr",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/88d6298a-9d41-4f4a-a6e6-41c90e8cf6d9"
     }
   }
 }

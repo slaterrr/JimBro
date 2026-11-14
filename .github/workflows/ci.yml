@@ -81,3 +81,37 @@ jobs:
         run: npm ci && npm test
       - name: Bundle for Android and iOS
         run: npx expo export --platform android --platform ios --output-dir /tmp/expo-dist
+
+  publish-preview:
+    name: Publish shared Expo preview
+    needs: [backend-quality, mobile-quality, expo-quality]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/expo/package-lock.json
+      - name: Require publishing credential
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'Add EXPO_TOKEN in repository Settings > Secrets and variables > Actions.'
+            exit 1
+          fi
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Publish tested main commit
+        run: eas update --channel preview --environment preview --message "main $GITHUB_SHA" --non-interactive
+      - name: Link shared preview
+        run: echo 'https://expo.dev/accounts/slaterr/projects/jimbro/branches/preview' >> "$GITHUB_STEP_SUMMARY"
