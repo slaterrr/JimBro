@@ -1,6 +1,7 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
 import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle } from './angles.js';
+import { analyzeRep } from './form.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
 const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on real videos
@@ -11,6 +12,18 @@ const MAX_SPEED_GAP_MS = 300;
 // Hypothesis under test: MediaPipe extrapolates hips that are off-screen with passing
 // visibility (waist-up framing). Torso anchors must lie inside the frame, with a margin.
 const FRAME_MARGIN = 0.05;
+// Form-review clips: landmarks only (never video), bounded memory.
+const CLIP_PRE_MS = 500; // frames before the counter's rep start (motion begins before it triggers)
+const CLIP_POST_MS = 400; // frames after rep end, so the lowering reaches the bottom
+const CLIP_MAX_FRAMES = 60;
+const MAX_FAULT_CLIPS = 10;
+const BUFFER_MS = 15000;
+
+/** Evenly pick at most n items, keeping the first and last. */
+export function downsample(items, n) {
+  if (items.length <= n) return items;
+  return Array.from({ length: n }, (_, i) => items[Math.round((i * (items.length - 1)) / (n - 1))]);
+}
 
 /** True when the locked side's shoulder and hip are inside the image (normalized coords). */
 export function torsoInFrame(pose, side) {
@@ -40,6 +53,38 @@ export class LiveSession {
     this.reps = [];
     this.blocked = []; // in-progress reps aborted by a quality gate: {reason, t}
     this.side = null;
+    this._buf = [];
+    this._pending = [];
+    this._clips = [];
+  }
+
+  /** Per-rep clips for form review: flagged reps plus the best clean rep, in rep order. */
+  get clips() {
+    this._flushClips(Infinity);
+    return this._clips;
+  }
+
+  _flushClips(now) {
+    while (this._pending.length && (now === Infinity || now >= this._pending[0].end_ms + CLIP_POST_MS)) {
+      const rep = this._pending.shift();
+      const raw = this._buf.filter((f) => f.t >= rep.start_ms - CLIP_PRE_MS && f.t <= rep.end_ms + CLIP_POST_MS);
+      const analysis = analyzeRep(this.movement, raw);
+      if (analysis.uncertain) continue;
+      const clip = { index: rep.index, frames: downsample(raw, CLIP_MAX_FRAMES), analysis };
+      if (analysis.ok) {
+        const rom = raw.length ? Math.max(...raw.map((f) => f.angle)) - Math.min(...raw.map((f) => f.angle)) : 0;
+        const best = this._clips.find((c) => c.analysis.ok);
+        if (best && best.rom >= rom) continue;
+        this._clips = this._clips.filter((c) => !c.analysis.ok);
+        Object.defineProperty(clip, 'rom', { value: rom, enumerable: false });
+      } else if (this._clips.filter((c) => !c.analysis.ok).length >= MAX_FAULT_CLIPS) continue;
+      this._clips.push(clip);
+      this._clips.sort((a, b) => a.index - b.index);
+    }
+    if (now !== Infinity) {
+      const keepFrom = Math.min(now - BUFFER_MS, ...this._pending.map((r) => r.start_ms - CLIP_PRE_MS));
+      if (this._buf.length && this._buf[0].t < keepFrom) this._buf = this._buf.filter((f) => f.t >= keepFrom);
+    }
   }
 
   get count() {
@@ -97,8 +142,13 @@ export class LiveSession {
         return this.result(null, tracking, m.angle, 'arm_swing');
       }
     }
+    this._buf.push({ t, pose: pose.map(({ x, y, visibility }) => ({ x, y, visibility })), angle: m.angle });
     const rep = this.counter.update({ t_ms: t, angle_deg: m.angle, confidence: m.confidence });
-    if (rep) this.reps.push(rep);
+    if (rep) {
+      this.reps.push(rep);
+      this._pending.push(rep);
+    }
+    this._flushClips(t);
     return this.result(rep, tracking, m.angle);
   }
 
@@ -122,6 +172,9 @@ export class LiveSession {
     this._q = null;
     this.blocked = [];
     this._prev = null;
+    this._buf = [];
+    this._pending = [];
+    this._clips = [];
   }
 
   /** Reps in the shape a logged set stores. */

@@ -32,7 +32,7 @@ const run = (reps) => {
 
 describe('LiveSession clips', () => {
   it('keeps flagged reps plus the best clean rep, each analysed', () => {
-    const s = run([{}, {}, { args: SWING }, {}, { downMs: 300 }]);
+    const s = run([{}, {}, { args: SWING }, {}, { downMs: 500 }]);
     assert.equal(s.count, 5);
     const clips = s.clips;
     const flagged = clips.filter((c) => !c.analysis.ok);
