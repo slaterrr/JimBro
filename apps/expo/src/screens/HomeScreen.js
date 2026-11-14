@@ -9,14 +9,11 @@ import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
+import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
-const GOALS = [
-  { id: 'hypertrophy', icon: 'arm-flex-outline', label: 'Build\nMuscle', ask: 'I want to build muscle.' },
-  { id: 'general', icon: 'heart-pulse', label: 'Improve\nEndurance', ask: 'I want to improve my endurance.' },
-  { id: 'strength', icon: 'target', label: 'Get\nStronger', ask: 'I want to get stronger.' },
-];
+const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
@@ -36,8 +33,9 @@ function Glow() {
   );
 }
 
-function PlanCard({ goal }) {
+function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
   const { savePlan, startWorkout, active, plan: saved } = useApp();
+  const [goal, setGoal] = useState(initialGoal);
   const [days, setDays] = useState(3);
   const [minutes, setMinutes] = useState(45);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
@@ -47,6 +45,8 @@ function PlanCard({ goal }) {
   return (
     <Card style={{ marginTop: 10 }}>
       <Text style={type.title}>Your weekly plan</Text>
+      <Text style={[type.label, { marginVertical: 8 }]}>Goal</Text>
+      <Chips options={GOALS} value={goal} onChange={setGoal} />
       <Text style={[type.label, { marginVertical: 8 }]}>Days per week</Text>
       <Chips options={[2, 3, 4, 5].map((d) => [d, String(d)])} value={days} onChange={setDays} />
       <Text style={[type.label, { marginVertical: 8 }]}>Minutes</Text>
@@ -67,8 +67,8 @@ function PlanCard({ goal }) {
   );
 }
 
-export function HomeScreen({ openLog, openActivity }) {
-  const { settings, say, logSet, updateSet, deleteSet, active, history, goals, plan } = useApp();
+export function HomeScreen({ openLog, openActivity, go }) {
+  const { settings, say, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
@@ -93,33 +93,38 @@ export function HomeScreen({ openLog, openActivity }) {
     Speech.speak(line, { rate: persona.voice.rate, pitch: persona.voice.pitch, onDone: () => talkRef.current && input.current?.focus() });
   };
 
-  const send = async (raw, goal) => {
+  const send = async (raw) => {
     const message = raw.trim();
     if (!message || thinking) return;
     setText('');
-    if (!goal) {
-      const prior = historyFor(messages);
-      push({ me: true, text: message });
-      setThinking(true);
-      const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
-      setThinking(false);
-      if (r.source !== 'safety') setSource(r.source);
-      // Never change data here: proposals become confirm cards and wait for the user.
-      const out = [];
-      if (r.reply) out.push({ me: false, text: r.reply, safety: r.safety, suggestion: r.suggestion });
-      r.proposals.forEach((intent) => out.push({ kind: 'confirm', intent }));
-      push(...out);
-      speak(r.reply || r.proposals[0]?.summary);
-      return;
-    }
-    if (goal) {
-      const intro = {
-        hypertrophy: "Let's build muscle. Here's a plan with 8–12 rep work; adjust it and save it.",
-        general: "Endurance it is. I'll keep sessions moving with short rests. Real cardio still matters, so add it on off days.",
-        strength: "Let's get stronger. Heavy 3–5 rep sets with long rests. Here's your week.",
-      }[goal];
-      push({ me: true, text: message }, { me: false, text: intro }, { kind: 'plan', goal });
+    const prior = historyFor(messages);
+    push({ me: true, text: message });
+    setThinking(true);
+    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+    setThinking(false);
+    if (r.source !== 'safety') setSource(r.source);
+    // Never change data here: proposals become confirm cards and wait for the user.
+    const out = [];
+    if (r.reply) out.push({ me: false, text: r.reply, safety: r.safety, suggestion: r.suggestion });
+    r.proposals.forEach((intent) => out.push({ kind: 'confirm', intent }));
+    push(...out);
+    speak(r.reply || r.proposals[0]?.summary);
+  };
+
+  // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
+  const choose = (id) => {
+    if (id === 'start') {
+      if (!active) {
+        const next = nextWorkout(plan, history);
+        startWorkout(next.name, next.planned);
+      }
+      go?.('Coach');
+    } else if (id === 'plan') {
+      const intro = "Let's build your plan. Pick a goal, adjust the week and save it.";
+      push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' });
       speak(intro);
+    } else {
+      go?.('Progress');
     }
   };
 
@@ -185,11 +190,11 @@ export function HomeScreen({ openLog, openActivity }) {
             <JimBars height={64} />
             <Text style={[type.h1, { marginTop: 28, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
-              Your AI gym coach. Tell me what{'\n'}you want to work on today.
+              {HOME_SUBTITLE}
             </Text>
             <View style={st.goals}>
-              {GOALS.map((g) => (
-                <TouchableOpacity key={g.id} style={st.goal} onPress={() => send(g.ask, g.id)}>
+              {HOME_OPTIONS.map((g) => (
+                <TouchableOpacity key={g.id} accessibilityRole="button" accessibilityLabel={g.label.replace('\n', ' ')} style={st.goal} onPress={() => choose(g.id)}>
                   <Icon name={g.icon} size={30} color={T.accent} />
                   <Text style={st.goalText}>{g.label}</Text>
                 </TouchableOpacity>
@@ -198,7 +203,7 @@ export function HomeScreen({ openLog, openActivity }) {
           </View>
         ) : (
           messages.map((m, i) => {
-            if (m.kind === 'plan') return <PlanCard key={i} goal={m.goal} />;
+            if (m.kind === 'plan') return <PlanCard key={i} />;
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>

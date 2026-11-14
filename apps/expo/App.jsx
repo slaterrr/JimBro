@@ -27,7 +27,7 @@ function Shell() {
       {notice ? <Text style={{ color: T.red, paddingHorizontal: 20 }}>{notice}</Text> : null}
       <View style={{ flex: 1 }}>
         {!ready ? null : tab === 'Home' ? (
-          <HomeScreen openLog={openLog} openActivity={() => setActivity(true)} />
+          <HomeScreen openLog={openLog} openActivity={() => setActivity(true)} go={setTab} />
         ) : tab === 'Muscles' ? (
           <MusclesScreen openLog={openLog} openHistory={() => setTab('Progress')} />
         ) : tab === 'Coach' ? (
