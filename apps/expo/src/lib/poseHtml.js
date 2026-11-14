@@ -16,7 +16,12 @@ export function poseHtml({ facing = 'user', fps = 20 } = {}) {
 <body>
 <video id="v" playsinline muted autoplay></video><canvas id="c"></canvas>
 <script type="module">
-const post = (m) => window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m));
+// Phones: React Native WebView bridge. Web (Expo web): the page runs in an iframe and posts to the app window.
+const post = (m) => {
+  const data = JSON.stringify(m);
+  if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(data);
+  else if (window.parent && window.parent !== window) window.parent.postMessage(data, '*');
+};
 const SKELETON = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
 const v = document.getElementById('v'), c = document.getElementById('c'), ctx = c.getContext('2d');
 let facing = ${JSON.stringify(facing)}, stream = null, landmarker = null, last = 0;
