@@ -83,7 +83,7 @@ export function CoachScreen({ openLog }) {
 
   const stop = () => {
     const reps = session.current.repsDetail();
-    openLog({ exercise: movement, reps: reps.length, source: 'camera' }, reps.length ? { movement, reps } : null);
+    openLog({ exercise: movement, reps: reps.length, source: 'camera' }, reps.length ? { movement, reps, quality: session.current.quality(), target } : null);
     resetSet();
   };
   const flip = () => {

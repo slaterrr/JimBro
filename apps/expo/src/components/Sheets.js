@@ -5,6 +5,7 @@ import { useApp } from '../AppState.js';
 import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
+import { setReport } from '../lib/sessionReport.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
@@ -41,6 +42,30 @@ export function RestTimer({ seconds, onDone }) {
  * Log one set. `initial` can prefill exercise/reps/weight; `camera` attaches counted reps
  * ({ movement, reps: reps_detail[] }) when the rep count is left unchanged.
  */
+/** Evidence-backed post-set camera report. */
+export function SetReportCard({ report }) {
+  const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
+  return (
+    <Card style={{ marginTop: 12 }}>
+      <Text style={type.title}>Set report</Text>
+      <Text style={type.body}>
+        {report.counted} rep{report.counted === 1 ? '' : 's'} counted{report.target ? ` of ${report.target}` : ''}
+        {report.partials ? ` · ${report.partials} partial` : ''}
+        {report.trackingPct !== null ? ` · tracking ${report.trackingPct}%` : ''}
+      </Text>
+      {Object.entries(report.issues).length ? (
+        <Text style={type.small}>Not counted: {Object.entries(report.issues).map(([k, n]) => `${n}× ${k === 'arm_swing' ? 'arm swing' : 'tracking uncertain'}`).join(', ')}</Text>
+      ) : null}
+      {report.repDurationsMs.length ? <Text style={type.small}>Rep times: {report.repDurationsMs.map(sec).join(' · ')}</Text> : null}
+      {report.tempo ? <Text style={type.small}>Tempo: first 3 avg {sec(report.tempo.firstMs)} → last 3 avg {sec(report.tempo.lastMs)} ({report.tempo.changePct > 0 ? '+' : ''}{report.tempo.changePct}%)</Text> : null}
+      {report.rpe != null ? <Text style={type.small}>Your RPE: {report.rpe}</Text> : null}
+      {report.suggestions.map((x) => (
+        <Text key={x.id} style={[type.small, { color: T.violetText, marginTop: 6 }]}>• {x.text} ({x.evidence})</Text>
+      ))}
+    </Card>
+  );
+}
+
 export function LogSetSheet({ visible, onClose, initial, camera }) {
   const { settings, allSets, logSet, say } = useApp();
   const [exercise, setExercise] = useState('bench');
@@ -76,9 +101,13 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       exercise, weight: w, unit, reps: r, rpe: rpe === '' ? null : Number(rpe),
       source: fromCamera ? 'camera' : initial?.source ?? 'manual',
       reps_detail: fromCamera ? camera.reps : [],
+      ...(fromCamera ? { camera_quality: camera.quality ?? null, target: camera.target ?? null } : {}),
     });
+    const report = fromCamera
+      ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
+      : null;
     say(isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
-    setSaved({ isPR, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
+    setSaved({ isPR, report, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
   return (
@@ -89,6 +118,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={type.title}>{saved.isPR ? '🏆 New personal record' : 'Set saved'}</Text>
             <Text style={type.body}>{saved.text}</Text>
           </Card>
+          {saved.report ? <SetReportCard report={saved.report} /> : null}
           <RestTimer seconds={settings.restSeconds} onDone={onClose} />
         </>
       ) : (
