@@ -53,6 +53,11 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
 | Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |
 | On-phone pose (MediaPipe Lite in WebView) | 🧪 main | `lib/poseHtml.js` | vision-lab uses same model/config | FPS on real phones |
+| Analyzer registry: every exercise declares camera status (real-tested / sim-tested / experimental / manual + reason) | 🧪 feat/performance-engine | `lib/analyzers.js` | registry tests; existing 4 lifts unchanged | — |
+| Pull-up (front) and deadlift (side) camera counting, **experimental** | 🧪 feat/performance-engine | `reps.js`, `live.js` gates | **sim only**: exact counts, 0 counts from presses/curls/squats/waving/half reps | real clips before calling them tested |
+| Relative per-rep metrics + six-level fatigue check (no m/s, no RIR from video) | 🧪 feat/performance-engine | `lib/performance.js` | unit tests | real slow-vs-fatigued clips |
+| Next-set recommendation with approval (Use it / Keep plan), stored with outcome | 🧪 feat/performance-engine | `lib/recommend.js`, Mission, Log a set | unit tests; browser run-through | device check; 5+ real outcomes before claiming anything |
+| Performance voice/chat lines from recorded data | 🧪 feat/performance-engine | `lib/perfCoach.js`, Coach, Home | unit tests; browser chat | device audio |
 | Camera counting in a laptop browser (Expo web): same pose page in an iframe, `postMessage` bridge; screens fit 320 px to desktop (centered 560 px column) | 🧪 feat/workout-mission | `components/PoseView.web.js`, `lib/poseBridge.js`, `lib/layout.js` | unit + wiring tests; user confirmed live camera works in Chrome; layout checked at 5 sizes | Safari/Firefox; notch/safe areas on devices |
 | Rep counter (curl, squat, press) | ✅ | `lib/reps.js`, `lib/live.js` | unit + 20-rep simulated sets 20/20 all lifts; real video 3/3 TP, 0 FP | real 15–20-rep phone clips |
 | Anti-false-rep guards: exercise-aware visibility, side lock, abort on tracking loss, curl arm-swing | ✅ PR #18 | `lib/live.js`, `lib/angles.js` | unit tests | 50° swing threshold on real video |
@@ -96,7 +101,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 | **Workout Mission**: "I have 20 minutes, help me finish chest day" → on-phone plan from history + goal (time-boxed, every choice explained) → confirm card → hands-free run on Coach (auto-start when tracked, auto-end set, quick RPE check that saves itself, rest with next-set adjustment, switch to a camera-counted lift, skip/end) → summary checked against the plan | 🧪 feat/workout-mission | `lib/mission.js`, `components/Mission.js`, HomeScreen chips + intercept, CoachScreen, AppState `mission` | 15 unit tests (parse, plan budget/progression/rested area, state machine, summary, weight pick, camera swap); iOS bundle; simulator tap-through of the tap-counted path (no camera in simulator) | camera-counted path on a real phone; spoken lines on device |
 
-Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 394.
+Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 402. On feat/performance-engine: app 470, vision-lab 44. Roadmap for equipment tracking, force/power and validation: `docs/PERFORMANCE_ROADMAP.md`.
 
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
