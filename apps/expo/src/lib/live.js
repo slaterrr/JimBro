@@ -205,7 +205,9 @@ export class LiveSession {
       }
     }
     this._buf.push({ t, pose: pose.map(({ x, y, visibility }) => ({ x, y, visibility })), angle: m.angle });
+    const partialsBefore = this.counter.partials;
     const rep = this.counter.update({ t_ms: t, angle_deg: m.angle, confidence: m.confidence });
+    if (this.counter.partials > partialsBefore) this._lastPartialT = t; // an attempt that didn't reach full range
     if (rep) {
       this._describeRep(rep);
       this.reps.push(rep);
@@ -268,7 +270,11 @@ export class LiveSession {
   /** Set-level evidence for the report: frames, usable frames, issue episodes, partial reps. */
   quality() {
     const q = this._q ?? { frames: 0, okFrames: 0, issues: {} };
-    return { frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials };
+    const lastRepEnd = this.reps.length ? this.reps[this.reps.length - 1].end_ms : -Infinity;
+    return {
+      frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials,
+      partialAfterLastRep: this._lastPartialT != null && this._lastPartialT > lastRepEnd,
+    };
   }
 
   /** Changing the physical camera may mirror sides; preserve completed reps. */
@@ -290,6 +296,7 @@ export class LiveSession {
     this._pending = [];
     this._clips = [];
     this._variants = [];
+    this._lastPartialT = null;
   }
 
   /** Reps in the shape a logged set stores. */
