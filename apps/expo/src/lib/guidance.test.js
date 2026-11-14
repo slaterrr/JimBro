@@ -30,3 +30,15 @@ test('a detected exercise change is explained and tells the user what to do', ()
   assert.match(g, /squat/i);
   assert.match(g, /\+|log/i);
 });
+
+test('arm-lift exercise changes are explained neutrally and say how to count them', () => {
+  const press = cameraGuidance('exercise_change', 'shoulder_press', 'curl');
+  assert.match(press, /shoulder presses/i);
+  assert.match(press, /curl counting is paused/i);
+  assert.match(press, /switch to shoulder press/i);
+  const curl = cameraGuidance('exercise_change', 'curl', 'shoulder_press');
+  assert.match(curl, /curls/i);
+  assert.match(curl, /press counting is paused/i);
+  assert.match(curl, /switch to curl/i);
+  for (const g of [press, curl]) assert.doesNotMatch(g, /cheat|wrong|bad/i);
+});
