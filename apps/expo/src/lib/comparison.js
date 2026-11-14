@@ -16,3 +16,9 @@ export function metrics(period, exercise, unit) {
   const normalized = sets.map(s => ({...s, unit, weight: s.weight * (s.unit === unit ? 1 : unit === 'kg' ? 0.45359237 : 1/0.45359237)}));
   return { volume: normalized.length ? normalized.reduce((v,s) => v+s.weight*s.reps,0) : null, strength: Math.max(0, ...normalized.map(s => estimate1RM(s) ?? 0)) || null };
 }
+/** [older, newer] keys to show first: the two newest periods (groups are newest first) that logged the exercise. */
+export function defaultPair(groups, exercise) {
+  const has = groups.filter(g => g.workouts.some(w => w.sets.some(s => s.exercise === exercise)));
+  const pick = has.length >= 2 ? has : groups;
+  return [pick[1]?.key ?? null, pick[0]?.key ?? null];
+}
