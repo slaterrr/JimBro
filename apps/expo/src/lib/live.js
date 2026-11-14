@@ -38,6 +38,7 @@ export class LiveSession {
     this.movement = movement;
     this.counter = new RepCounter(MOVEMENTS[movement]);
     this.reps = [];
+    this.blocked = []; // in-progress reps aborted by a quality gate: {reason, t}
     this.side = null;
   }
 
@@ -51,14 +52,21 @@ export class LiveSession {
     if (!issue) q.okFrames += 1;
     if (issue && issue !== q.last) q.issues[issue] = (q.issues[issue] ?? 0) + 1;
     q.last = issue;
+    let blocked = null;
+    if (issue && this._frame?.moving) {
+      blocked = { reason: issue, t: this._frame.t };
+      this.blocked.push(blocked);
+    }
     return {
-      rep, tracking, angle, issue, state: this.counter.state,
+      rep, tracking, angle, issue, blocked, state: this.counter.state,
       count: this.counter.count, partials: this.counter.partials,
     };
   }
 
   /** Feed one frame ({t ms, pose: 33 landmarks or null}); returns the UI snapshot. */
   frame(t, pose) {
+    // The user had moved meaningfully: an issue now aborts a rep rather than idle noise.
+    this._frame = { t, moving: this.counter.state !== 'rest' };
     const tracking = assessTracking(pose, 0.5, this.movement, this.side);
     if (tracking.status !== 'ok') {
       this._prev = null;
@@ -112,6 +120,7 @@ export class LiveSession {
     this.reps = [];
     this.side = null;
     this._q = null;
+    this.blocked = [];
     this._prev = null;
   }
 

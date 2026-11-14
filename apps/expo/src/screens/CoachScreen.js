@@ -12,7 +12,11 @@ import { LiveSession } from '../lib/live.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { R, T, type } from '../theme.js';
 
-const CAMERA_LIFTS = EXERCISES.filter((e) => e.camera).map((e) => [e.id, e.name]);
+// Neutral, plain-word reasons for a movement the counter did not count.
+const BLOCKED_WORDS = { arm_swing: 'arm swing', framing: 'step back into frame', implausible_motion: 'tracking jumped', tracking: 'lost tracking' };
+const CAUGHT_MS = 1500;
+
+const CAMERA_LIFTS =EXERCISES.filter((e) => e.camera).map((e) => [e.id, e.name]);
 
 function plannedFor(active, movement) {
   return active?.planned?.items?.find((i) => i.exercise === movement) ?? null;
@@ -32,6 +36,9 @@ export function CoachScreen({ openLog }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
   const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null });
+  const [caught, setCaught] = useState(null);
+  const caughtTimer = useRef(null);
+  useEffect(() => () => clearTimeout(caughtTimer.current), []);
   const session = useRef(new LiveSession(movement));
   const web = useRef(null);
   const html = useMemo(() => poseHtml({ facing: 'user' }), []);
@@ -79,6 +86,16 @@ export function CoachScreen({ openLog }) {
       if (v.count === out.count && v.tracking === out.tracking.status && v.issue === out.issue) return v;
       return { count: out.count, tracking: out.tracking.status, lastRep, issue: out.issue };
     });
+    if (out.blocked) {
+      const words = BLOCKED_WORDS[out.blocked.reason] ?? 'lost tracking';
+      setCaught({ reason: out.blocked.reason, words });
+      clearTimeout(caughtTimer.current);
+      caughtTimer.current = setTimeout(() => setCaught(null), CAUGHT_MS);
+      if (voice) {
+        Speech.stop();
+        Speech.speak(`Not counted — ${words}.`);
+      }
+    }
     if (out.rep && voice) {
       Speech.stop();
       Speech.speak(String(out.count));
@@ -139,6 +156,17 @@ export function CoachScreen({ openLog }) {
             <Text style={{ color: T.textDim, fontWeight: '500' }}> / {target}</Text>
           </Text>
         </View>
+        {caught ? (
+          <View
+            style={[st.caught, { borderColor: caught.reason === 'arm_swing' ? T.red : T.amber }]}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`Not counted, ${caught.words}`}
+          >
+            <Text style={{ color: caught.reason === 'arm_swing' ? T.red : T.amber, fontSize: 16, fontWeight: '800' }}>
+              Not counted · {caught.words}
+            </Text>
+          </View>
+        ) : null}
         <View style={[st.glass, st.cue]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <JimBars height={16} />
@@ -193,6 +221,7 @@ const st = StyleSheet.create({
   exerciseBox: { top: 12, left: 12, minWidth: 160 },
   repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 110 },
   cue: { left: 12, right: 12, bottom: 12 },
+  caught: { position: 'absolute', top: 110, alignSelf: 'center', backgroundColor: 'rgba(16,13,22,0.88)', borderWidth: 2, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 8 },
   controls: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 18 },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.purple, backgroundColor: T.purpleSoft, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },
 });

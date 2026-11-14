@@ -174,7 +174,8 @@ describe('LiveSession', () => {
       const frames = curlFrames(1);
       const s = new LiveSession('curl');
       for (const f of frames.slice(0, 25)) s.frame(f.t, f.pose);
-      const out = s.frame(frames[25].t, swung(90));
+      // Arrives after the joint-speed window so only the swing gate applies.
+      const out = s.frame(frames[24].t + 400, swung(90));
       assert.equal(out.issue, 'arm_swing');
       assert.equal(out.blocked.reason, 'arm_swing');
       assert.equal(s.count, 0);
