@@ -8,6 +8,7 @@ import { streak, weeklyProgress } from '../lib/progress.js';
 import { setReport } from '../lib/sessionReport.js';
 import { spokenReport } from '../lib/speech.js';
 import { loggedText, restText } from '../lib/voice.js';
+import { restFor } from '../lib/rest.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
 import { FormReviewSheet } from './FormReview.js';
@@ -18,7 +19,9 @@ const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
 const RPE = [['', '–'], ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['10', '10']];
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-export function RestTimer({ seconds, onDone }) {
+/** Rest after a set; `rest` comes from restFor() so the length is curated per lift. */
+export function RestTimer({ rest, onDone }) {
+  const { seconds } = rest;
   const { settings, allSets } = useApp();
   const [line] = useState(() => restText(settings.persona, seconds, allSets.length));
   const [left, setLeft] = useState(seconds);
@@ -35,6 +38,7 @@ export function RestTimer({ seconds, onDone }) {
   return (
     <Card style={{ alignItems: 'center', marginTop: 14 }}>
       <Text style={type.label}>REST</Text>
+      <Text style={[type.body, { textAlign: 'center', marginTop: 2 }]}>{rest.text}</Text>
       <Text style={[type.small, { textAlign: 'center', marginTop: 2 }]}>{line}</Text>
       <Text style={{ color: T.text, fontSize: 44, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(Math.max(0, left))}</Text>
       <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'stretch' }}>
@@ -132,7 +136,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     say(report
       ? `${isPR ? 'New record! ' : ''}${spokenReport(report, settings.persona)}`
       : loggedText(settings.persona, { exercise, reps: r, weight: w, unit, isPR }, allSets.length));
-    setSaved({ isPR, report, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
+    setSaved({ isPR, report, rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe) }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
   return (
@@ -144,7 +148,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={type.body}>{saved.text}</Text>
           </Card>
           {saved.report ? <SetReportCard report={saved.report} clips={camera?.clips} movement={camera?.movement} /> : null}
-          <RestTimer seconds={settings.restSeconds} onDone={onClose} />
+          <RestTimer rest={saved.rest} onDone={onClose} />
         </>
       ) : (
         <>
@@ -221,8 +225,6 @@ export function ActivitySheet({ visible, onClose }) {
       <Chips options={[['lb', 'lb'], ['kg', 'kg']]} value={settings.unit} onChange={(unit) => update({ unit })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Weekly goal</Text>
       <Chips options={[1, 2, 3, 4, 5, 6].map((n) => [n, String(n)])} value={settings.weeklyGoal} onChange={(weeklyGoal) => update({ weeklyGoal })} />
-      <Text style={[type.label, { marginVertical: 8 }]}>Rest timer</Text>
-      <Chips options={[[60, '1:00'], [90, '1:30'], [120, '2:00'], [180, '3:00']]} value={settings.restSeconds} onChange={(restSeconds) => update({ restSeconds })} />
 
       <Text style={[type.h2, { marginTop: 24 }]}>Your data</Text>
       <Text style={type.body}>{history.length} workouts on this phone. Nothing is uploaded.</Text>
