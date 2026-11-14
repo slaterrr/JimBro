@@ -11,6 +11,7 @@
 // - A harder set (RPE 9 or more, near failure) needs more recovery, so we add 30 s.
 // The timer still lets the user add 30 s or skip.
 import { exerciseName } from './exercises.js';
+import { fitnessGoalShort, normalizeFitnessGoal } from './fitnessGoal.js';
 
 const HEAVY = new Set(['squat', 'deadlift', 'bench']);
 const COMPOUND = new Set(['shoulder_press', 'pull_up', 'row', 'lunge', 'dip']);
@@ -36,12 +37,38 @@ function base(exercise, reps) {
   return [90, 'recovery'];
 }
 
-/** Suggested rest after a set: { seconds, goal, text }. */
-export function restFor({ exercise, reps, rpe } = {}) {
-  const [b, goal] = base(exercise, reps);
+// Goal-personalized rest (settings.fitnessGoal). Same sources; ranges are rules of thumb:
+// - strength: long rests on compounds (2-5 min) so the next heavy set is as strong as possible.
+// - muscle (hypertrophy): about 60-120 s.
+// - endurance: about 30-60 s (muscular-endurance work keeps rests short on purpose).
+// - fat_loss: short rests (about 30-75 s) to keep the session dense.
+// - general (default, and old saves): the moderate per-exercise rules in base() above.
+// Beginners/comeback users and sedentary users get +15 s while they ease in.
+const GOAL_REST = {
+  //          heavy compound isolation core other
+  strength: [180, 150, 90, 60, 120],
+  muscle: [120, 90, 60, 45, 75],
+  endurance: [60, 45, 30, 30, 45],
+  fat_loss: [75, 60, 45, 30, 60],
+};
+const KIND = ['heavy lift', 'compound lift', 'isolation lift', 'core work', 'this lift'];
+const kindOf = (e) => (HEAVY.has(e) ? 0 : COMPOUND.has(e) ? 1 : ISOLATION.has(e) ? 2 : CORE.has(e) ? 3 : 4);
+const EASY_EXPERIENCE = new Set(['new', 'returning']);
+
+/**
+ * Suggested rest after a set: { seconds, goal, text }. `text` says why, e.g.
+ * "Squat · 5 reps: 3:00 rest. Strength goal + heavy lift".
+ */
+export function restFor({ exercise, reps, rpe, fitnessGoal, experience, activityLevel } = {}) {
+  const goalId = normalizeFitnessGoal(fitnessGoal);
+  const table = GOAL_REST[goalId];
+  const k = kindOf(exercise);
+  const [b, goal] = table ? [table[k], fitnessGoalShort(goalId).toLowerCase()] : base(exercise, reps);
   const hard = rpe >= 9;
-  const seconds = b + (hard ? 30 : 0);
+  const easy = EASY_EXPERIENCE.has(experience) || activityLevel === 'sedentary';
+  const seconds = b + (hard ? 30 : 0) + (easy ? 15 : 0);
   const what = reps >= 1 ? `${exerciseName(exercise)} · ${reps} reps` : exerciseName(exercise);
-  const text = `${what}: ${clock(seconds)} rest for ${goal}${hard ? ` (+0:30 for RPE ${rpe})` : ''}`;
-  return { seconds, goal, text };
+  const why = table ? `rest. ${fitnessGoalShort(goalId)} goal + ${KIND[k]}` : `rest for ${goal}`;
+  const extras = `${hard ? ` (+0:30 for RPE ${rpe})` : ''}${easy ? ' (+0:15, easing in)' : ''}`;
+  return { seconds, goal, text: `${what}: ${clock(seconds)} ${why}${extras}` };
 }

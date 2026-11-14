@@ -4,6 +4,7 @@ import * as Speech from 'expo-speech';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
+import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
 import { migrateGoals } from './lib/goals.js';
 import { isOnboarded } from './lib/onboarding.js';
 import { migrateSettings } from './lib/personas.js';
@@ -13,7 +14,7 @@ import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
-export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3, onboarded: false }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
+export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3, onboarded: false, ...DEFAULT_GOAL_SETTINGS }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
 const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -31,7 +32,7 @@ export function AppProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateVoiceSettings(migrateSettings(saved.settings)), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
+        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
       })
       .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
       .finally(() => setReady(true));
