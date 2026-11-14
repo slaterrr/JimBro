@@ -183,7 +183,10 @@ def leaderboard(
     metric: Literal["reps", "sessions"] = "reps",
     week: Annotated[str | None, Query(pattern=r"^\d{4}-W\d{2}$")] = None,
 ) -> Leaderboard:
-    label, start, end = week_bounds(week)
+    try:
+        label, start, end = week_bounds(week)
+    except ValueError:
+        raise HTTPException(422, "week does not exist") from None
     stats = db.weekly_stats(start, end)
     demo = {name: is_demo for name, is_demo, _, _ in stats}
     values = [
