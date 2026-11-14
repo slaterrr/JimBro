@@ -16,6 +16,7 @@ const DAY = 86400000;
 const RECENT_DAYS = 14;
 const MAX_SETS = 10;
 const HISTORY_TURNS = 10;
+const LIVE_CAMERA_MAX_AGE_MS = 5 * 60 * 1000;
 export const TIMEOUT_MS = 12000;
 const EXERCISE_IDS = new Set(EXERCISES.map((e) => e.id));
 const UNITS = new Set(['lb', 'kg']);
@@ -58,6 +59,26 @@ export function buildContext(state, now = new Date()) {
       },
     };
   }
+  const active = state.active ?? null;
+  const activeSession = active ? {
+    startedAt: active.startedAt ?? null,
+    setCount: (active.sets ?? []).length,
+    exercises: [...new Set((active.sets ?? []).map((s) => s.exercise).filter(Boolean))],
+  } : null;
+  const camera = active?.cameraSnapshot;
+  const cameraUpdatedAt = camera?.updatedAt ? new Date(camera.updatedAt).getTime() : NaN;
+  const cameraAge = t - cameraUpdatedAt;
+  const liveCamera = Number.isFinite(cameraUpdatedAt) && cameraAge >= 0 && cameraAge <= LIVE_CAMERA_MAX_AGE_MS
+    ? {
+      updatedAt: camera.updatedAt,
+      ...(typeof camera.exercise === 'string' ? { exercise: camera.exercise } : {}),
+      ...(Number.isInteger(camera.reps) && camera.reps >= 0 ? { reps: camera.reps } : {}),
+      ...(Number.isFinite(camera.trackingPct) ? { trackingPct: Math.max(0, Math.min(100, Math.round(camera.trackingPct))) } : {}),
+    }
+    : null;
+  if (activeSession && liveCamera?.exercise && !activeSession.exercises.includes(liveCamera.exercise)) {
+    activeSession.exercises.push(liveCamera.exercise);
+  }
   const settings = state.settings ?? {};
   // Workout context for get_workout_context: the same deterministic answers the app gives.
   const qa = { history: state.history ?? [], active: state.active ?? null, plan: state.plan ?? null, settings, profile: settings.profile ?? {} };
@@ -66,7 +87,7 @@ export function buildContext(state, now = new Date()) {
     setsLeft: answerContext('how many sets left', qa),
     ...(settings.profile ? { profile: settings.profile } : {}),
   };
-  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, lastSetReport, workout };
+  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, activeSession, liveCamera, lastSetReport, workout };
 }
 
 const isCount = (n) => Number.isInteger(n) && n >= 1 && n <= 1000;

@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
-import { useApp } from '../AppState.js';
+import { useApp, useLiveCamera } from '../AppState.js';
 import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
@@ -77,6 +77,7 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 export function HomeScreen({ openLog, openActivity, go }) {
   const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission, conversation } = useApp();
   const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
+  const { snapshot: liveCamera } = useLiveCamera();
   const [text, setText] = useState('');
   const compact = isCompact(useWindowDimensions().width);
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
@@ -106,10 +107,15 @@ export function HomeScreen({ openLog, openActivity, go }) {
     if (!message || conversation.getSnapshot().busy) return;
     setText('');
     voice.stop();
+    // The shared camera context is ephemeral and keyed to the active on-device workout.
+    // Overlay it only for this request; buildContext whitelists its fields and strips IDs.
+    const activeForJim = active && liveCamera?.sessionId === active.id
+      ? { ...active, cameraSnapshot: liveCamera }
+      : active;
     const r = await conversation.send(message, async priorMessages => {
     const prior = historyFor(priorMessages);
     // Safety is checked before local intent/performance shortcuts as well as cloud calls.
-    if (SAFETY.test(message)) return askJim({ message, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
+    if (SAFETY.test(message)) return askJim({ message, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
     // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
     // recorded sets on the phone, so every claim comes from data.
     const perfReply = answerPerformance(message, { history, active })
@@ -124,7 +130,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. ${history.length ? 'I picked it from your history.' : "No history yet, so we start light and I adjust after each set."} Start when you're ready.`.replace('  ', ' ');
       return { source: 'local', reply: intro, messages: [{ me: false, text: intro }, { kind: 'mission', mission }] };
     }
-    return askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
+    return askJim({ message, history: prior, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
     });
     if (r && mounted.current) speak(r.reply || r.proposals?.[0]?.summary);
   };

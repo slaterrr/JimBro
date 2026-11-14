@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
 import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
@@ -22,7 +22,40 @@ const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: nul
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const Ctx = createContext(null);
+const LiveCameraCtx = createContext(null);
 export const useApp = () => useContext(Ctx);
+export const useLiveCamera = () => useContext(LiveCameraCtx);
+
+/** Ephemeral, camera-derived session summary. Frame/landmark data never enters app state. */
+function LiveCameraProvider({ activeId, children }) {
+  const [snapshot, setSnapshot] = useState(null);
+
+  useEffect(() => {
+    if (snapshot && snapshot.sessionId !== activeId) setSnapshot(null);
+  }, [activeId, snapshot]);
+
+  const publish = useCallback((input) => {
+    if (!activeId || input?.sessionId !== activeId) return;
+    const next = {
+      sessionId: activeId,
+      updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : new Date().toISOString(),
+      exercise: typeof input.exercise === 'string' ? input.exercise : null,
+      reps: Number.isInteger(input.reps) && input.reps >= 0 ? input.reps : 0,
+      trackingPct: Number.isFinite(input.trackingPct) ? Math.max(0, Math.min(100, Math.round(input.trackingPct))) : null,
+    };
+    setSnapshot((current) => current && current.sessionId === next.sessionId
+      && current.exercise === next.exercise && current.reps === next.reps && current.trackingPct === next.trackingPct
+      ? current
+      : next);
+  }, [activeId]);
+
+  const clear = useCallback((sessionId) => {
+    setSnapshot((current) => !sessionId || current?.sessionId === sessionId ? null : current);
+  }, []);
+
+  const value = useMemo(() => ({ snapshot, publish, clear }), [snapshot, publish, clear]);
+  return <LiveCameraCtx.Provider value={value}>{children}</LiveCameraCtx.Provider>;
+}
 
 export function AppProvider({ children }) {
   const conversationRef = useRef(null);
@@ -131,5 +164,9 @@ export function AppProvider({ children }) {
     active: data.active, history: data.history, plan: data.plan, allSets,
     startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <LiveCameraProvider activeId={data.active?.id ?? null}>{children}</LiveCameraProvider>
+    </Ctx.Provider>
+  );
 }

@@ -2,7 +2,7 @@ import { useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
-import { useApp } from '../AppState.js';
+import { useApp, useLiveCamera } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { MissionPanel } from '../components/Mission.js';
 // No extension on purpose: Metro then loads PoseView.web.js on web and PoseView.js on phones.
@@ -34,10 +34,11 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active, settings, voice: jim, mission, stepMission } = useApp();
+  const { active, settings, voice: jim, mission, stepMission, startWorkout } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
   const stageH = stageHeight(useWindowDimensions().height); // fits any screen; controls stay visible
+  const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -55,11 +56,20 @@ export function CoachScreen({ openLog }) {
   const caughtTimer = useRef(null);
   const [suggestion, setSuggestion] = useState(null);
   const seenSuggestion = useRef(null);
+  const cameraWorkoutStarted = useRef(false);
   useEffect(() => () => clearTimeout(caughtTimer.current), []);
   const session = useRef(new LiveSession(movement));
   const speakGuide = useRef(guidanceThrottle(8000));
   const web = useRef(null);
   const html = useMemo(() => poseHtml({ facing: 'user' }), []);
+
+  // Opening Coach directly is an explicit request to work out; give its camera session
+  // the same on-device workout id used by Home and Jim.
+  useEffect(() => {
+    if (!permission?.granted || cameraWorkoutStarted.current) return;
+    cameraWorkoutStarted.current = true;
+    if (!active) startWorkout('Camera workout');
+  }, [permission?.granted, active, startWorkout]);
 
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
@@ -79,6 +89,7 @@ export function CoachScreen({ openLog }) {
     session.current = new LiveSession(m);
     slowCued.current = false;
     setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
+    clearCameraSummary(active?.id);
     setSuggestion(null);
     seenSuggestion.current = null;
   };
@@ -100,6 +111,20 @@ export function CoachScreen({ openLog }) {
     setSets(mt.sets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mt?.exercise, mt?.reps, mt?.sets]);
+
+  // Share a compact summary only when the counted rep changes. Camera frames stay in
+  // the WebView/LiveSession and never enter persisted workout data or React app state.
+  useEffect(() => {
+    if (!active?.id || view.count < 1) return;
+    const quality = session.current.quality();
+    publishCameraSummary({
+      sessionId: active.id,
+      updatedAt: new Date().toISOString(),
+      exercise: movement,
+      reps: view.count,
+      trackingPct: quality.frames ? (quality.okFrames / quality.frames) * 100 : null,
+    });
+  }, [active?.id, movement, publishCameraSummary, view.count]);
 
   const onMessage = (e) => {
     let m;
