@@ -16,3 +16,4 @@ node_modules/
 apps/mobile/dist/
 *.db
 *.sqlite3
+models/
