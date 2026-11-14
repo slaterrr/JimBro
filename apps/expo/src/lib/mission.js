@@ -186,7 +186,7 @@ export function missionStart(mission) {
 export function currentTarget(s) {
   const item = s.mission.items[s.i];
   if (!item || s.phase === 'done') return null;
-  return { exercise: item.exercise, setNo: s.setNo, sets: item.sets, reps: s.cur.reps, weight: s.cur.weight, unit: item.unit, camera: item.camera, rest_s: item.rest_s };
+  return { exercise: item.exercise, setNo: s.setNo, sets: item.sets, reps: s.cur.reps, weight: s.cur.weight, unit: item.unit, camera: item.camera, rest_s: s.cur.rest_s ?? item.rest_s };
 }
 
 function nextItem(s, note) {
@@ -213,20 +213,25 @@ export function missionStep(s, e) {
       const rpe = e.rpe ?? null;
       // A weight entered at the check (first set with no history, or a change) wins over the plan.
       const used = Number.isFinite(e.weight) && e.weight >= 0 ? e.weight : s.cur.weight;
-      const entry = { exercise: item.exercise, reps: s.pending.reps, target: s.cur.reps, weight: used, unit: item.unit, rpe, camera: item.camera, reps_detail: s.pending.reps_detail };
+      // Jim's suggestion (lib/recommend.js) changes the next set only if the user accepted it.
+      const rec = e.rec && e.rec.action !== 'none'
+        ? { action: e.rec.action, weight: e.rec.weight ?? used, reps: e.rec.reps ?? s.cur.reps, accepted: Boolean(e.accepted), ...(e.rec.extraRestS ? { extraRestS: e.rec.extraRestS } : {}) }
+        : null;
+      const entry = { exercise: item.exercise, reps: s.pending.reps, target: s.cur.reps, weight: used, unit: item.unit, rpe, camera: item.camera, reps_detail: s.pending.reps_detail, rec };
       const log = [...s.log, entry];
       const done = { ...s, log, pending: null };
       if (s.setNo < item.sets) {
-        let weight = used;
-        let note = null;
-        if (weight !== null) {
-          const sug = suggestNext([{ exercise: item.exercise, weight, reps: entry.reps, rpe, unit: item.unit }]);
-          weight = sug.weight;
-          note = sug.rationale;
-        } else {
-          note = 'Pick your weight for this set; rate it and Jim takes over from there.';
-        }
-        return { ...done, setNo: s.setNo + 1, cur: { ...s.cur, weight }, phase: 'rest', note };
+        const take = rec?.accepted;
+        const cur = {
+          weight: take ? rec.weight : used,
+          reps: take ? rec.reps : s.cur.reps,
+          rest_s: take && rec.extraRestS ? item.rest_s + rec.extraRestS : null,
+        };
+        const why = e.rec?.reasons?.join(' ') ?? '';
+        const note = used === null
+          ? 'Pick your weight for this set; rate it and Jim can suggest the next one.'
+          : take ? why : rec ? `Keeping ${used} ${item.unit}, as planned.` : `Keeping ${used} ${item.unit}.`;
+        return { ...done, setNo: s.setNo + 1, cur, phase: 'rest', note };
       }
       const after = nextItem(done, null);
       return after.phase === 'done' ? after : { ...after, phase: 'rest' };
