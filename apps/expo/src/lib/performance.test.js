@@ -103,3 +103,22 @@ describe('assessFatigue', () => {
     assert.doesNotMatch(f.text, /\bRIR\b|in reserve/i);
   });
 });
+
+describe('live session reports an unfinished attempt after the last rep', () => {
+  it('a half rep at the end sets partialAfterLastRep; one mid-set does not', async () => {
+    const { body } = await import('../../../../tools/vision-lab/lib/simulate.mjs');
+    const { LiveSession } = await import('./live.js');
+    const frames = (angles) => angles.map((elbow, i) => ({ t: 1000 + i * 50, pose: body({ elbow }) }));
+    const ramp = (a, b, n) => Array.from({ length: n }, (_, i) => a + ((b - a) * i) / (n - 1));
+    const full = [...ramp(170, 45, 16), ...ramp(45, 170, 16), ...ramp(170, 170, 6)];
+    const half = [...ramp(170, 115, 12), ...ramp(115, 170, 12), ...ramp(170, 170, 6)];
+    const run = (seq) => { const s = new LiveSession('curl'); frames(seq).forEach((f) => s.frame(f.t, f.pose)); return s; };
+    const end = run([...ramp(170, 170, 10), ...full, ...full, ...half]);
+    assert.equal(end.count, 2);
+    assert.equal(end.quality().partials, 1);
+    assert.equal(end.quality().partialAfterLastRep, true);
+    const mid = run([...ramp(170, 170, 10), ...full, ...half, ...full]);
+    assert.equal(mid.count, 2);
+    assert.equal(mid.quality().partialAfterLastRep, false);
+  });
+});
