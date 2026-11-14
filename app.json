@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "JimBro",
+    "slug": "jimbro",
+    "scheme": "jimbro",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": { "supportsTablet": true },
+    "android": { "adaptiveIcon": { "backgroundColor": "#101310" } }
+  }
+}
+
