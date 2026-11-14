@@ -36,7 +36,7 @@ Last updated: 2026-11-14 (integration branch `feat/integration-v2`).
 ## How to verify
 | What | Command |
 |---|---|
-| App logic tests | `cd apps/expo && npm ci && npm test` (148 pass on integration-v2; 166 with `feat/rest-and-compare`) |
+| App logic tests | `cd apps/expo && npm ci && npm test` (174 pass on integration-v3) |
 | Bundles | `cd apps/expo && npx expo export --platform android` (and `ios`) |
 | Vision lab tests (simulator + scoring) | `cd tools/vision-lab && npm ci && npm test` (15 pass) |
 | Real-video replay | `cd tools/vision-lab && node run.mjs` (needs Chrome + ffmpeg; videos downloaded per `labels/*.json` `source`) |
@@ -49,6 +49,9 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Feature | Status | Where | Tested how | Still needs |
 |---|---|---|---|---|
 | Four-screen UI (Home, Muscles, Coach, Progress) | ✅ main | `apps/expo/src/screens` | logic tests, web screenshots | — |
+| Seafoam accent theme (`T.accent*`, legacy `T.purple*` aliases), AA contrast | ✅ feat/team-ui-home | `theme.js`, `lib/palette.js` | contrast tests (accent 8.2–9.6:1, accentText 13.4–15.7:1) | device check |
+| Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
+| Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |
 | On-phone pose (MediaPipe Lite in WebView) | 🧪 main | `lib/poseHtml.js` | vision-lab uses same model/config | FPS on real phones |
 | Rep counter (curl, squat, press) | ✅ | `lib/reps.js`, `lib/live.js` | unit + 20-rep simulated sets 20/20 all lifts; real video 3/3 TP, 0 FP | real 15–20-rep phone clips |
 | Anti-false-rep guards: exercise-aware visibility, side lock, abort on tracking loss, curl arm-swing | ✅ PR #18 | `lib/live.js`, `lib/angles.js` | unit tests | 50° swing threshold on real video |

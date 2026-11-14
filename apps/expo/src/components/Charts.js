@@ -1,5 +1,5 @@
 // Line chart (Total Strength) and bar chart (weekly volume), styled like the mockup:
-// purple 2px line with dot markers over a gradient area, recessive axis labels.
+// seafoam 2px line with dot markers over a gradient area, recessive axis labels.
 import React from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Line, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
@@ -31,8 +31,8 @@ export function LineChart({ points, height = 150, width = 300 }) {
     <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
       <Defs>
         <LinearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={T.purple} stopOpacity="0.45" />
-          <Stop offset="1" stopColor={T.purple} stopOpacity="0" />
+          <Stop offset="0" stopColor={T.accent} stopOpacity="0.45" />
+          <Stop offset="1" stopColor={T.accent} stopOpacity="0" />
         </LinearGradient>
       </Defs>
       {ticks.map((t) => (
@@ -40,9 +40,9 @@ export function LineChart({ points, height = 150, width = 300 }) {
       ))}
       <Line x1={L} x2={L} y1={4} y2={height - B} stroke={T.border} strokeWidth="1" />
       <Path d={area} fill="url(#area)" />
-      <Path d={line} stroke={T.purple} strokeWidth="2.5" fill="none" strokeLinejoin="round" />
+      <Path d={line} stroke={T.accent} strokeWidth="2.5" fill="none" strokeLinejoin="round" />
       {points.map((p, i) => (
-        <Circle key={i} cx={x(i)} cy={y(p.value)} r={i === points.length - 1 ? 5 : 4} fill={i === points.length - 1 ? '#e9d5ff' : '#d8b4fe'} stroke={T.purpleDeep} strokeWidth="1.5" />
+        <Circle key={i} cx={x(i)} cy={y(p.value)} r={i === points.length - 1 ? 5 : 4} fill={i === points.length - 1 ? T.accentLight : T.accentText} stroke={T.accentDeep} strokeWidth="1.5" />
       ))}
       {points.map((p, i) => (
         <SvgText key={`l${i}`} x={x(i)} y={height - 5} fontSize="11" fontFamily="System, Arial" fill={T.textDim} textAnchor="middle">{p.label}</SvgText>
@@ -60,8 +60,8 @@ export function BarChart({ points, height = 150, width = 300, unit }) {
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         <Defs>
           <LinearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#c084fc" />
-            <Stop offset="1" stopColor={T.purpleDeep} />
+            <Stop offset="0" stopColor={T.accent} />
+            <Stop offset="1" stopColor={T.accentDeep} />
           </LinearGradient>
         </Defs>
         {points.map((p, i) => {

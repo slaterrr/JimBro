@@ -12,8 +12,8 @@ const EDGE = '#141416';
 /** Mirror a path drawn for the figure's right side (screen left) across x = 100. */
 const mirror = (shapes) => shapes.map((s) => ({ ...s, mirror: true }));
 
-function Shape({ s, fill, onPress }) {
-  const common = { fill, stroke: EDGE, strokeWidth: 1.2, onPress };
+function Shape({ s, fill, onPress, stroke = EDGE }) {
+  const common = { fill, stroke, strokeWidth: 1.2, onPress };
   const el =
     s.e ? <Ellipse cx={s.e[0]} cy={s.e[1]} rx={s.e[2]} ry={s.e[3]} rotation={s.r ?? 0} origin={`${s.e[0]}, ${s.e[1]}`} {...common} />
       : s.rect ? <Rect x={s.rect[0]} y={s.rect[1]} width={s.rect[2]} height={s.rect[3]} rx={s.rect[4] ?? 3} {...common} />
@@ -34,12 +34,31 @@ const SILHOUETTE = [
   { e: [86, 388, 11, 6] }, { e: [114, 388, 11, 6] },
 ];
 
+// Arm groups fill the arm silhouette (upper arm 96-166, forearm 166-226) on both views.
+const both = (shapes) => [...shapes, ...mirror(shapes)];
+const ARM = {
+  shoulders: both([{ e: [60, 88, 15, 18], r: -15 }]),
+  upper: both([{ d: 'M45 102 Q53 98 58 106 L57 124 Q54 146 50 164 Q42 169 36 163 L40 118 Q41 107 45 102 Z' }]),
+  lower: both([{ d: 'M36 169 Q44 165 50 171 Q47 196 41 222 Q34 227 28 222 Q31 196 36 169 Z' }]),
+};
+// Invisible, generous tap targets for the small arm groups (drawn on top).
+const HIT = 'rgba(0,0,0,0.001)';
+const ARM_HITS = {
+  shoulders: both([{ rect: [42, 66, 26, 38, 0] }]),
+  upper: both([{ rect: [22, 104, 42, 64, 0] }]),
+  lower: both([{ rect: [16, 168, 40, 72, 0] }]),
+};
+const HITS = {
+  front: { shoulders: ARM_HITS.shoulders, biceps: ARM_HITS.upper, forearms: ARM_HITS.lower },
+  back: { shoulders: ARM_HITS.shoulders, triceps: ARM_HITS.upper, forearms: ARM_HITS.lower },
+};
+
 const FRONT = {
   traps: [{ d: 'M86 60 Q100 64 114 60 L122 70 Q100 66 78 70 Z' }],
-  shoulders: [{ e: [62, 86, 13, 16], r: -15 }, ...mirror([{ e: [62, 86, 13, 16], r: -15 }])],
+  shoulders: ARM.shoulders,
   chest: [{ d: 'M99 76 L72 80 Q64 96 70 112 Q86 122 99 116 Z' }, ...mirror([{ d: 'M99 76 L72 80 Q64 96 70 112 Q86 122 99 116 Z' }])],
-  biceps: [{ e: [50, 124, 8, 20], r: 10 }, ...mirror([{ e: [50, 124, 8, 20], r: 10 }])],
-  forearms: [{ e: [40, 182, 7, 24], r: 8 }, ...mirror([{ e: [40, 182, 7, 24], r: 8 }])],
+  biceps: ARM.upper,
+  forearms: ARM.lower,
   abs: [0, 1, 2].flatMap((row) => [
     { rect: [86, 124 + row * 24, 13, 20, 4] },
     { rect: [101, 124 + row * 24, 13, 20, 4] },
@@ -50,10 +69,10 @@ const FRONT = {
 
 const BACK = {
   traps: [{ d: 'M100 58 L74 74 Q86 92 100 130 Q114 92 126 74 Z' }],
-  shoulders: [{ e: [62, 86, 13, 16], r: -15 }, ...mirror([{ e: [62, 86, 13, 16], r: -15 }])],
+  shoulders: ARM.shoulders,
   lats: [{ d: 'M98 96 L76 92 Q64 120 74 168 Q88 172 98 160 Z' }, ...mirror([{ d: 'M98 96 L76 92 Q64 120 74 168 Q88 172 98 160 Z' }])],
-  triceps: [{ e: [50, 124, 8, 20], r: 10 }, ...mirror([{ e: [50, 124, 8, 20], r: 10 }])],
-  forearms: [{ e: [40, 182, 7, 24], r: 8 }, ...mirror([{ e: [40, 182, 7, 24], r: 8 }])],
+  triceps: ARM.upper,
+  forearms: ARM.lower,
   lower_back: [{ rect: [86, 166, 28, 30, 6] }],
   glutes: [{ e: [86, 222, 14, 17] }, ...mirror([{ e: [86, 222, 14, 17] }])],
   hamstrings: [{ d: 'M74 242 Q86 238 97 244 L95 300 Q86 306 78 298 Q70 270 74 242 Z' }, ...mirror([{ d: 'M74 242 Q86 238 97 244 L95 300 Q86 306 78 298 Q70 270 74 242 Z' }])],
@@ -69,6 +88,9 @@ export function BodyFigure({ side = 'front', status, onSelect, width = 150 }) {
         shapes.map((s, i) => (
           <Shape key={`${group}${i}`} s={s} fill={STATUS_COLOR[status[group] ?? 'rest']} onPress={() => onSelect(group)} />
         )),
+      )}
+      {Object.entries(HITS[side === 'front' ? 'front' : 'back']).flatMap(([group, shapes]) =>
+        shapes.map((s, i) => <Shape key={`hit-${group}${i}`} s={s} fill={HIT} stroke="none" onPress={() => onSelect(group)} />),
       )}
     </Svg>
   );

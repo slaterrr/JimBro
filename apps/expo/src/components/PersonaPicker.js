@@ -19,12 +19,12 @@ export function PersonaPicker() {
           <Card
             key={id}
             onPress={() => update({ persona: id })}
-            style={on ? { borderColor: T.purple, backgroundColor: T.purpleSoft } : { borderColor: T.border }}
+            style={on ? { borderColor: T.accent, backgroundColor: T.accentSoft } : { borderColor: T.border }}
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <View style={{ flex: 1 }} accessibilityRole="radio" accessibilityState={{ selected: on }}>
                 <Text style={type.title}>{p.name}{on ? '  ✓' : ''}</Text>
-                <Text style={[type.small, { color: T.violetText }]}>{p.role}</Text>
+                <Text style={[type.small, { color: T.accentText }]}>{p.role}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => say(p.sample, { force: true, persona: id })}
@@ -32,7 +32,7 @@ export function PersonaPicker() {
                 accessibilityLabel={`Play ${p.name} sample`}
                 hitSlop={8}
               >
-                <Text style={[type.small, { color: T.violetText, fontWeight: '700' }]}>▶ sample</Text>
+                <Text style={[type.small, { color: T.accentText, fontWeight: '700' }]}>▶ sample</Text>
               </TouchableOpacity>
             </View>
             <Text style={[type.body, { marginTop: 4 }]}>{p.purpose}</Text>
