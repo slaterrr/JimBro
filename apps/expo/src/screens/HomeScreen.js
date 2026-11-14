@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
@@ -8,13 +8,14 @@ import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { askJim, historyFor, proxyKey, proxyUrl } from '../lib/jimAI.js';
+import { askJim, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
 import { answerContext } from '../lib/coachQA.js';
 import { answerPerformance } from '../lib/perfCoach.js';
+import { SAFETY } from '../lib/coach.js';
 import { isCompact } from '../lib/layout.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
@@ -75,16 +76,16 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission } = useApp();
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission, conversation } = useApp();
   const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
   const [text, setText] = useState('');
   const compact = isCompact(useWindowDimensions().width);
-  const [messages, setMessages] = useState([]);
-  const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
-  const [thinking, setThinking] = useState(false);
+  const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
+  const setMessages = conversation.update;
   const [talk, setTalk] = useState(false);
   const scroll = useRef(null);
   const input = useRef(null);
+  const mounted = useRef(true);
   const talkRef = useRef(false);
   talkRef.current = talk;
   const persona = personaFor(settings.persona ?? settings.tone);
@@ -104,39 +105,34 @@ export function HomeScreen({ openLog, openActivity, go }) {
 
   const send = async (raw) => {
     const message = raw.trim();
-    if (!message || thinking) return;
+    if (!message || conversation.getSnapshot().busy) return;
     setText('');
-    const prior = historyFor(messages);
-    push({ me: true, text: message });
+    voice.stop();
+    const r = await conversation.send(message, async priorMessages => {
+    const prior = historyFor(priorMessages);
+    // Safety is checked before local intent/performance shortcuts as well as cloud calls.
+    if (SAFETY.test(message)) return askJim({ message, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
     // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
     // recorded sets on the phone, so every claim comes from data.
     const perfReply = answerPerformance(message, { history, active })
       ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
     if (perfReply) {
-      push({ me: false, text: perfReply });
-      speak(perfReply);
-      return;
+      return { source: 'local', reply: perfReply, proposals: [] };
     }
     // Workout Mission: a time-boxed session request is planned on the phone (no AI call), then confirmed.
     const ask = parseMission(message);
     if (ask.recognized) {
       const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
       const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. ${history.length ? 'I picked it from your history.' : "No history yet, so we start light and I adjust after each set."} Start when you're ready.`.replace('  ', ' ');
-      push({ me: false, text: intro }, { kind: 'mission', mission });
-      speak(intro);
-      return;
+      return { source: 'local', reply: intro, messages: [{ me: false, text: intro }, { kind: 'mission', mission }] };
     }
-    setThinking(true);
-    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
-    setThinking(false);
-    if (r.source !== 'safety') setSource(r.source);
-    // Never change data here: proposals become confirm cards and wait for the user.
-    const out = [];
-    if (r.reply) out.push({ me: false, text: r.reply, safety: r.safety, suggestion: r.suggestion });
-    r.proposals.forEach((intent) => out.push({ kind: 'confirm', intent }));
-    push(...out);
-    speak(r.reply || r.proposals[0]?.summary);
+    return askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
+    });
+    if (r && mounted.current) speak(r.reply || r.proposals?.[0]?.summary);
   };
+
+  useEffect(() => { scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
 
   // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
   const choose = (id) => {
@@ -175,6 +171,12 @@ export function HomeScreen({ openLog, openActivity, go }) {
   };
 
   const confirmIntent = (i, intent) => {
+    // The conversation store updates synchronously, preventing a rapid second tap/replay.
+    if (conversation.getSnapshot().messages[i]?.kind !== 'confirm') return;
+    if (!validateProposal(intent, { history, active })) {
+      setMessages(cur => cur.map((m, j) => j === i ? { me: false, text: 'That set has changed or is no longer available. Ask Jim again before making this change.' } : m));
+      return;
+    }
     let reply;
     if (intent.type === 'log') {
       intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
@@ -211,6 +213,13 @@ export function HomeScreen({ openLog, openActivity, go }) {
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />
         </TouchableOpacity>
+      </View>
+
+      <View style={{ paddingHorizontal: 20, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text accessibilityLiveRegion="polite" style={[type.small, { flex: 1 }]}>
+          {thinking ? 'Jim is working on your request…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : PROXY_URL ? 'Jim AI available · send a message to connect' : 'Offline coach · AI service not connected'}
+        </Text>
+        {messages.length ? <TouchableOpacity accessibilityRole="button" onPress={() => { conversation.clear(); voice.stop(); setTalk(false); setText(''); }}><Text style={{ color: T.accentText }}>New chat</Text></TouchableOpacity> : null}
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, paddingBottom: 30, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
@@ -287,7 +296,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
             );
           })
         )}
-        {thinking ? <Text style={[type.small, { marginTop: 10 }]}>Jim is thinking…</Text> : null}
+        {thinking ? <PrimaryButton secondary onPress={() => { conversation.cancel(); voice.stop(); }}>Stop reply</PrimaryButton> : null}
+        {reason && source === 'offline' ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
+        {error ? <Text accessibilityRole="alert" style={[type.body, { color: T.amber }]}>{error}</Text> : null}
       </ScrollView>
 
       <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
@@ -301,12 +312,14 @@ export function HomeScreen({ openLog, openActivity, go }) {
             value={text}
             onChangeText={setText}
             onSubmitEditing={() => send(text)}
-            placeholder={talk ? 'Tap the keyboard mic and talk…' : 'Message Jim...'}
+            accessibilityLabel="Message Jim"
+            maxLength={2000}
+            placeholder={talk ? 'Tap the keyboard mic and talk…' : 'Ask Jim about your workout…'}
             placeholderTextColor={T.textMute}
             returnKeyType="send"
             style={{ flex: 1, color: T.text, fontSize: 16, paddingHorizontal: 10 }}
           />
-          {text.trim() ? (
+          {text.trim() && !thinking ? (
             <IconButton icon="arrow-up" size={34} ring={T.accent} fill={T.accent} color={T.onAccent} label="Send" onPress={() => send(text)} />
           ) : (
             <TouchableOpacity accessibilityLabel="Dictate (use the keyboard microphone)" onPress={() => input.current?.focus()}>

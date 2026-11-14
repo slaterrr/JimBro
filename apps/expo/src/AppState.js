@@ -12,6 +12,7 @@ import { migrateSettings } from './lib/personas.js';
 import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
+import { createConversation } from './lib/conversation.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
@@ -24,6 +25,8 @@ const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
 
 export function AppProvider({ children }) {
+  const conversationRef = useRef(null);
+  if (!conversationRef.current) conversationRef.current = createConversation();
   const [data, setData] = useState(EMPTY);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState(null);
@@ -118,9 +121,10 @@ export function AppProvider({ children }) {
   const addGoal = (goal) => setData((d) => ({ ...d, goals: [...(d.goals ?? []), { id: newId(), createdAt: new Date().toISOString(), ...goal }] }));
   const removeGoal = (id) => setData((d) => ({ ...d, goals: (d.goals ?? []).filter((g) => g.id !== id) }));
   const exportJSON = () => JSON.stringify({ format: 'jimbro-phone-export-v1', exportedAt: new Date().toISOString(), ...data }, null, 2);
-  const eraseAll = () => setData({ ...EMPTY, settings: data.settings });
+  const eraseAll = () => { conversationRef.current.clear(); setData({ ...EMPTY, settings: data.settings }); };
 
   const value = {
+    conversation: conversationRef.current,
     goals: data.goals ?? [], addGoal, removeGoal,
     mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice,

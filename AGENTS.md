@@ -25,6 +25,8 @@ Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see 
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents
+Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
+
 - **Never push to `main` or merge PRs without human approval.** Work on a branch off `main`, open a draft PR. Full audit: `docs/AUDIT.md`; Devpost draft: `docs/DEVPOST.md`.
 - Strict TDD: `test(...)` commit that fails for the expected reason → `feat/fix(...)` → refactor. Atomic commits.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
