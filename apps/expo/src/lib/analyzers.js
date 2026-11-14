@@ -16,7 +16,7 @@ const SHOULDER = side(11, 12);
 const HIP_PT = side(23, 24);
 const ANKLE = side(27, 28);
 
-export const ANALYZERS = Object.freeze({
+export const ANALYZERS = {
   curl: {
     id: 'curl', status: 'tested_real', kind: 'reps', views: ['side'],
     landmarks: ARM, anchor: HIP_PT, config: CURL, liftPhase: 'concentric_ms',
@@ -61,7 +61,14 @@ export const ANALYZERS = Object.freeze({
     id: 'lunge', status: 'manual', kind: 'reps',
     reason: 'Lunges are detected (so they are not counted as squats) but are not counted by the camera yet.',
   },
-});
+};
+
+// Library exercises without a camera analyzer yet: registered so the app never implies support.
+const NOT_YET = 'No camera analyzer has been built and tested for this exercise yet, so it is logged by tapping.';
+for (const id of ['dumbbell_bench', 'goblet_squat', 'romanian_deadlift', 'bent_over_row', 'seated_cable_row', 'lat_pulldown', 'chin_up', 'dips', 'hammer_curl', 'lateral_raise', 'tricep_pushdown']) {
+  ANALYZERS[id] = Object.freeze({ id, status: 'manual', kind: 'reps', reason: NOT_YET });
+}
+Object.freeze(ANALYZERS);
 
 export const analyzerFor = (id) => ANALYZERS[id] ?? null;
 export const countsWithCamera = (id) => Boolean(ANALYZERS[id] && ANALYZERS[id].status !== 'manual');
