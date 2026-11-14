@@ -1,0 +1,32 @@
+name: Mutation audit
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/jimbro/motion.py"
+      - "backend/tests/test_motion.py"
+      - "pyproject.toml"
+      - ".github/workflows/mutation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  mutation-audit:
+    name: mutation-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: python -m pip install -e ".[dev]"
+      - name: Run deterministic unit suite first
+        run: pytest -q backend/tests/test_motion.py
+      - name: Generate mutations
+        run: mutmut run
+      - name: Enforce zero surviving and suspicious mutants
+        run: python scripts/check_mutants.py
