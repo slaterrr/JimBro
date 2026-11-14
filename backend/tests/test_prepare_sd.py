@@ -24,7 +24,7 @@ def sd() -> ModuleType:
 
 def bootfs(tmp_path: Path) -> Path:
     boot = tmp_path / "bootfs"
-    boot.mkdir()
+    boot.mkdir(parents=True)
     (boot / "config.txt").write_text("arm_64bit=1\n")
     (boot / "cmdline.txt").write_text("console=tty1 root=PARTUUID=x quiet\n")
     return boot
@@ -82,7 +82,7 @@ def test_idempotent(sd: ModuleType, tmp_path: Path) -> None:
     b = bundle(tmp_path)
     sd.prepare(boot, b)
     sd.prepare(boot, b)
-    assert (boot / "firstrun.sh").read_text().count("jimbro-firstboot") == 1
+    assert (boot / "firstrun.sh").read_text().count("install.sh --headless") == 1
 
 
 def test_crlf_preserved_as_lf(sd: ModuleType, tmp_path: Path) -> None:
