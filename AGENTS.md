@@ -3,11 +3,26 @@
 Read this before touching code. Update it in the same PR when a status changes.
 Last updated: 2026-11-14 (integration branch `feat/integration-v2`).
 
-## Hackathon constraints (HackPrinceton Fall '26, from the hacker packet)
-- Submission on Devpost: **public GitHub repo created Nov 13–15** (this repo: created 2026-11-13 21:35 ET, public ✅).
-- All work must be done inside the 36-hour window; closing ends **Sunday Nov 15, 4:30 pm**.
-- Judging demo: **≤ 2 minutes**: problem + walkthrough. Prize tracks are announced on Discord (we target the health track).
-- MLH Code of Conduct applies.
+## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
+- **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
+- **In-person judging Sun 9:30 AM–2:30 PM**, ≥3 judges, **≤ 2-minute** pitch: problem + walkthrough. Optional ≤ 2-min video (upload before 8 AM). Add Discord usernames to the submission.
+- Judging criteria: **Creativity, Utility, Charity, Avidity**.
+- Tracks: exactly ONE main track → **Healthcare** ("fitness tracking apps", wellness; prize Apple Watch SE 3). Optional: **Best Rookie Hack**. Auto: Best Overall.
+- Sponsor tracks that fit: **Amazon Best Practical AI** (agentic: reason, plan, act, adapt; 25% each creativity/usefulness/tech/UX; needs prototype, use case, docs, pitch) → AI Jim with tools. **Photon** (messaging agent; Best Voice Agent) → possible. LangChain deepagents, Peri (needs a consulted real business, e.g. a local gym trainer with evidence), Hardware (Pi) → only if time.
+- Team positioning: "Jimbro is an adaptive AI training system that turns ordinary smartphone video into measurable exercise data, then uses that data to personalize future workloads." Pain point: anxiety about judgement from coaches/public.
+
+## Team requests (tracking doc) → status
+| Request | Status |
+|---|---|
+| Seafoam tint instead of purple | 🚧 agent (feat/team-ui-home) |
+| Home subtitle "Your AI gym bro. Tell me what you want to work on today." | 🚧 agent (feat/team-ui-home) |
+| Home options → Start a Workout / Create a New Plan / Review My Progress | 🚧 agent (feat/team-ui-home) |
+| Bigger arm muscle areas on Muscles page | 🚧 agent (feat/team-ui-home) |
+| Rest timer curated per exercise (not a setting) | 🚧 agent (feat/rest-and-compare) |
+| Progress: scroll past workouts; workout/month/year strength + volume comparisons | 🚧 agent (feat/rest-and-compare) |
+| Leaderboard | 📋 not started (privacy: on-device app; would need opt-in sharing) |
+| Mascot art (blue, round, cartoon "Jim") | 📋 needs a human/design tool; agents can't generate images here |
+| Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents
 - **Never push to `main` or merge PRs without human approval.** Work on a branch off `feat/integration-v2`, open a draft PR.
