@@ -15,11 +15,11 @@ the same Expo account in Expo CLI and Expo Go if prompted.
 ## Tabs
 | Tab | What it does |
 |---|---|
-| Home | weekly goal and week streak, recent personal records, tone/units/rest timer, export or erase your data |
-| Workout | **camera rep counting** for curl, squat and shoulder press (fills reps and per-rep timing); log the six lifts (kg/lb, RPE); Jim's next-set hint; rest timer with vibration; 🏆 record detection; plan-day checklist; delete a set |
+| Home | weekly goal and week streak, recent personal records, tone/units/rest timer, export, restore (paste an export) or erase your data |
+| Workout | **camera rep counting** for curl, squat and shoulder press (fills reps and per-rep timing); log the six lifts (kg/lb, RPE); Jim's next-set hint; rest timer with vibration; 🏆 record detection; plan-day checklist; plate calculator for barbell lifts; delete a set |
 | Jim | coaching in four tones from your history, next-set suggestion you can apply, spoken replies; type or dictate "10 curls at 20 pounds" to log a set (confirmed first); pain gets a fixed safety reply |
 | Plan | weekly plan for goal, days, minutes and equipment; *Start this day* opens a workout with the checklist |
-| Progress | per-exercise trends (units never mixed), estimated TUT for camera sets, personal records |
+| Progress | per-exercise trends (units never mixed), estimated TUT for camera sets, personal records with estimated 1RM, workout history (repeat or delete a workout) |
 
 ## Camera rep counting
 *Count reps with camera* opens a counter that runs MediaPipe pose detection inside a WebView on the

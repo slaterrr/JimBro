@@ -4,8 +4,10 @@ import { Text, TextInput, TouchableOpacity, Vibration, View } from 'react-native
 import { useApp } from '../AppState.js';
 import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
+import { plateBreakdown } from '../lib/tools.js';
 import { Button, C, Card, Choice, Kicker, Title, s } from '../ui.js';
 
+const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
 const RPE = [['', '–'], ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['10', '10']];
 const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
@@ -30,6 +32,16 @@ function RestTimer({ seconds, onDone }) {
         <View style={s.inputHalf}><Button secondary onPress={onDone}>Skip</Button></View>
       </View>
     </Card>
+  );
+}
+
+function PlateLine({ total, unit }) {
+  const p = plateBreakdown(total, unit);
+  if (!p) return <Text style={s.fine}>Lighter than an empty {unit === 'kg' ? '20 kg' : '45 lb'} bar.</Text>;
+  return (
+    <Text style={s.fine}>
+      Per side on a {p.bar} {unit} bar: {p.perSide.length ? p.perSide.join(' + ') : 'nothing'}{p.remainder ? ` (can't load the last ${p.remainder} ${unit})` : ''}
+    </Text>
   );
 }
 
@@ -140,6 +152,7 @@ export function WorkoutScreen({ prefill, clearPrefill, cameraReps, clearCameraRe
             <TextInput style={s.input} value={reps} onChangeText={(t) => { setReps(t); }} keyboardType="number-pad" />
           </View>
         </View>
+        {BARBELL.has(exercise) && Number(weight) > 0 ? <PlateLine total={Number(weight)} unit={unit} /> : null}
         <Choice title="Unit" options={[['lb', 'lb'], ['kg', 'kg']]} value={unit} onChange={setUnit} />
         <Choice title="Effort (RPE, optional)" options={RPE} value={rpe} onChange={setRpe} />
         {cameraReps && cameraReps.movement === exercise ? (
