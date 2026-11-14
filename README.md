@@ -1,135 +1,91 @@
 # JimBro
 
-JimBro is a hackathon exercise tracker: your **phone** watches you lift and counts reps,
-a **Raspberry Pi** stores your workouts and shows live reps on a station display, and
-**Jim**, the coach, suggests your next set in one of four tones. See the
-[feature register](docs/FEATURES.md) for what is built vs. planned, and
-[docs/API.md](docs/API.md) for the API contract the app uses.
+**An adaptive AI training system that turns ordinary phone video into measurable exercise data,
+then uses that data to personalize your next workout.** Built at HackPrinceton Fall '26
+(Healthcare track).
 
-## What works
-- **Live rep counting** for curl, squat and shoulder press: pose detection on the phone
-  (MediaPipe), only joint angles are sent to the Pi, which counts reps with hysteresis and
-  reports per-rep up / hold / down timing (estimated TUT).
-- **Workout log** for six lifts (curl, squat, bench, deadlift, shoulder press, pull-up):
-  camera, manual or voice entry; kg/lb and RPE explicit; offline-safe retries (idempotent set IDs).
-- **Jim** (Direct / Friendly / Silly / Hard): code computes facts and a bounded (≤5%) next-set
-  suggestion; Claude only phrases it when an API key is set; an offline coach always works;
-  pain/injury mentions get a fixed safety reply in every tone.
-- **Push-to-talk set logging** ("10 curls at 20 pounds RPE 7") with confirmation before saving.
-- **Plans** constrained by goal, days/week, minutes and equipment.
-- **Progress** trends per exercise (units never mixed), **opt-in weekly leaderboard** with
-  labeled demo athletes, and a full-screen **Pi station** (`/station`) with optional GPIO button.
-- **Evidence tooling**: export angle traces with ground-truth counts and replay them
-  (`python -m jimbro.evaluate`). See [docs/EVIDENCE.md](docs/EVIDENCE.md).
+Many people skip the gym because they're anxious about being judged by a coach or a crowd. JimBro
+is a private coach in your pocket. Jim watches your set through the phone camera, counts only real
+reps, tells you why one didn't count, plans your next session from your history, and runs it with
+you hands-free. Video never leaves the phone.
 
-## Apps
-- **`apps/expo`**: the JimBro phone app for Expo Go. It runs **entirely on the phone** (no server or
-  Pi): logging, Jim, plans, progress, records and streaks. Start here: [apps/expo/README.md](apps/expo/README.md).
-- **`apps/mobile`** and **`backend/`**: the earlier browser PWA and Raspberry Pi server. They are kept
-  and tested but are no longer required; the Pi direction is paused.
+| Home | Muscles | Progress | Coach |
+|---|---|---|---|
+| ![Home](docs/design/expo-Home.png) | ![Muscles](docs/design/expo-Muscles.png) | ![Progress](docs/design/expo-Progress.png) | ![Coach](docs/design/expo-Coach.png) |
 
-## Architecture
-```
- Phone (PWA, HTTPS)                         Raspberry Pi 4 (from the USB bundle)
- ┌───────────────────────────┐   angles    ┌──────────────────────────────────────┐
- │ camera → MediaPipe pose   │ ──────────▶ │ FastAPI  /v1/live/{movement} (WS)    │
- │ (video never leaves phone)│ ◀────────── │   RepCounter → rep events ─┐         │
- │ Train / Log / Progress /  │  rep events │ /v1/sets, /v1/sessions     │ EventBus│
- │ Jim tabs, offline queue   │ ──REST────▶ │ SQLite (WAL)               ▼         │
- └───────────────────────────┘             │ /v1/station (WS) → Chromium kiosk    │
-                                           │ Jim: rules + optional Claude API     │
-                                           └──────────────────────────────────────┘
-```
-
-## Put it on the Pi (USB stick)
-Requirements: Raspberry Pi 4/5 with **64-bit Raspberry Pi OS (bookworm or newer)**, on the
-same Wi-Fi as your phone. On your computer (Node 20+, Python 3.11+):
-
+## Try it in a minute
 ```bash
-scripts/build_usb.sh                    # → build/jimbro-usb (~35 MB)
+cd apps/expo
+npm ci
+npx expo start --web     # opens in your browser; the Coach camera works in Chrome
+npx expo start           # or scan the QR code with Expo Go on your phone (same Wi-Fi)
 ```
+Then tap **"I have 20 minutes, help me finish chest day"** on Home.
 
-Copy `build/jimbro-usb` to a USB stick, plug it into the Pi, and on the Pi run:
+## What it does
+- **Workout Mission.** Say how long you have and what to train. Jim plans a session that fits the
+  time, using your goal, your history and which muscles are rested. He explains every pick and
+  waits for you to tap Start. He then runs the session: each set starts when the camera sees you
+  and ends when you stop, a quick effort check follows, and rest is counted down with the next
+  set's adjustment. If the camera can't track a lift, he offers a lift it can count. At the end he
+  checks the result against the plan.
+- **Camera rep counting** for curl, squat, shoulder press and push-ups (standard, knee and
+  incline), using MediaPipe pose on the phone or in the browser. Only real reps count. Arm swing,
+  joints that jump, leaving the frame and gesturing are not counted, and Jim says why
+  (**"Caught it"**). He notices when you switch lifts and offers to switch the set.
+- **Set report** for each set: reps counted and not counted (with reasons), rep times, tempo,
+  tracking quality and an effort estimate (RPE / reps in reserve from rep speed, labelled as an
+  estimate). **Form review** replays your skeleton next to the ideal movement with a cue to fix.
+- **Jim, your coach**, in five personas (Coach, Hype, Sergeant, Zen, Data). The numbers are the
+  same; only the wording and voice change. Chat with him, or use Talk mode. With the optional AI
+  proxy he answers through Claude; without it, built-in rules answer offline. Claude can only
+  *propose* changes to your log, and you confirm each one.
+- **Plans and goals.** First-run setup asks your experience, fitness goal and what you want to
+  look like. Rest times are set per exercise and goal, with the reason shown. Goals cover
+  strength, consistency, volume and camera-verified reps, with a weekly check-in.
+- **Progress.** Total strength (estimated 1RM), volume, PRs, workout history, and
+  workout/month/year comparisons. A muscle map shows what you trained recently.
+- **Bring your data.** Import past workouts from CSV or Excel. Import an Apple Health export to
+  estimate your activity level. Optionally, plan toward a reference physique photo, sent only
+  after you tick consent.
 
-```bash
-sudo bash /media/$USER/<stick>/jimbro-usb/install.sh --hostname jimbro
-```
+## Evidence (real and simulated kept apart)
+- **Real video**, replayed through the production pose pipeline (`tools/vision-lab`): 4 labeled
+  clips. All 3 real reps were counted, and 0 fake reps on 2 clips of someone talking and gesturing.
+  One of those is held out: we never tuned on it, and it went from 5 fake reps to 0 after the
+  torso-in-frame check.
+- **Simulated** landmark sets (seeded): 20/20 reps on 20-rep sets for each lift, and push-up type
+  480/480 per variant. These are simulations, not real-world accuracy.
+- Tests: app 402, vision lab 44, AI proxy 26, all passing. Details in
+  [docs/EVIDENCE.md](docs/EVIDENCE.md) and [docs/AUDIT.md](docs/AUDIT.md).
 
-The installer works offline, copies the app to `/opt/jimbro`, keeps data in
-`/var/lib/jimbro`, creates a self-signed HTTPS certificate (phones only allow the camera
-over HTTPS), and enables services that start on every boot. Then:
+## Privacy
+- Video is never stored or uploaded. Pose is found on the device, and only body landmarks reach
+  the app's logic.
+- Workouts are stored on the phone (AsyncStorage), with no account. Export or erase them in the
+  🔔 sheet.
+- The optional AI proxy receives a text summary only (recent sets, records, goals and the last set
+  report), never video, names or workout ids. Pain or dizziness gets a fixed safety reply before
+  any network call.
+- The one exception: a reference physique photo you pick is sent for that single request, only
+  after an explicit consent tick. It is never stored or logged, and replies never judge weight,
+  looks or health.
 
-1. On your phone open **https://jimbro.local** (or the IP the installer prints), accept the
-   certificate warning once, and use *Add to Home Screen*.
-2. The Pi's monitor opens the station display automatically at the next desktop login.
-3. Optional AI wording for Jim: add `ANTHROPIC_API_KEY=...` to `/etc/jimbro/jimbro.env`, then
-   `sudo systemctl restart jimbro`.
-4. Optional button: wire a push button between GPIO17 (pin 11) and GND (pin 9).
-
-Update by rebuilding and re-running `install.sh` (data and settings are kept). Remove with
-`sudo bash uninstall.sh` (`--purge` also deletes data). Logs: `journalctl -u jimbro -f`.
-`scripts/smoke_pi_container.sh` verifies a bundle on emulated arm64 bookworm via Docker.
-
-## Headless Pi (no monitor, keyboard or SSH)
-Works on **Raspberry Pi OS Lite**; nothing on the Pi needs internet.
-
-**Zero-touch first boot.** In Raspberry Pi Imager pick 64-bit Raspberry Pi OS (Lite), open
-*Edit settings* and set username, Wi-Fi and SSH, then write the card. Leave it in your
-computer and run:
-```bash
-scripts/build_usb.sh
-python scripts/prepare_sd.py E:\ --hostname jimbro      # the card's "bootfs" drive
-```
-Put the card in the Pi and power on. A few minutes later open **https://jimbro.local**
-(first-boot log: `/var/log/jimbro-firstboot.log`).
-
-**The USB stick is the remote control.** Plug in a stick at any time and the Pi will:
-- install a newer `jimbro-usb/` bundle if the stick has one (data and settings kept),
-- back up the workout database to `jimbro-backups/` (keeps 30),
-- write `jimbro-status.txt`: the phone address, version and health; read it on any laptop,
-- join Wi-Fi from `jimbro-wifi.txt` (`SSID=...` / `PASSWORD=...`), then delete that file.
-
-The stick unmounts itself when done (watch the `jimbro-status.txt` timestamp). Also on the Pi:
-nightly backups to `/var/lib/jimbro/backups` (keeps 14), mDNS advertising, and
-`https://jimbro.local/v1/status` for a health check from your phone. The station display
-works from any browser at `/station`. Disable stick auto-updates with
-`JIMBRO_USB_AUTOUPDATE=0` in `/etc/jimbro/jimbro.env`. Anyone with physical access can update
-the Pi this way, the same as swapping its SD card.
-
-Restore a backup over SSH:
-`sudo -u jimbro PYTHONPATH=/opt/jimbro/app/backend /opt/jimbro/venv/bin/python -m jimbro.backup restore <snapshot.db> /var/lib/jimbro/jimbro.db`,
-then `sudo systemctl restart jimbro`.
-
-## Develop
-```bash
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-python -m pip install -e ".[dev]"
-uvicorn jimbro.api:app --app-dir backend --reload   # API on :8000
-cd apps/mobile && npm ci && npm run dev             # PWA on :5173, proxies /v1 to :8000
-```
-Quality gates (also in CI): `ruff check backend`, `ruff format --check backend`,
-`mypy backend/jimbro`, `pytest --cov=backend/jimbro --cov-fail-under=90`, and in
-`apps/mobile`: `npx tsc -b`, `npm test`, `npx vite build`. Desktop browsers allow the
-camera on `localhost`; for a phone in dev use the Pi or an HTTPS tunnel.
-
-## Threat model and privacy
-- Raw video never leaves the phone and is never stored. Only joint angles, confidence and
-  workout records reach the Pi. Traces are exported only when you press *Export*.
-- `GET /v1/export` and `DELETE /v1/athletes/me?confirm=true` let each athlete take or erase
-  their data.
-- The API is meant for a trusted home LAN: `X-Athlete-Id` separates household members but is
-  **not authentication**. Don't expose port 443 to the internet.
-- TLS is self-signed: it encrypts traffic on the LAN, but phones can't verify the Pi's
-  identity until you accept the certificate.
-- The service runs as an unprivileged `jimbro` user with a read-only filesystem except its data
-  dir; the API key lives in a root-owned, group-readable env file.
-- Jim's model output never changes numbers or records; suggestions are computed in code and
-  voice-parsed sets require confirmation.
+## Repository
+| Path | What |
+|---|---|
+| [`apps/expo`](apps/expo/README.md) | The JimBro app (Expo SDK 58, phone and web). **Start here.** |
+| [`server/jim-proxy`](server/jim-proxy/README.md) | Optional AI proxy. It holds the Claude API key so the app never does, and stores nothing |
+| [`tools/vision-lab`](tools/vision-lab/README.md) | Replays labeled videos through the real pose pipeline and scores the rep counter |
+| `apps/mobile`, `backend/` | The earlier browser app and Raspberry Pi server (paused). See [docs/PI.md](docs/PI.md) |
+| [`docs/`](docs) | Audit, Devpost draft, evidence, design screenshots |
 
 ## Limitations (honest)
-- Camera counting covers curl, squat and shoulder press only; bench, deadlift and pull-up are
-  logged manually. Accuracy depends on camera angle, framing and light. **No real-world
-  accuracy numbers are published yet**: record traces and run the evaluator.
-- TUT is estimated movement-phase timing from threshold crossings, not muscle tension or force.
-- Not a medical device; Jim can't assess injuries.
-- First phone load needs the Pi; after that the app shell is cached, and sets queue offline.
+- Real labeled data is small (4 clips). The 20-rep results are simulated. Latency was measured on
+  a desktop CPU, not a phone.
+- Counting works best side-on, with your whole body (or upper body, for curls and presses) in
+  frame. Front-on curls can't be counted, and front-view push-ups aren't handled.
+- Bench press, deadlift, pull-ups and lunges are logged by tapping, not counted by the camera.
+- Effort (RPE) and form checks are uncalibrated heuristics on landmarks, not measurements and not
+  medical advice. 1RM is an estimate (Epley).
+- Expo Go has no speech-to-text, so Talk mode uses the keyboard's dictation.
