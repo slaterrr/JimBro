@@ -23,6 +23,9 @@
           "recordAudioAndroid": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "jimProxyUrl": ""
+    }
   }
 }

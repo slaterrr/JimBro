@@ -1,12 +1,14 @@
-import React, { useRef, useState } from 'react';
+import Constants from 'expo-constants';
+import * as Speech from 'expo-speech';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp } from '../AppState.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
-import { coachReply } from '../lib/coach.js';
 import { exerciseName } from '../lib/exercises.js';
-import { parseIntent } from '../lib/intents.js';
+import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
+import { personaFor } from '../lib/personas.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
@@ -15,6 +17,8 @@ const GOALS = [
   { id: 'general', icon: 'heart-pulse', label: 'Improve\nEndurance', ask: 'I want to improve my endurance.' },
   { id: 'strength', icon: 'target', label: 'Get\nStronger', ask: 'I want to get stronger.' },
 ];
+const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
+const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
 function Glow() {
@@ -64,30 +68,48 @@ function PlanCard({ goal }) {
 }
 
 export function HomeScreen({ openLog, openActivity }) {
-  const { settings, say, allSets, logSet, updateSet, deleteSet, active, history } = useApp();
+  const { settings, say, logSet, updateSet, deleteSet, active, history, goals, plan } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
+  const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
+  const [thinking, setThinking] = useState(false);
+  const [talk, setTalk] = useState(false);
   const scroll = useRef(null);
   const input = useRef(null);
+  const talkRef = useRef(false);
+  talkRef.current = talk;
+  const persona = personaFor(settings.persona ?? settings.tone);
 
   const push = (...m) => {
     setMessages((cur) => [...cur, ...m]);
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   };
 
-  const send = (raw, goal) => {
+  // Talk mode always speaks (in the persona's voice) and reopens dictation when Jim is done.
+  const speak = (line) => {
+    if (!line) return;
+    if (!talkRef.current) return say(line);
+    Speech.stop();
+    Speech.speak(line, { rate: persona.voice.rate, pitch: persona.voice.pitch, onDone: () => talkRef.current && input.current?.focus() });
+  };
+
+  const send = async (raw, goal) => {
     const message = raw.trim();
-    if (!message) return;
+    if (!message || thinking) return;
     setText('');
-    const intent = goal ? null : parseIntent(message, { history, active, unit: settings.unit });
-    if (intent && ['log', 'correct', 'delete'].includes(intent.type)) {
-      // Never change data here: show a confirm card and wait for the user.
-      push({ me: true, text: message }, { kind: 'confirm', intent });
-      return;
-    }
-    if (intent?.type === 'clarify') {
-      push({ me: true, text: message }, { me: false, text: intent.question });
-      say(intent.question);
+    if (!goal) {
+      const prior = historyFor(messages);
+      push({ me: true, text: message });
+      setThinking(true);
+      const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+      setThinking(false);
+      if (r.source !== 'safety') setSource(r.source);
+      // Never change data here: proposals become confirm cards and wait for the user.
+      const out = [];
+      if (r.reply) out.push({ me: false, text: r.reply, safety: r.safety, suggestion: r.suggestion });
+      r.proposals.forEach((intent) => out.push({ kind: 'confirm', intent }));
+      push(...out);
+      speak(r.reply || r.proposals[0]?.summary);
       return;
     }
     if (goal) {
@@ -97,12 +119,27 @@ export function HomeScreen({ openLog, openActivity }) {
         strength: "Let's get stronger. Heavy 3–5 rep sets with long rests. Here's your week.",
       }[goal];
       push({ me: true, text: message }, { me: false, text: intro }, { kind: 'plan', goal });
-      say(intro);
-      return;
+      speak(intro);
     }
-    const r = coachReply(message, settings.tone, allSets);
-    push({ me: true, text: message }, { me: false, text: r.text, safety: r.source === 'safety', suggestion: r.suggestion });
-    say(r.text);
+  };
+
+  // Talk mode: keyboard dictation fills the box; once it settles, send it hands-free.
+  useEffect(() => {
+    if (!talk || !text.trim()) return undefined;
+    const t = setTimeout(() => send(text), TALK_SEND_MS);
+    return () => clearTimeout(t);
+  }, [talk, text]);
+
+  const toggleTalk = () => {
+    const next = !talk;
+    setTalk(next);
+    talkRef.current = next;
+    if (next) {
+      speak("I'm listening. Tap the mic on your keyboard and talk.");
+      input.current?.focus();
+    } else {
+      Speech.stop();
+    }
   };
 
   const confirmIntent = (i, intent) => {
@@ -120,7 +157,7 @@ export function HomeScreen({ openLog, openActivity }) {
       reply = 'Done, that set is gone.';
     }
     setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: reply } : m)));
-    say(reply);
+    speak(reply);
   };
 
   return (
@@ -129,7 +166,14 @@ export function HomeScreen({ openLog, openActivity }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Icon name="arm-flex" size={30} color={T.purple} />
           <Text style={type.h2}>Jim</Text>
+          <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
+            <Text style={[st.badgeText, source === 'ai' && { color: T.violetText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
+          </View>
         </View>
+        <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
+          <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.text : T.textDim} />
+          <Text style={{ color: talk ? T.text : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
+        </TouchableOpacity>
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />
         </TouchableOpacity>
@@ -185,6 +229,7 @@ export function HomeScreen({ openLog, openActivity }) {
             );
           })
         )}
+        {thinking ? <Text style={[type.small, { marginTop: 10 }]}>Jim is thinking…</Text> : null}
       </ScrollView>
 
       <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
@@ -198,7 +243,7 @@ export function HomeScreen({ openLog, openActivity }) {
             value={text}
             onChangeText={setText}
             onSubmitEditing={() => send(text)}
-            placeholder="Message Jim..."
+            placeholder={talk ? 'Tap the keyboard mic and talk…' : 'Message Jim...'}
             placeholderTextColor={T.textMute}
             returnKeyType="send"
             style={{ flex: 1, color: T.text, fontSize: 16, paddingHorizontal: 10 }}
@@ -224,5 +269,10 @@ const st = StyleSheet.create({
   composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(10,8,14,0.9)' },
   bubble: { borderRadius: R.md, padding: 12, marginTop: 10, maxWidth: '88%', borderWidth: 1 },
   me: { alignSelf: 'flex-end', backgroundColor: T.purpleSoft, borderColor: T.purple },
+  badge: { borderWidth: 1, borderColor: T.border, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeAI: { borderColor: T.purple, backgroundColor: T.purpleSoft },
+  badgeText: { color: T.textMute, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14 },
+  talkOn: { backgroundColor: T.purple, borderColor: T.purple },
   jim: { alignSelf: 'flex-start', backgroundColor: T.card, borderColor: T.border },
 });

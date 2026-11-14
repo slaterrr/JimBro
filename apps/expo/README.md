@@ -41,6 +41,20 @@ If local networking fails, try `npx expo start --tunnel`.
 The 🔔 sheet holds your weekly goal and streak, recent records, settings (tone, voice, units,
 weekly goal, rest timer) and your data (export, restore by pasting an export, erase).
 
+## Jim AI (optional)
+Run `server/jim-proxy` (see its README) and start the app with
+`EXPO_PUBLIC_JIM_PROXY_URL=http://<laptop-LAN-IP>:8787 npx expo start` (or set
+`expo.extra.jimProxyUrl` in `app.json`). Jim then answers through Claude; the header badge shows
+**AI**. Without a URL, or if the proxy fails, it shows **offline** and uses the built-in rules.
+Only a text snapshot is sent (last 14 days of sets, records, goal progress, weekly check-in, last
+camera set report, unit and persona); never video, names or workout ids. Claude can only *propose*
+log/fix/delete changes; the app re-validates them and you confirm on the usual card. Pain or
+dizziness gets the fixed safety reply before any network call.
+
+**Talk mode** (header button): Jim speaks every reply in the persona's voice and reopens the
+keyboard when he finishes; dictate with the keyboard's mic and the text is sent after ~2 s of
+silence. Expo Go has no speech-to-text API, so the keyboard mic is still one tap per turn.
+
 ## How it works
 `src/lib` holds the tested logic: rep counting (`reps.js`, ported from the backend), Jim
 (`coach.js`), plans (`plans.js`), progress and records (`progress.js`), progression stats
