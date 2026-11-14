@@ -109,12 +109,14 @@ describe('guided session', () => {
     assert.equal(s.phase, 'set');
     s = missionStep(s, { type: 'set_done', reps: 8 });
     assert.equal(s.phase, 'check');
-    s = missionStep(s, { type: 'confirm', rpe: 7 });
+    // The user approved Jim's suggestion: the next set changes.
+    const rec = { action: 'increase', weight: 190, reps: 8, reasons: ['All 8 reps at RPE 7.'] };
+    s = missionStep(s, { type: 'confirm', rpe: 7, rec, accepted: true });
     assert.equal(s.phase, 'rest');
     assert.equal(s.log.length, 1);
-    // RPE 7 -> room to add load for the next set.
-    assert.ok(currentTarget(s).weight > 185);
+    assert.equal(currentTarget(s).weight, 190);
     assert.ok(s.note && /RPE 7/.test(s.note));
+    assert.deepEqual(s.log[0].rec, { action: 'increase', weight: 190, reps: 8, accepted: true });
     s = missionStep(s, { type: 'rest_done' });
     assert.equal(s.phase, 'position');
     s = missionStep(missionStep(missionStep(s, { type: 'ready' }), { type: 'set_done', reps: 8 }), { type: 'confirm', rpe: 9 });
@@ -199,5 +201,33 @@ describe('weight the user picks', () => {
     assert.equal(s.log[0].weight, 95);
     assert.ok(currentTarget(s).weight >= 95, `next set ${currentTarget(s).weight}`);
     assert.doesNotMatch(s.note, /Pick your weight/);
+  });
+});
+
+describe('changes need approval', () => {
+  const m = { title: 'Chest', minutes: 20, estMinutes: 18, focus: 'chest', reasons: [],
+    items: [{ exercise: 'bench', sets: 3, reps: 8, weight: 185, unit: 'lb', rest_s: 90, camera: false, why: '' }] };
+  const toCheck = () => missionStep(missionStep(missionStart(m), { type: 'ready' }), { type: 'set_done', reps: 8 });
+
+  it('a suggestion that is not accepted leaves the plan as it was, and is logged as declined', () => {
+    const rec = { action: 'increase', weight: 190, reps: 8, reasons: ['All 8 reps at RPE 7.'] };
+    const s = missionStep(toCheck(), { type: 'confirm', rpe: 7, rec, accepted: false });
+    assert.equal(currentTarget(s).weight, 185);
+    assert.equal(currentTarget(s).reps, 8);
+    assert.equal(s.log[0].rec.accepted, false);
+  });
+
+  it('no suggestion at all: same weight, nothing invented', () => {
+    const s = missionStep(toCheck(), { type: 'confirm', rpe: null });
+    assert.equal(currentTarget(s).weight, 185);
+    assert.equal(s.log[0].rec, null);
+  });
+
+  it('accepted fewer reps or extra rest change only that', () => {
+    let s = missionStep(toCheck(), { type: 'confirm', rpe: 9, rec: { action: 'fewer_reps', weight: 185, reps: 6, reasons: ['x'] }, accepted: true });
+    assert.deepEqual([currentTarget(s).weight, currentTarget(s).reps], [185, 6]);
+    s = missionStep(toCheck(), { type: 'confirm', rpe: 8, rec: { action: 'more_rest', weight: 185, reps: 8, extraRestS: 60, reasons: ['x'] }, accepted: true });
+    assert.equal(currentTarget(s).rest_s, 150);
+    assert.equal(currentTarget(s).weight, 185);
   });
 });
