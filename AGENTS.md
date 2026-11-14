@@ -21,7 +21,7 @@ Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see 
 | Rest timer curated per exercise (not a setting) | 🚧 agent (feat/rest-and-compare) |
 | Progress: scroll past workouts; workout/month/year strength + volume comparisons | 🚧 agent (feat/rest-and-compare) |
 | Leaderboard | 📋 not started (privacy: on-device app; would need opt-in sharing) |
-| Mascot art (blue, round, cartoon "Jim") | 📋 needs a human/design tool; agents can't generate images here |
+| Supplied Jim mascot on Home and body-blue app theme (#98CCEA) | 🧪 codex/jim-blue-theme; transparent asset, palette contrast checks; device visual check pending |
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents

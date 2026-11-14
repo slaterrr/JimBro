@@ -11,7 +11,7 @@ export const Icon = ({ name, size = 22, color = T.text, style }) => (
   <MaterialCommunityIcons name={name} size={size} color={color} style={style} />
 );
 
-/** Jim's mark: five rounded voice bars in seafoam. */
+/** Jim's voice indicator: five rounded bars in the current accent. */
 export function JimBars({ height = 22, color = T.accent }) {
   const bars = [0.45, 0.75, 1, 0.75, 0.45];
   const w = height * 0.16;

@@ -1,4 +1,4 @@
-// Seafoam accent palette: contrast of text tokens on the dark app background (WCAG AA >= 4.5:1).
+// Jim-blue palette: contrast of text tokens on the dark app background (WCAG AA >= 4.5:1).
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -11,10 +11,11 @@ describe('palette', () => {
     assert.equal(contrast('#000000', '#ffffff').toFixed(1), '21.0');
     assert.equal(contrast('#ffffff', '#ffffff'), 1);
   });
-  it('is seafoam, not purple', () => {
+  it('uses the mascot body blue and coordinated blue shades', () => {
+    assert.equal(ACCENT.accent, '#98ccea');
     for (const hex of [ACCENT.accent, ACCENT.accentDeep, ACCENT.accentText]) {
       const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-      assert.ok(g > r && g >= b, `${hex} should be green-cyan`);
+      assert.ok(b > g && g > r, `${hex} should be blue`);
     }
   });
   it('accent text tokens pass AA (>= 4.5:1) on the background and cards', () => {

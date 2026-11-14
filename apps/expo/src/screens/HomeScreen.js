@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp, useLiveCamera } from '../AppState.js';
@@ -135,7 +135,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
     if (r && mounted.current) speak(r.reply || r.proposals?.[0]?.summary);
   };
 
-  useEffect(() => { scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
+  useEffect(() => {
+    if (messages.length || thinking) scroll.current?.scrollToEnd({ animated: true });
+  }, [messages, thinking]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
 
   // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
@@ -233,9 +235,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
           <Icon name="chevron-right" size={20} color={T.textMute} />
         </TouchableOpacity>
         {!messages.length ? (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <JimBars height={64} />
-            <Text style={[type.h1, { marginTop: 28, fontSize: 32 }]}>Hey, I'm Jim</Text>
+          <View style={{ alignItems: 'center', marginTop: compact ? 8 : 20 }}>
+            <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Jim holding a barbell" resizeMode="contain" style={{ width: 220, height: 150 }} />
+            <Text style={[type.h1, { marginTop: 16, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
               {HOME_SUBTITLE}
             </Text>
