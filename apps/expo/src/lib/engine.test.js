@@ -11,7 +11,10 @@ import { CURL, MOVEMENTS, RepCounter, SHOULDER_PRESS, SQUAT, movementConfig } fr
 // --- rep counter ---------------------------------------------------------------------
 
 const DT = 33;
-const ramp = (a, b, ms, t0) => Array.from({ length: Math.max(1, Math.floor(ms / DT)) }, (_, i, arr) => [t0 + (i + 1) * DT, a + ((b - a) * (i + 1)) / arr.length]);
+const ramp = (a, b, ms, t0) => {
+  const n = Math.max(1, Math.floor(ms / DT));
+  return Array.from({ length: n }, (_, i) => [t0 + (i + 1) * DT, a + ((b - a) * (i + 1)) / n]);
+};
 const hold = (a, ms, t0) => Array.from({ length: Math.max(1, Math.floor(ms / DT)) }, (_, i) => [t0 + (i + 1) * DT, a]);
 function curlReps(n, { up = 800, top = 200, down = 1200, rest = 400, low = 170, high = 40 } = {}) {
   let out = [[0, low]];
