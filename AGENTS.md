@@ -53,6 +53,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
 | Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |
 | On-phone pose (MediaPipe Lite in WebView) | 🧪 main | `lib/poseHtml.js` | vision-lab uses same model/config | FPS on real phones |
+| Camera counting in a laptop browser (Expo web): same pose page in an iframe, `postMessage` bridge; screens fit 320 px to desktop (centered 560 px column) | 🧪 feat/workout-mission | `components/PoseView.web.js`, `lib/poseBridge.js`, `lib/layout.js` | unit + wiring tests; user confirmed live camera works in Chrome; layout checked at 5 sizes | Safari/Firefox; notch/safe areas on devices |
 | Rep counter (curl, squat, press) | ✅ | `lib/reps.js`, `lib/live.js` | unit + 20-rep simulated sets 20/20 all lifts; real video 3/3 TP, 0 FP | real 15–20-rep phone clips |
 | Anti-false-rep guards: exercise-aware visibility, side lock, abort on tracking loss, curl arm-swing | ✅ PR #18 | `lib/live.js`, `lib/angles.js` | unit tests | 50° swing threshold on real video |
 | Joint-speed gate (hallucinated joints) | ✅ PR #20 | `lib/live.js` `jointSpeed` | sim: 8 → 0 fake reps; fast 1.1 s reps still 20/20 | very explosive real reps |
