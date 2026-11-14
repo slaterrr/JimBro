@@ -11,6 +11,14 @@ import type { PoseLandmarker, PoseLandmarkerResult } from "@mediapipe/tasks-visi
 // ---- landmarks -----------------------------------------------------------
 
 /** Minimal landmark shape (matches MediaPipe's NormalizedLandmark). */
+/** A 3D landmark from the model's world output: metres, origin between the hips. */
+export interface WorldLandmarkLike {
+  x: number;
+  y: number;
+  z: number;
+  visibility?: number;
+}
+
 export interface LandmarkLike {
   x: number;
   y: number;
@@ -20,6 +28,7 @@ export interface LandmarkLike {
 
 /** BlazePose landmark indices used by Jim Bro. */
 export const POSE_LANDMARKS = {
+  NOSE: 0,
   LEFT_SHOULDER: 11,
   RIGHT_SHOULDER: 12,
   LEFT_ELBOW: 13,
@@ -238,6 +247,13 @@ export class ModelLoadError extends Error {
 }
 
 export async function createPoseLandmarker(options: Partial<DetectorOptions> = {}): Promise<PoseLandmarker> {
+  return (await createPoseLandmarkerWithInfo(options)).landmarker;
+}
+
+/** Like createPoseLandmarker, also saying which delegate (GPU or CPU) actually loaded. */
+export async function createPoseLandmarkerWithInfo(
+  options: Partial<DetectorOptions> = {},
+): Promise<{ landmarker: PoseLandmarker; delegate: "GPU" | "CPU" }> {
   const o = { ...DEFAULT_DETECTOR_OPTIONS, ...options };
   try {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
@@ -253,12 +269,12 @@ export async function createPoseLandmarker(options: Partial<DetectorOptions> = {
       });
     if (o.delegate === "GPU") {
       try {
-        return await build("GPU");
+        return { landmarker: await build("GPU"), delegate: "GPU" };
       } catch {
-        return await build("CPU");
+        return { landmarker: await build("CPU"), delegate: "CPU" };
       }
     }
-    return await build("CPU");
+    return { landmarker: await build("CPU"), delegate: "CPU" };
   } catch (err) {
     throw new ModelLoadError(err);
   }
@@ -266,45 +282,142 @@ export async function createPoseLandmarker(options: Partial<DetectorOptions> = {
 
 // ---- detection loop ------------------------------------------------------
 
+/** Something that finds a pose in the current video frame: on the main thread or in a worker. */
+export interface PoseDetector {
+  readonly threading: "main" | "worker";
+  readonly delegate: "GPU" | "CPU";
+  /** `timestampMs` must strictly increase across calls. */
+  detect(video: HTMLVideoElement, timestampMs: number): PoseLandmarkerResult | Promise<PoseLandmarkerResult>;
+  close(): void;
+}
+
+/** Runs MediaPipe on the main thread (simplest; blocks rendering for the detection time). */
+export class MainThreadDetector implements PoseDetector {
+  readonly threading = "main" as const;
+  constructor(
+    private readonly landmarker: PoseLandmarker,
+    readonly delegate: "GPU" | "CPU",
+  ) {}
+  detect(video: HTMLVideoElement, timestampMs: number): PoseLandmarkerResult {
+    return this.landmarker.detectForVideo(video, timestampMs);
+  }
+  close(): void {
+    this.landmarker.close();
+  }
+}
+
+export interface LoopStats {
+  /** Pose results per second (smoothed). */
+  fps: number;
+  /** Time from sending a frame to getting its pose back, ms (smoothed). */
+  detectMs: number;
+  /** New camera frames skipped because the detector was still busy. */
+  skipped: number;
+}
+
 /**
- * Runs detection once per new video frame via requestAnimationFrame. Frames
- * the camera hasn't updated are skipped, so the model never runs twice on the
- * same image and the loop idles when the tab is hidden.
+ * Runs detection once per new video frame. Uses requestVideoFrameCallback
+ * when the browser has it (fires exactly when a new camera frame is ready),
+ * else requestAnimationFrame plus a currentTime check.
+ *
+ * Latest frame wins: at most one frame is in detection at a time; frames that
+ * arrive meanwhile are skipped, never queued, so feedback can't fall behind
+ * the user. The model never runs twice on the same image, and the loop idles
+ * while the tab is hidden.
+ *
+ * `clock` decides the timestamp handed to `onResult`:
+ *   - "wall": performance.now() at capture (live camera)
+ *   - "media": the video's own playback time in ms (video files)
  */
 export class PoseLoop {
-  private rafId: number | null = null;
+  private handle: number | null = null;
+  private usingVfc = false;
   private lastVideoTime = -1;
   private lastTimestamp = 0;
+  private busy = false;
+  private running = false;
+  private stats: LoopStats = { fps: 0, detectMs: 0, skipped: 0 };
+  private lastResultAt: number | null = null;
 
   constructor(
     private readonly video: HTMLVideoElement,
-    private readonly landmarker: PoseLandmarker,
+    private readonly detector: PoseDetector,
     private readonly onResult: (result: PoseLandmarkerResult, timestamp: number) => void,
+    private readonly clock: "wall" | "media" = "wall",
   ) {}
 
-  get running(): boolean {
-    return this.rafId !== null;
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  getStats(): Readonly<LoopStats> {
+    return this.stats;
   }
 
   start(): void {
-    if (this.rafId !== null) return;
-    const tick = () => {
-      this.rafId = requestAnimationFrame(tick);
-      const v = this.video;
-      if (v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
-      this.lastVideoTime = v.currentTime;
-      // MediaPipe requires strictly increasing timestamps.
-      const now = Math.max(performance.now(), this.lastTimestamp + 1);
-      this.lastTimestamp = now;
-      const result = this.landmarker.detectForVideo(v, now);
-      this.onResult(result, now);
-    };
-    this.rafId = requestAnimationFrame(tick);
+    if (this.running) return;
+    this.running = true;
+    this.schedule();
   }
 
   stop(): void {
-    if (this.rafId !== null) cancelAnimationFrame(this.rafId);
-    this.rafId = null;
+    this.running = false;
+    if (this.handle !== null) {
+      const v = this.video as HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void };
+      if (this.usingVfc) v.cancelVideoFrameCallback?.(this.handle);
+      else cancelAnimationFrame(this.handle);
+    }
+    this.handle = null;
+  }
+
+  private schedule(): void {
+    if (!this.running) return;
+    const v = this.video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
+    this.usingVfc = typeof v.requestVideoFrameCallback === "function";
+    this.handle = this.usingVfc ? v.requestVideoFrameCallback!(() => this.tick()) : requestAnimationFrame(() => this.tick());
+  }
+
+  private tick(): void {
+    this.handle = null;
+    if (!this.running) return;
+    this.schedule();
+    const v = this.video;
+    if (v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
+    if (this.busy) {
+      this.stats.skipped += 1;
+      return;
+    }
+    this.lastVideoTime = v.currentTime;
+    // MediaPipe requires strictly increasing timestamps.
+    const now = Math.max(performance.now(), this.lastTimestamp + 1);
+    this.lastTimestamp = now;
+    const appTs = this.clock === "media" ? v.currentTime * 1000 : now;
+    this.busy = true;
+    let out: PoseLandmarkerResult | Promise<PoseLandmarkerResult>;
+    try {
+      out = this.detector.detect(v, now);
+    } catch (err) {
+      this.busy = false;
+      throw err;
+    }
+    const done = (result: PoseLandmarkerResult) => {
+      this.busy = false;
+      const end = performance.now();
+      this.stats.detectMs = this.stats.detectMs ? 0.9 * this.stats.detectMs + 0.1 * (end - now) : end - now;
+      if (this.lastResultAt !== null) {
+        const inst = 1000 / Math.max(1, end - this.lastResultAt);
+        this.stats.fps = this.stats.fps ? 0.9 * this.stats.fps + 0.1 * inst : inst;
+      }
+      this.lastResultAt = end;
+      if (this.running) this.onResult(result, appTs);
+    };
+    if (out instanceof Promise) {
+      out.then(done, () => {
+        this.busy = false;
+      });
+    } else {
+      done(out);
+    }
   }
 }
 

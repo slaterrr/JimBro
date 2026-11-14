@@ -7,7 +7,9 @@
  *  - a position hint, or "I can't see you", if out of view for a while
  *  - the start prompt (e.g. "Stand up tall to begin.") until armed, then "Ready"
  *  - the rep number after each counted rep (interrupts anything else)
- *  - why a rep didn't count, and one measured form tip per rep
+ *  - why a rep didn't count, and one form tip per rep (measured first; an
+ *    estimated one only if it has a spoken form, e.g. knees caving or a torso
+ *    shift compared with your usual reps)
  *  - a camera-position warning when the view doesn't suit the exercise
  *  - a short summary when the session ends
  *
@@ -120,9 +122,10 @@ export class VoiceCoach {
   /** Speak the end-of-session summary. */
   announceSession(session: WorkoutSession): void {
     const n = session.summary?.totalReps ?? 0;
-    this.say(n === 0 ? "Session ended. No reps counted." : `Nice work. ${n} ${n === 1 ? "rep" : "reps"}.`, {
-      interrupt: true,
-    });
+    // Add the first set-level observation, if any (e.g. range dropped over the set).
+    const insight = session.summary?.insights[0];
+    const text = n === 0 ? "Session ended. No reps counted." : `Nice work. ${n} ${n === 1 ? "rep" : "reps"}.`;
+    this.say(insight ? `${text} ${insight.message}` : text, { interrupt: true });
   }
 
   /** Speak arbitrary text (respects the on/off switch). */
@@ -179,10 +182,13 @@ export class VoiceCoach {
   private onRep(rep: RepEvent): void {
     // The count is the most important thing: say it now, cutting off anything else.
     this.say(String(rep.repNumber), { interrupt: true, cooldownMs: 0 });
-    // One measured tip at most, so the next count isn't delayed. Consistency
-    // flags (estimated) stay on screen only.
+    // One tip at most, so the next count isn't delayed. Measured tips come
+    // first; estimated ones are spoken only if the exercise gives them a spoken
+    // form (generic consistency flags stay on screen only).
     const ex = getExercise(rep.exercise);
-    const tip = rep.formFlags.find((f) => f.source === "measured" && ex.spoken[f.code]);
+    const tip =
+      rep.formFlags.find((f) => f.source === "measured" && ex.spoken[f.code]) ??
+      rep.formFlags.find((f) => ex.spoken[f.code]);
     if (tip) this.say(ex.spoken[tip.code]!, { key: tip.code });
   }
 

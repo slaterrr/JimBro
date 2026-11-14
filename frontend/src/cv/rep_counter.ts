@@ -143,6 +143,15 @@ export class RepCounter {
     return this._repCount;
   }
 
+  /**
+   * Take back the last counted rep (it failed a later check, e.g. movement
+   * validation), so the next rep gets its number. The state machine is already
+   * back at the start position, so nothing carries into the next rep.
+   */
+  revokeLastRep(): void {
+    if (this._repCount > 0) this._repCount -= 1;
+  }
+
   /** True when `angle` is in the start zone (used e.g. to learn standing baselines). */
   atStart(angle: number | null): boolean {
     return angle !== null && this.s(angle) >= this.s(this._config.startAngle);

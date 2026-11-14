@@ -15,6 +15,8 @@ export { VoiceCoach, browserSpeaker } from "./voice_coach";
 export type { VoiceCoachOptions, Speaker, CoachableTracker } from "./voice_coach";
 
 export { calculateAngle, calculateAngle3D, AngleSmoother } from "./angle_calculator";
+export { SignalFilter, ANGLE_FILTER, POSITION_FILTER } from "./signal_filter";
+export type { SignalFilterOptions, FilterStats } from "./signal_filter";
 export { RepCounter, BaselineDropMeter } from "./rep_counter";
 export type { RepCounterConfig, CompletedRep, RejectedRep, RejectionReason, AngleDirection } from "./rep_counter";
 export { DEFAULT_FORM_ANALYZER_CONFIG } from "./form_analyzer";

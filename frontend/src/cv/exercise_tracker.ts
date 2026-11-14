@@ -9,19 +9,24 @@
  * Framework-agnostic; see useExerciseTracker.ts for the React hook.
  */
 
-import type { NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
-import type { ExerciseId, FormFlag, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
-import { AngleSmoother } from "./angle_calculator";
+import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { createDetector } from "./detector";
+import type { ExerciseId, FormFlag, Metric, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
+import { repFeatures, type RepFrame } from "./ml/rep_features";
+import { movementFeatures, type MovementFrame, type MovementVerdict } from "./movement_validation";
+import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
 import { getExercise } from "./exercises";
-import type { ExerciseDefinition, FormStats } from "./exercises/types";
+import type { ExerciseDefinition, FormSeries, FormStats } from "./exercises/types";
 import {
   analyzeRep,
   assessCameraView,
   cameraViewFlag,
   classifyViewRatio,
   describeRejection,
+  movementRejection,
   summarizeSession,
   toRepEvent,
+  withEvidence,
   type CameraViewAssessment,
   type FormAnalyzerConfig,
 } from "./form_analyzer";
@@ -29,15 +34,17 @@ import {
   CameraError,
   ModelLoadError,
   PoseLoop,
-  createPoseLandmarker,
   drawSkeleton,
   mapCameraError,
   startCamera,
   stopCamera,
   type BodySide,
   type CameraErrorCode,
+  type LandmarkLike,
+  type WorldLandmarkLike,
   type CameraOptions,
   type DetectorOptions,
+  type PoseDetector,
   type SkeletonStyle,
 } from "./pose_detection";
 import { BaselineDropMeter, RepCounter, type CompletedRep, type RepCounterConfig } from "./rep_counter";
@@ -52,13 +59,20 @@ export type TrackerStatus =
   | "error";
 
 export interface TrackerError {
-  code: CameraErrorCode | "MODEL_LOAD_FAILED";
+  code: CameraErrorCode | "MODEL_LOAD_FAILED" | "VIDEO_LOAD_FAILED";
   message: string;
 }
+
+/** Where frames come from: the live camera or an uploaded / linked video. */
+export type TrackerSource = "camera" | "file";
 
 export interface TrackerState {
   status: TrackerStatus;
   error: TrackerError | null;
+  /** null until started. */
+  source: TrackerSource | null;
+  /** Playback position and length of an uploaded video, seconds. null for the camera. */
+  videoProgress: { current: number; duration: number } | null;
   exercise: ExerciseId;
   phase: RepPhase;
   /** Human-readable phase for the current exercise, e.g. "descending". */
@@ -83,6 +97,19 @@ export interface TrackerState {
   cameraView: CameraViewAssessment;
   /** Live camera-position warning, e.g. CAMERA_NOT_SIDE_ON. Estimated. */
   viewWarning: FormFlag | null;
+  /** View the current exercise is being measured from. */
+  measuredView: "side" | "front";
+  /**
+   * Tracking quality this session, as fractions of processed frames:
+   * counting joints visible, readings rejected as glitches, short gaps bridged.
+   */
+  trackingQuality: { visible: number; glitches: number; bridged: number };
+  /** Latest smoothed form signals of the current exercise (degrees or fractions), for live display. */
+  liveForm: Record<string, number | null>;
+  /** Live performance: pose results per second, detection latency, skipped frames, where it runs. */
+  performance: { fps: number; detectMs: number; skipped: number; threading: "main" | "worker"; delegate: "GPU" | "CPU" } | null;
+  /** Verdict on the last completed rep's movement (match, mismatch or uncertain), with reasons. */
+  lastValidation: Pick<MovementVerdict, "verdict" | "reasons"> | null;
 }
 
 export interface ExerciseTrackerOptions {
@@ -90,14 +117,28 @@ export interface ExerciseTrackerOptions {
   exercise?: ExerciseId;
   /** Landmark visibility (0–1) required for a joint to be used. */
   minVisibility?: number;
-  /** EMA factor for smoothing (0–1, higher = less smoothing). */
-  smoothingAlpha?: number;
+  /**
+   * Overrides for the counting-angle filter (One Euro smoothing, short-gap
+   * bridging, glitch rejection). See signal_filter.ts.
+   */
+  filter?: Partial<SignalFilterOptions>;
   /** Max subscriber updates per second. Rep events are never throttled. */
   uiUpdateHz?: number;
   /** Per-exercise threshold overrides. */
   counter?: Partial<Record<ExerciseId, Partial<RepCounterConfig>>>;
   analyzer?: Partial<FormAnalyzerConfig>;
   detector?: Partial<DetectorOptions>;
+  /**
+   * Check each completed rep's movement matches the selected exercise before
+   * counting it (default true). Turn off only to compare against the old
+   * behaviour.
+   */
+  validateMovement?: boolean;
+  /**
+   * Run pose detection in a Web Worker so the camera view stays smooth
+   * (default true). Falls back to the main thread if a worker can't start.
+   */
+  useWorker?: boolean;
   camera?: Omit<CameraOptions, "onEnded">;
   skeleton?: Partial<Omit<SkeletonStyle, "highlight" | "minVisibility">>;
 }
@@ -110,6 +151,8 @@ export function initialTrackerState(exercise: ExerciseId = "squat"): TrackerStat
   return {
     status: "idle",
     error: null,
+    source: null,
+    videoProgress: null,
     exercise,
     phase: "start",
     phaseLabel: getExercise(exercise).phaseLabels.start,
@@ -125,24 +168,46 @@ export function initialTrackerState(exercise: ExerciseId = "squat"): TrackerStat
     positionHint: null,
     cameraView: INITIAL_VIEW,
     viewWarning: null,
+    measuredView: getExercise(exercise).cameraView,
+    trackingQuality: { visible: 0, glitches: 0, bridged: 0 },
+    liveForm: {},
+    performance: null,
+    lastValidation: null,
   };
 }
 
 export class ExerciseTracker {
-  private readonly opts: Required<Pick<ExerciseTrackerOptions, "minVisibility" | "smoothingAlpha" | "uiUpdateHz">> &
+  private readonly opts: Required<Pick<ExerciseTrackerOptions, "minVisibility" | "uiUpdateHz">> &
     ExerciseTrackerOptions;
   private exercise: ExerciseDefinition;
+  private reader: ExerciseDefinition["read"];
   private counter: RepCounter;
   private state: TrackerState;
-  private readonly angleSmoother: AngleSmoother;
-  private readonly progressSmoother: AngleSmoother;
-  private formSmoothers = new Map<string, AngleSmoother>();
+  private readonly angleFilter: SignalFilter;
+  private readonly progressFilter = new SignalFilter(POSITION_FILTER);
+  private formFilters = new Map<string, SignalFilter>();
   private readonly dropMeter = new BaselineDropMeter();
   private formStats: FormStats = {};
+  private formSeen: Record<string, number> = {};
+  private formSeries: Array<FormSeries[number]> = [];
+  private repFrames = 0;
+  private phaseFrames: Partial<Record<RepPhase, number>> = {};
   private prevPhase: RepPhase = "start";
+  private repStats: FormStats[] = [];
+  private lastTs = -Infinity;
+  /** Recent per-frame measurements for the learned quality check (about 15 s). */
+  private trace: RepFrame[] = [];
+  /** Recent landmarks for movement validation (about 15 s). */
+  private movement: MovementFrame[] = [];
+  private lastForm: Record<string, number | null> = {};
 
   private stream: MediaStream | null = null;
-  private landmarker: PoseLandmarker | null = null;
+  private source: TrackerSource | null = null;
+  private replayAspect: number | null = null;
+  private fileUrl: string | null = null;
+  private fileEpoch = 0;
+  private fileCleanup: (() => void) | null = null;
+  private detector: PoseDetector | null = null;
   private loop: PoseLoop | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -159,18 +224,19 @@ export class ExerciseTracker {
   private repListeners = new Set<Listener<RepEvent>>();
   private rejectionListeners = new Set<Listener<FormFlag>>();
   private frameListeners = new Set<Listener<PoseFrame>>();
+  private sessionEndListeners = new Set<Listener<WorkoutSession>>();
 
   constructor(
     private readonly video: HTMLVideoElement,
     private readonly canvas: HTMLCanvasElement | null = null,
     options: ExerciseTrackerOptions = {},
   ) {
-    this.opts = { minVisibility: 0.6, smoothingAlpha: 0.5, uiUpdateHz: 10, ...options };
+    this.opts = { minVisibility: 0.6, uiUpdateHz: 10, ...options };
     this.exercise = getExercise(options.exercise ?? "squat");
+    this.reader = this.makeReader();
     this.counter = this.makeCounter();
     this.state = initialTrackerState(this.exercise.id);
-    this.angleSmoother = new AngleSmoother(this.opts.smoothingAlpha);
-    this.progressSmoother = new AngleSmoother(this.opts.smoothingAlpha);
+    this.angleFilter = new SignalFilter({ ...ANGLE_FILTER, ...options.filter });
   }
 
   // ---- public API ------------------------------------------------------
@@ -191,12 +257,19 @@ export class ExerciseTracker {
     if (this.state.status === "tracking") throw new Error("Pause or stop tracking before switching exercise.");
     if (id === this.exercise.id) return;
     this.exercise = getExercise(id);
+    this.reader = this.makeReader();
     this.counter = this.makeCounter();
     this.resetSignals();
     this.sessionId = null;
     this.reps = [];
     this.repEvents = [];
-    const keep = { status: this.state.status, error: this.state.error, cameraView: this.state.cameraView };
+    const keep = {
+      status: this.state.status,
+      error: this.state.error,
+      cameraView: this.state.cameraView,
+      source: this.state.source,
+      videoProgress: this.state.videoProgress,
+    };
     this.state = { ...initialTrackerState(id), ...keep };
     this.emit();
   }
@@ -220,6 +293,15 @@ export class ExerciseTracker {
     return () => this.rejectionListeners.delete(listener);
   }
 
+  /**
+   * Fires when a session ends on its own: an uploaded video reached its end.
+   * (Calling stop() returns the session directly instead.)
+   */
+  onSessionEnd(listener: Listener<WorkoutSession>): () => void {
+    this.sessionEndListeners.add(listener);
+    return () => this.sessionEndListeners.delete(listener);
+  }
+
   /** Every processed frame, unthrottled. Don't set React state from this. */
   onFrame(listener: Listener<PoseFrame>): () => void {
     this.frameListeners.add(listener);
@@ -238,17 +320,31 @@ export class ExerciseTracker {
     this.counter.configure(patch);
   }
 
-  /** Start the camera (if needed), load the model (once) and begin tracking. */
+  /**
+   * Start the camera (if needed), load the model (once) and begin tracking.
+   * If an uploaded video is loaded and paused, this resumes it instead.
+   */
   async start(): Promise<void> {
     if (this.state.status === "tracking") return;
+    if (this.source === "file" && this.fileUrl && this.state.status === "paused") {
+      await this.resumeFile();
+      return;
+    }
+    if (this.source === "file") {
+      // Switching from a video back to the camera: new loop on the wall clock, new session.
+      this.releaseSource();
+      this.loop = null;
+      this.sessionId = null;
+    }
+    this.source = "camera";
     try {
       if (!this.stream) {
         this.setState({ status: "starting-camera", error: null }, true);
         this.stream = await startCamera(this.video, { ...this.opts.camera, onEnded: (err) => this.fail(err) });
       }
-      if (!this.landmarker) {
+      if (!this.detector) {
         this.setState({ status: "loading-model" }, true);
-        this.landmarker = await createPoseLandmarker(this.opts.detector);
+        this.detector = await createDetector({ ...this.opts.detector, useWorker: this.opts.useWorker ?? true });
       }
     } catch (err) {
       this.fail(err);
@@ -257,17 +353,80 @@ export class ExerciseTracker {
 
     if (!this.sessionId) this.beginSession();
     this.ctx = this.canvas?.getContext("2d") ?? null;
-    this.loop ??= new PoseLoop(this.video, this.landmarker, (result, ts) => this.processFrame(result.landmarks[0], ts));
+    this.loop ??= this.makeLoop("wall");
     this.loop.start();
-    this.setState({ status: "tracking", error: null }, true);
+    this.setState({ status: "tracking", error: null, source: "camera", videoProgress: null }, true);
   }
 
-  /** Stop counting but keep the camera on. A half-finished rep is discarded. */
+  /**
+   * Analyse a prerecorded video (a File from an <input type="file">, a Blob, or
+   * a URL) instead of the camera. Plays it through once at `playbackRate`; rep
+   * timings use the video's own clock. When it ends the session finishes and
+   * onSessionEnd listeners receive it. Lower the playback rate on slow devices
+   * so frames aren't skipped.
+   */
+  async startFile(file: Blob | string, options: { playbackRate?: number } = {}): Promise<void> {
+    if (this.state.status === "tracking") this.pause();
+    this.releaseSource();
+    this.source = "file";
+    this.loop = null;
+    this.sessionId = null;
+
+    const url = typeof file === "string" ? file : URL.createObjectURL(file);
+    this.fileUrl = url;
+    const v = this.video;
+    v.srcObject = null;
+    v.muted = true;
+    v.playsInline = true;
+    v.loop = false;
+    v.src = url;
+    v.playbackRate = options.playbackRate ?? 1;
+
+    try {
+      this.setState({ status: "starting-camera", error: null, source: "file" }, true);
+      await new Promise<void>((resolve, reject) => {
+        const ok = () => {
+          cleanup();
+          resolve();
+        };
+        const bad = () => {
+          cleanup();
+          reject(new VideoLoadError());
+        };
+        const cleanup = () => {
+          v.removeEventListener("loadeddata", ok);
+          v.removeEventListener("error", bad);
+        };
+        v.addEventListener("loadeddata", ok);
+        v.addEventListener("error", bad);
+      });
+      if (!this.detector) {
+        this.setState({ status: "loading-model" }, true);
+        this.detector = await createDetector({ ...this.opts.detector, useWorker: this.opts.useWorker ?? true });
+      }
+    } catch (err) {
+      this.fail(err);
+      return;
+    }
+
+    const onEnded = () => this.finishFile();
+    v.addEventListener("ended", onEnded);
+    this.fileCleanup = () => v.removeEventListener("ended", onEnded);
+
+    this.beginSession();
+    this.fileEpoch = Date.now();
+    this.ctx = this.canvas?.getContext("2d") ?? null;
+    this.loop = this.makeLoop("media");
+    await this.resumeFile();
+  }
+
+  /** Stop counting but keep the camera on (or pause the video). A half-finished rep is discarded. */
   pause(): void {
     if (this.state.status !== "tracking") return;
     this.loop?.stop();
+    if (this.source === "file") this.video.pause();
     this.counter.cancelCurrentRep();
-    this.angleSmoother.reset();
+    this.angleFilter.reset();
     this.setState(
       { status: "paused", phase: "start", phaseLabel: this.exercise.phaseLabels.start, armed: false },
       true,
@@ -278,16 +437,49 @@ export class ExerciseTracker {
     return this.start();
   }
 
-  /** End the session: stops the loop and camera, returns the session data. */
+  /** End the session: stops the loop and camera (or video), returns the session data. */
   stop(): WorkoutSession {
     this.loop?.stop();
-    stopCamera(this.stream);
-    this.stream = null;
-    this.video.srcObject = null;
+    this.releaseSource();
     this.clearCanvas();
     const session = this.buildSession(new Date());
     this.setState({ status: "stopped" }, true);
     this.sessionId = null;
+    return session;
+  }
+
+  // ---- headless replay (validation) -------------------------------------
+
+  /**
+   * Start a session fed with pre-extracted landmarks instead of a camera or
+   * video, e.g. to evaluate a recording against annotations. No camera, model
+   * or canvas is used. Follow with ingest() per frame and endReplay().
+   * @param aspectRatio the source video's width ÷ height
+   */
+  beginReplay(aspectRatio: number): void {
+    this.loop?.stop();
+    this.source = "file";
+    this.fileEpoch = 0;
+    this.replayAspect = aspectRatio;
+    this.beginSession();
+    this.setState({ status: "tracking", error: null, source: "file", videoProgress: null }, true);
+  }
+
+  /** Feed one frame of a replay. `tMs` is the frame's time in the recording. */
+  ingest(
+    landmarks: readonly LandmarkLike[] | undefined,
+    world: readonly WorldLandmarkLike[] | undefined,
+    tMs: number,
+  ): void {
+    this.processFrame(landmarks as NormalizedLandmark[] | undefined, world as Landmark[] | undefined, tMs);
+  }
+
+  /** Finish a replay and return its session. */
+  endReplay(): WorkoutSession {
+    const session = this.buildSession(new Date());
+    this.sessionId = null;
+    this.replayAspect = null;
+    this.setState({ status: "stopped" }, true);
     return session;
   }
 
@@ -300,29 +492,89 @@ export class ExerciseTracker {
   dispose(): void {
     this.loop?.stop();
     this.loop = null;
-    stopCamera(this.stream);
-    this.stream = null;
-    this.landmarker?.close();
-    this.landmarker = null;
+    this.releaseSource();
+    this.detector?.close();
+    this.detector = null;
     this.stateListeners.clear();
     this.repListeners.clear();
     this.rejectionListeners.clear();
     this.frameListeners.clear();
+    this.sessionEndListeners.clear();
   }
 
   // ---- internals -------------------------------------------------------
+
+  private makeLoop(clock: "wall" | "media"): PoseLoop {
+    const detector = this.detector!;
+    return new PoseLoop(
+      this.video,
+      detector,
+      (result, ts) => this.processFrame(result.landmarks[0], result.worldLandmarks[0], ts),
+      clock,
+    );
+  }
+
+  private async resumeFile(): Promise<void> {
+    try {
+      await this.video.play();
+    } catch (err) {
+      this.fail(err instanceof Error && err.name === "NotSupportedError" ? new VideoLoadError() : err);
+      return;
+    }
+    this.loop?.start();
+    this.setState({ status: "tracking", error: null, source: "file" }, true);
+  }
+
+  private finishFile(): void {
+    if (this.source !== "file" || !this.sessionId) return;
+    this.loop?.stop();
+    const session = this.buildSession(new Date());
+    this.sessionId = null;
+    this.setState({ status: "stopped" }, true);
+    this.sessionEndListeners.forEach((l) => l(session));
+  }
+
+  /** Stop the camera stream or unload the video file. */
+  private releaseSource(): void {
+    stopCamera(this.stream);
+    this.stream = null;
+    this.fileCleanup?.();
+    this.fileCleanup = null;
+    const v = this.video;
+    v.srcObject = null;
+    if (this.fileUrl) {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+      if (this.fileUrl.startsWith("blob:")) URL.revokeObjectURL(this.fileUrl);
+      this.fileUrl = null;
+    }
+  }
+
+  private makeReader(): ExerciseDefinition["read"] {
+    const ex = this.exercise;
+    return ex.createReader ? ex.createReader() : (lm, o) => ex.read(lm, o);
+  }
 
   private makeCounter(): RepCounter {
     return new RepCounter({ ...this.exercise.counter, ...this.opts.counter?.[this.exercise.id] });
   }
 
   private resetSignals(): void {
-    this.angleSmoother.reset();
-    this.progressSmoother.reset();
-    this.formSmoothers.clear();
+    this.angleFilter.reset();
+    this.progressFilter.reset();
+    this.formFilters.clear();
     this.dropMeter.reset();
     this.formStats = {};
+    this.formSeen = {};
+    this.repFrames = 0;
+    this.phaseFrames = {};
     this.prevPhase = "start";
+    this.lastTs = -Infinity;
+    this.trace = [];
+    this.movement = [];
+    this.lastForm = {};
+    this.reader = this.makeReader();
   }
 
   private beginSession(): void {
@@ -330,6 +582,8 @@ export class ExerciseTracker {
     this.sessionStartedAt = new Date();
     this.reps = [];
     this.repEvents = [];
+    this.repStats = [];
+    this.angleFilter.resetStats();
     this.frames = 0;
     this.visibleFrames = 0;
     this.counter.reset();
@@ -337,27 +591,40 @@ export class ExerciseTracker {
     this.setState({ repCount: 0, lastRep: null, lastRejection: null, lastAttempt: null }, true);
   }
 
-  private processFrame(lm: NormalizedLandmark[] | undefined, perfTs: number): void {
-    const ts = performance.timeOrigin + perfTs; // epoch ms, so events are meaningful to the backend
-    const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 1;
+  private processFrame(lm: NormalizedLandmark[] | undefined, world: Landmark[] | undefined, rawTs: number): void {
+    // Epoch ms, so events are meaningful to the backend. For a video file, the
+    // session start plus the video's own playback time.
+    const ts = this.source === "file" ? this.fileEpoch + rawTs : performance.timeOrigin + rawTs;
+    if (ts <= this.lastTs) {
+      // The video was rewound: drop any half-finished rep rather than mixing times.
+      this.counter.cancelCurrentRep();
+      this.resetSignals();
+    }
+    this.lastTs = ts;
+    const aspect =
+      this.replayAspect ??
+      (this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 1);
     const ex = this.exercise;
 
-    const reading = ex.read(lm, {
+    const reading = this.reader(lm, {
       aspectRatio: aspect,
       minVisibility: this.opts.minVisibility,
       preferredSide: this.state.activeSide === "left" || this.state.activeSide === "right" ? this.state.activeSide : null,
+      world,
+      view: this.state.cameraView.view,
+      t: ts,
     });
-    const angle = this.angleSmoother.next(reading.primaryAngle);
+    const angle = this.angleFilter.next(reading.primaryAngle, ts);
 
     let progress: number | null = null;
     if (reading.progress?.kind === "drop") {
-      const y = this.progressSmoother.next(reading.progress.y);
+      const y = this.progressFilter.next(reading.progress.y, ts);
       const atStart = this.counter.phase === "start" && this.counter.atStart(angle);
       progress = this.dropMeter.update(y, reading.progress.refLength, atStart);
     } else if (reading.progress?.kind === "absolute") {
-      progress = this.progressSmoother.next(reading.progress.value);
+      progress = this.progressFilter.next(reading.progress.value, ts);
     } else {
-      this.progressSmoother.reset();
+      this.progressFilter.reset();
     }
 
     this.frames += 1;
@@ -367,7 +634,10 @@ export class ExerciseTracker {
     this.drawOverlay(lm, reading.highlight);
 
     const event = this.counter.update(ts, angle, progress);
-    this.recordForm(reading.form);
+    this.recordForm(reading.form, ts);
+    this.recordTrace(ts, angle, progress);
+    this.movement.push({ t: ts, phase: this.counter.phase, angle, lm, world, aspectRatio: aspect });
+    while (this.movement.length > 0 && ts - this.movement[0]!.t > 15_000) this.movement.shift();
 
     const frame: PoseFrame = {
       timestamp: ts,
@@ -389,13 +659,47 @@ export class ExerciseTracker {
       activeSide: reading.side ?? this.state.activeSide,
       positionHint: reading.positionHint,
       cameraView,
-      viewWarning: cameraViewFlag(cameraView, ex.cameraView),
+      viewWarning: cameraViewFlag(cameraView, ex.cameraView, ex.otherViews),
+      measuredView: reading.view,
+      trackingQuality: this.trackingQuality(),
+      liveForm: Object.fromEntries(Object.entries(this.lastForm).map(([k, v]) => [k, v === null ? null : Math.round(v * 100) / 100])),
+      performance: this.performanceStats(),
+      videoProgress:
+        this.source === "file" && Number.isFinite(this.video.duration)
+          ? { current: this.video.currentTime, duration: this.video.duration }
+          : null,
     };
 
     if (event?.type === "rep") {
-      const flags = analyzeRep(ex, event.rep, this.reps, this.formStats, this.opts.analyzer);
-      const repEvent = toRepEvent(ex, event.rep, flags);
+      // Exercise validation: does the whole rep look like the selected exercise?
+      const verdict = this.validateRep(event.rep.startedAt, event.rep.endedAt);
+      if (verdict && verdict.verdict !== "match") {
+        this.counter.revokeLastRep();
+        const flag = movementRejection(ex, verdict);
+        this.setState(
+          {
+            ...patch,
+            lastRejection: flag,
+            lastValidation: { verdict: verdict.verdict, reasons: verdict.reasons },
+            lastAttempt: { counted: false, peakAngle: round1(event.rep.peakAngle), progress: round2(event.rep.maxProgress), code: flag.code },
+          },
+          true,
+        );
+        this.rejectionListeners.forEach((l) => l(flag));
+        return;
+      }
+      if (verdict) patch.lastValidation = { verdict: verdict.verdict, reasons: verdict.reasons };
+      const stats = withEvidence(this.finalFormStats(), this.opts.analyzer?.minEvidence);
+      const flags = analyzeRep(ex, event.rep, this.reps, stats, {
+        config: this.opts.analyzer,
+        view: reading.view,
+        history: this.repStats,
+      });
+      const quality = this.judgeQuality(event.rep, reading.view);
+      if (quality.flag) flags.push(quality.flag);
+      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric, ex.repMetrics?.(stats, this.formSeries) ?? {});
       this.reps.push(event.rep);
+      this.repStats.push(stats);
       this.repEvents.push(repEvent);
       this.setState(
         {
@@ -431,22 +735,117 @@ export class ExerciseTracker {
     this.setState(patch, false);
   }
 
-  /** Track min/max of each (smoothed) form signal over the current rep. */
-  private recordForm(form: Record<string, number | null>): void {
+  /**
+   * Track min/max of each (smoothed) form signal over the current rep, overall
+   * and per phase ("<signal>@<phase>"), plus how many frames each was seen in.
+   */
+  private recordForm(form: Record<string, number | null>, ts: number): void {
+    const snapshot: Record<string, number | null> = {};
     const phase = this.counter.phase;
-    if (phase !== "start" && this.prevPhase === "start") this.formStats = {};
-    this.prevPhase = phase;
-    for (const [key, raw] of Object.entries(form)) {
-      let sm = this.formSmoothers.get(key);
-      if (!sm) {
-        sm = new AngleSmoother(this.opts.smoothingAlpha);
-        this.formSmoothers.set(key, sm);
-      }
-      const v = sm.next(raw);
-      if (v === null || phase === "start") continue;
-      const s = this.formStats[key];
-      this.formStats[key] = s ? { min: Math.min(s.min, v), max: Math.max(s.max, v) } : { min: v, max: v };
+    if (phase !== "start" && this.prevPhase === "start") {
+      this.formStats = {};
+      this.formSeen = {};
+      this.formSeries = [];
+      this.repFrames = 0;
+      this.phaseFrames = {};
     }
+    this.prevPhase = phase;
+    if (phase !== "start") {
+      this.repFrames += 1;
+      this.phaseFrames[phase] = (this.phaseFrames[phase] ?? 0) + 1;
+    }
+    for (const [key, raw] of Object.entries(form)) {
+      let f = this.formFilters.get(key);
+      if (!f) {
+        // Form signals mix degrees and ratios, so no glitch gate; just smoothing and gap bridging.
+        f = new SignalFilter({ ...ANGLE_FILTER, maxRatePerSec: Infinity });
+        this.formFilters.set(key, f);
+      }
+      const v = f.next(raw, ts);
+      this.lastForm[key] = v;
+      snapshot[key] = v;
+      if (v === null || phase === "start") continue;
+      this.addFormValue(key, v);
+      this.addFormValue(`${key}@${phase}`, v);
+    }
+    if (phase !== "start") this.formSeries.push({ t: ts, phase, form: snapshot });
+  }
+
+  private recordTrace(t: number, knee: number | null, drop: number | null): void {
+    const lean = this.lastForm.torsoLean;
+    this.trace.push({
+      t,
+      knee,
+      hip: this.lastForm.hipAngle ?? null,
+      lean: lean === null || lean === undefined ? null : Math.abs(lean),
+      drop,
+    });
+    while (this.trace.length > 0 && t - this.trace[0]!.t > 15_000) this.trace.shift();
+  }
+
+  /** Movement validation over the rep plus a second of context before it. null if the exercise has none. */
+  private validateRep(startedAt: number, endedAt: number): MovementVerdict | null {
+    const validate = this.exercise.validateMovement;
+    if (!validate || this.opts.validateMovement === false) return null;
+    const frames = this.movement.filter((f) => f.t >= startedAt - 1000 && f.t <= endedAt);
+    return validate(movementFeatures(frames, this.exercise.counter.direction));
+  }
+
+  /** Learned movement-quality check for a counted rep, if this exercise has one. */
+  private judgeQuality(rep: CompletedRep, view: "side" | "front"): { metric: Metric | null; flag: FormFlag | null } {
+    const q = this.exercise.quality;
+    if (!q || !q.views.includes(view)) return { metric: null, flag: null };
+    // The rep plus a second of context before it (standing), as in training.
+    const frames = this.trace.filter((f) => f.t >= rep.startedAt - 1000 && f.t <= rep.endedAt);
+    const features = repFeatures(frames);
+    if (!features) return { metric: null, flag: null };
+    const p = q.model.predict(features);
+    const metric: Metric = {
+      value: Math.round(p * 100),
+      unit: "%",
+      source: "estimated",
+      // Confidence = how far from the decision boundary, scaled 0–1.
+      confidence: Math.round(Math.min(1, Math.abs(p - q.model.spec.threshold) * 2) * 100) / 100,
+    };
+    const flag =
+      q.raiseFlag && p >= q.model.spec.threshold ? { code: q.code, message: q.message, source: "estimated" as const } : null;
+    return { metric, flag };
+  }
+
+  private addFormValue(key: string, v: number): void {
+    const s = this.formStats[key];
+    this.formStats[key] = s ? { min: Math.min(s.min, v), max: Math.max(s.max, v), coverage: 0 } : { min: v, max: v, coverage: 0 };
+    this.formSeen[key] = (this.formSeen[key] ?? 0) + 1;
+  }
+
+  /** Form stats for the rep just finished, with coverage filled in. */
+  private finalFormStats(): FormStats {
+    const out: FormStats = {};
+    for (const [key, s] of Object.entries(this.formStats)) {
+      const at = key.indexOf("@");
+      const frames = at === -1 ? this.repFrames : (this.phaseFrames[key.slice(at + 1) as RepPhase] ?? 0);
+      out[key] = { ...s, coverage: frames > 0 ? Math.min(1, (this.formSeen[key] ?? 0) / frames) : 0 };
+    }
+    return out;
+  }
+
+  private performanceStats(): TrackerState["performance"] {
+    if (!this.loop || !this.detector) return null;
+    const st = this.loop.getStats();
+    return {
+      fps: Math.round(st.fps * 10) / 10,
+      detectMs: Math.round(st.detectMs * 10) / 10,
+      skipped: st.skipped,
+      threading: this.detector.threading,
+      delegate: this.detector.delegate,
+    };
+  }
+
+  private trackingQuality(): TrackerState["trackingQuality"] {
+    const n = this.frames || 1;
+    const f = this.angleFilter.getStats();
+    const r2 = (x: number) => Math.round(x * 100) / 100;
+    return { visible: r2(this.visibleFrames / n), glitches: r2(f.rejected / n), bridged: r2(f.bridged / n) };
   }
 
   private updateCameraView(lm: NormalizedLandmark[] | undefined, aspect: number): CameraViewAssessment {
@@ -485,8 +884,13 @@ export class ExerciseTracker {
       startedAt: (this.sessionStartedAt ?? new Date()).toISOString(),
       endedAt: endedAt ? endedAt.toISOString() : null,
       reps: [...this.repEvents],
-      summary: summarizeSession(this.reps, quality),
+      summary: this.withExerciseInsights(summarizeSession(this.reps, quality, this.exercise)),
     };
+  }
+
+  private withExerciseInsights(summary: WorkoutSession["summary"]): WorkoutSession["summary"] {
+    const extra = this.exercise.sessionInsights?.(this.repEvents) ?? [];
+    return summary && extra.length ? { ...summary, insights: [...summary.insights, ...extra] } : summary;
   }
 
   private fail(err: unknown): void {
@@ -494,6 +898,9 @@ export class ExerciseTracker {
     let error: TrackerError;
     if (err instanceof ModelLoadError) {
       error = { code: "MODEL_LOAD_FAILED", message: err.message };
+    } else if (err instanceof VideoLoadError) {
+      error = { code: "VIDEO_LOAD_FAILED", message: err.message };
+      this.releaseSource();
     } else {
       const camErr = err instanceof CameraError ? err : mapCameraError(err);
       error = { code: camErr.code, message: camErr.message };
@@ -522,4 +929,11 @@ function round1(x: number | null): number | null {
 
 function round2(x: number | null): number | null {
   return x === null ? null : Math.round(x * 100) / 100;
+}
+
+export class VideoLoadError extends Error {
+  constructor() {
+    super("Couldn't play that video. Try an MP4 or WebM file recorded on your phone.");
+    this.name = "VideoLoadError";
+  }
 }

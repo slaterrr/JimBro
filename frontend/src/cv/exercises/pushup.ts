@@ -8,7 +8,7 @@
 import type { FormFlag } from "../../../../shared/types";
 import { calculateAngle } from "../angle_calculator";
 import { POSE_LANDMARKS as L, distance, pickSide, vis } from "../pose_detection";
-import type { ExerciseDefinition } from "./types";
+import type { ExerciseDefinition, ExerciseReading } from "./types";
 
 const SIDES = {
   left: { shoulder: L.LEFT_SHOULDER, elbow: L.LEFT_ELBOW, wrist: L.LEFT_WRIST, hip: L.LEFT_HIP, ankle: L.LEFT_ANKLE },
@@ -31,6 +31,7 @@ export const pushup: ExerciseDefinition = {
   name: "Push-up",
   primaryJoint: "elbow",
   cameraView: "side",
+  rangeNoun: "push-up depth",
   setupInstructions:
     "Put the camera on the floor, side on to you, about two metres away, so your whole body is in view. " +
     "Then get into the top of a push-up.",
@@ -56,7 +57,7 @@ export const pushup: ExerciseDefinition = {
   calibrationGuide: "Half push-up ≈ 110–120° and 15–25%; full ≈ 70–90° and 35%+.",
 
   read(landmarks, { aspectRatio, minVisibility, preferredSide }) {
-    const none = {
+    const none: ExerciseReading = {
       visible: false,
       primaryAngle: null,
       progress: null,
@@ -64,6 +65,7 @@ export const pushup: ExerciseDefinition = {
       side: null,
       highlight: [],
       positionHint: null,
+      view: "side",
     };
     if (!landmarks || landmarks.length < 33) return none;
     const side = pickSide(
@@ -116,6 +118,7 @@ export const pushup: ExerciseDefinition = {
       side,
       highlight: [i.shoulder, i.elbow, i.wrist, i.hip, i.ankle],
       positionHint: null,
+      view: "side",
     };
   },
 
@@ -154,6 +157,8 @@ export const pushup: ExerciseDefinition = {
     }
     return flags;
   },
+  personalChecks: [],
+
   spoken: {
     FAST_LOWERING: "Lower yourself more slowly.",
     HIPS_SAGGING: "Keep your hips up.",
