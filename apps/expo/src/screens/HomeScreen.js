@@ -8,7 +8,8 @@ import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { askJim, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
+import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
+import { confirmedText, missionIntro, planIntro, staleText } from '../lib/homeReplies.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
@@ -22,6 +23,16 @@ import { R, T, type } from '../theme.js';
 const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
+
+// Honest one-liner for the header: why Jim is (or isn't) using the AI service.
+function proxyStatusLine(proxy, source) {
+  if (source === 'offline') return 'Offline coach · Jim AI did not answer the last message';
+  if (proxy.state === 'ok') return 'Connected to Jim AI';
+  if (proxy.state === 'checking') return 'Connecting to Jim AI… the server may be waking up';
+  if (proxy.reason === 'timeout') return 'Offline coach · Jim AI server is taking too long to wake up';
+  if (proxy.reason === 'unreachable') return 'Offline coach · Jim AI server unreachable';
+  return 'Offline coach · AI service not connected';
+}
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
@@ -83,6 +94,16 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
   const setMessages = conversation.update;
   const [talk, setTalk] = useState(false);
+  // One /health ping on mount wakes a sleeping host (free tier) before the first chat.
+  const [proxy, setProxy] = useState(() => (PROXY_URL ? { state: 'checking' } : { state: 'down', reason: 'not configured' }));
+  useEffect(() => {
+    if (!PROXY_URL) return undefined;
+    let live = true;
+    checkProxy({ url: PROXY_URL, key: PROXY_KEY }).then((r) => {
+      if (live) setProxy(r.ok ? { state: 'ok', ms: r.ms } : { state: 'down', reason: r.reason });
+    });
+    return () => { live = false; };
+  }, []);
   const scroll = useRef(null);
   const input = useRef(null);
   const mounted = useRef(true);
@@ -127,7 +148,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
     const ask = parseMission(message);
     if (ask.recognized) {
       const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
-      const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. ${history.length ? 'I picked it from your history.' : "No history yet, so we start light and I adjust after each set."} Start when you're ready.`.replace('  ', ' ');
+      const intro = missionIntro(mission, { hasHistory: history.length > 0, persona: settings.persona });
       return { source: 'local', reply: intro, messages: [{ me: false, text: intro }, { kind: 'mission', mission }] };
     }
     return askJim({ message, history: prior, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
@@ -147,7 +168,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       }
       go?.('Coach');
     } else if (id === 'plan') {
-      const intro = "Let's build your plan. Pick a goal and save it, or import past workouts and use a reference photo.";
+      const intro = planIntro(settings.persona);
       push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' }, { kind: 'import' });
       speak(intro);
     } else {
@@ -178,25 +199,24 @@ export function HomeScreen({ openLog, openActivity, go }) {
     // The conversation store updates synchronously, preventing a rapid second tap/replay.
     if (conversation.getSnapshot().messages[i]?.kind !== 'confirm') return;
     if (!validateProposal(intent, { history, active })) {
-      setMessages(cur => cur.map((m, j) => j === i ? { me: false, text: 'That set has changed or is no longer available. Ask Jim again before making this change.' } : m));
+      setMessages(cur => cur.map((m, j) => j === i ? { me: false, text: staleText(settings.persona) } : m));
       return;
     }
-    let reply;
     if (intent.type === 'log') {
       intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
-      const x = intent.sets[0];
-      const n = intent.sets.length > 1 ? `${intent.sets.length} sets of ` : '';
-      reply = `Logged ${n}${x.reps} × ${exerciseName(x.exercise)} at ${x.weight} ${x.unit}.`;
     } else if (intent.type === 'correct') {
       updateSet(intent.target.setId, intent.changes);
-      reply = 'Done, I fixed that set.';
     } else {
       deleteSet(intent.target.setId);
-      reply = 'Done, that set is gone.';
     }
+    const reply = confirmedText(intent, settings.persona);
     setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: reply } : m)));
     speak(reply);
   };
+
+  // A failed chat (source 'offline') overrides an earlier good ping; a good chat overrides a failed one.
+  const aiOn = source === 'ai' || (proxy.state === 'ok' && source !== 'offline');
+  const connecting = !aiOn && proxy.state === 'checking' && source !== 'offline';
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -204,10 +224,10 @@ export function HomeScreen({ openLog, openActivity, go }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
           <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
           <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim</Text>
-          <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI, compact && { padding: 4 }]}>
+          <View accessibilityLabel={aiOn ? 'Jim is using Claude' : connecting ? 'Jim is connecting to Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, aiOn && st.badgeAI, compact && { padding: 4 }]}>
             {compact
-              ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: source === 'ai' ? T.accent : T.textMute }} />
-              : <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>}
+              ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: aiOn ? T.accent : connecting ? T.accentText : T.textMute }} />
+              : <Text style={[st.badgeText, aiOn && { color: T.accentText }]}>{aiOn ? 'AI' : connecting ? 'connecting…' : 'offline'}</Text>}
           </View>
         </View>
         <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
@@ -221,7 +241,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
 
       <View style={{ paddingHorizontal: 20, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text accessibilityLiveRegion="polite" style={[type.small, { flex: 1 }]}>
-          {thinking ? 'Jim is working on your request…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : PROXY_URL ? 'Jim AI available · send a message to connect' : 'Offline coach · AI service not connected'}
+          {thinking ? 'Jim is working on your request…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : proxyStatusLine(proxy, source)}
         </Text>
         {messages.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="New chat" style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }} onPress={() => { conversation.clear(); voice.stop(); setTalk(false); setText(''); }}><Text style={{ color: T.accentText }}>New chat</Text></TouchableOpacity> : null}
       </View>

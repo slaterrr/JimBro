@@ -42,3 +42,51 @@ describe('segmentFits', () => {
     assert.equal(segmentFits(six, 0), true); // not measured yet: keep the normal layout
   });
 });
+
+describe('stageOverlays (Coach camera stage: nothing hidden behind the Jim cue card)', () => {
+  const noOverlap = (o, H) => {
+    assert.ok(o.topBottom <= o.cueTop, `top boxes ${o.topBottom} overlap cue ${o.cueTop} @${H}`);
+    if (o.caughtTop != null) assert.ok(o.caughtTop + 40 <= o.cueTop, `caught overlaps cue @${H}`);
+    if (o.suggestInStage) assert.ok(o.suggestTop + 90 <= o.cueTop, `suggestion overlaps cue @${H}`);
+  };
+
+  it('small phone (280 px stage): four rep details would cover the cue, so they are trimmed', async () => {
+    const { stageOverlays } = await import('./layout.js');
+    const o = stageOverlays(280, { repLines: 4 });
+    assert.ok(o.repLines < 4 && o.repLines >= 1, `lines ${o.repLines}`);
+    noOverlap(o, 280);
+  });
+
+  it('small phone: the switch suggestion moves below the stage instead of hiding the cue', async () => {
+    const { stageOverlays } = await import('./layout.js');
+    const o = stageOverlays(280, { repLines: 4, suggestion: true, caught: true });
+    assert.equal(o.suggestInStage, false);
+    assert.ok(o.caughtTop != null); // the caught badge always stays in the stage
+    noOverlap(o, 280);
+  });
+
+  it('tall phone (520 px stage): everything fits in the stage', async () => {
+    const { stageOverlays } = await import('./layout.js');
+    const o = stageOverlays(520, { repLines: 4, suggestion: true, caught: true });
+    assert.equal(o.repLines, 4);
+    assert.equal(o.suggestInStage, true);
+    noOverlap(o, 520);
+  });
+
+  it('no overlap at any stage height with any combination', async () => {
+    const { stageOverlays } = await import('./layout.js');
+    for (let H = 240; H <= 520; H += 10) for (const caught of [false, true]) for (const suggestion of [false, true]) {
+      noOverlap(stageOverlays(H, { repLines: 4, caught, suggestion }), H);
+    }
+  });
+});
+
+describe('stageHeight with a mission running', () => {
+  it('shrinks the stage so the mission panel starts on screen on small phones', async () => {
+    const { stageHeight } = await import('./layout.js');
+    assert.ok(stageHeight(568, { mission: true }) < stageHeight(568), 'SE');
+    assert.ok(stageHeight(667, { mission: true }) < stageHeight(667), '375x667');
+    assert.ok(stageHeight(568, { mission: true }) >= 220, 'still shows the body');
+    assert.equal(stageHeight(1200, { mission: true }), 520);
+  });
+});
