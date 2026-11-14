@@ -3,12 +3,14 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
-import { Card, Chips, Icon, PrimaryButton, Segmented } from '../components/kit.js';
+import { Card, Chips, Field, Icon, PrimaryButton, Segmented, Sheet } from '../components/kit.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
+import { describeGoal, goalProgress, GOAL_TYPES, weeklyCheckIn } from '../lib/goals.js';
+import { MUSCLE_GROUPS } from '../lib/muscles.js';
 import { personalRecords, trend } from '../lib/progress.js';
 import { overview, weeklyVolume } from '../lib/stats.js';
 import { estimate1RM, repeatPlan } from '../lib/tools.js';
-import { T, type } from '../theme.js';
+import { R, T, type } from '../theme.js';
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}%`);
 const signed = (v) => (v > 0 ? `+${v}` : `${v}`);
@@ -54,7 +56,8 @@ function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
 }
 
 export function ProgressScreen({ go, initialTab = 'overview' }) {
-  const { history, active, settings, startWorkout, deleteWorkout } = useApp();
+  const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
+  const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const [exercise, setExercise] = useState('bench');
   const unit = settings.unit;
@@ -73,7 +76,7 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs']]} value={tab} onChange={setTab} />
+      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs'], ['goals', 'Goals']]} value={tab} onChange={setTab} />
 
       {tab === 'overview' ? (
         <>
@@ -157,11 +160,170 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
           })}
         </>
       ) : null}
+
+      {tab === 'goals' ? (
+        <>
+          <CheckInCard checkIn={weeklyCheckIn({ history, active, plan, goals })} />
+          <Text style={[type.h2, { marginTop: 24 }]}>Goals</Text>
+          {!goals.length ? <Text style={[type.body, { marginTop: 8 }]}>Set a measurable goal; it's checked against what you log.</Text> : null}
+          {goals.map((g) => (
+            <GoalCard
+              key={g.id}
+              goal={g}
+              progress={goalProgress(g, workouts)}
+              onRemove={() =>
+                Alert.alert('Remove this goal?', describeGoal(g), [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: () => removeGoal(g.id) },
+                ])
+              }
+            />
+          ))}
+          <PrimaryButton onPress={() => setAdding(true)}>Add goal</PrimaryButton>
+          <AddGoalSheet visible={adding} unit={unit} onClose={() => setAdding(false)} onAdd={(g) => { addGoal(g); setAdding(false); }} />
+        </>
+      ) : null}
     </ScrollView>
+  );
+}
+
+function Badge({ onTrack }) {
+  const [label, color] = onTrack === true ? ['On track', T.green] : onTrack === false ? ['Off track', T.amber] : ['Not enough data', T.textMute];
+  return (
+    <View style={[st.badge, { borderColor: color }]}>
+      <Text style={{ color, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+    </View>
+  );
+}
+
+function GoalCard({ goal, progress: p, onRemove }) {
+  return (
+    <Card style={{ marginTop: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <Text style={[type.title, { flex: 1 }]}>{describeGoal(goal)}</Text>
+        <TouchableOpacity accessibilityLabel="Remove goal" onPress={onRemove}>
+          <Icon name="trash-can-outline" size={20} color={T.textDim} />
+        </TouchableOpacity>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
+        <Text style={type.statGreen}>{p.pct}%</Text>
+        <Badge onTrack={p.onTrack} />
+        {p.projectedDate ? <Text style={type.small}>ETA {p.projectedDate}</Text> : null}
+      </View>
+      <View style={st.bar}>
+        <View style={[st.barFill, { width: `${p.pct}%` }]} />
+      </View>
+      <Text style={[type.body, { marginTop: 8 }]}>{p.evidence}</Text>
+      <Text style={[type.small, { marginTop: 4, color: T.violetText }]}>Next: {p.nextStep}</Text>
+    </Card>
+  );
+}
+
+function CheckInCard({ checkIn: c }) {
+  const a = c.adherence;
+  return (
+    <Card style={{ marginTop: 14 }}>
+      <Text style={type.title}>This week</Text>
+      {a ? (
+        <>
+          <Text style={[type.statGreen, { marginTop: 4 }]}>{a.completed} / {a.planned} planned sessions</Text>
+          {a.days.map((d) => (
+            <Text key={d.day} style={[type.body, { marginTop: 4 }]}>
+              {d.done ? '✓' : '○'} Day {d.day}: {d.items.map((i) => `${exerciseName(i.exercise)} ${i.loggedSets}/${i.plannedSets}`).join(' · ')}
+            </Text>
+          ))}
+        </>
+      ) : (
+        <Text style={type.small}>No saved plan, so there's nothing to compare against.</Text>
+      )}
+      {!c.hasData ? <Text style={[type.body, { marginTop: 8 }]}>No workouts logged yet.</Text> : null}
+      {c.wins.map((w) => <Text key={w} style={{ color: T.green, marginTop: 6 }}>+ {w}</Text>)}
+      {c.misses.map((m) => <Text key={m} style={{ color: T.amber, marginTop: 6 }}>– {m}</Text>)}
+      <Text style={[type.small, { marginTop: 8, color: T.violetText }]}>{c.suggestion}</Text>
+    </Card>
+  );
+}
+
+const CAMERA_LIFTS = EXERCISES.filter((e) => e.camera);
+
+function AddGoalSheet({ visible, unit, onClose, onAdd }) {
+  const [kind, setKind] = useState('strength');
+  const [exercise, setExercise] = useState('bench');
+  const [muscle, setMuscle] = useState('');
+  const [metric, setMetric] = useState('e1rm');
+  const [target, setTarget] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [perWeek, setPerWeek] = useState(3);
+  const [weeks, setWeeks] = useState('4');
+  const [cameraOnly, setCameraOnly] = useState(true);
+  const n = Number(target);
+  const validDeadline = !deadline || /^\d{4}-\d{2}-\d{2}$/.test(deadline);
+
+  const build = () => {
+    if (kind === 'consistency') return Number(weeks) >= 1 ? { type: 'consistency', perWeek, weeks: Math.round(Number(weeks)) } : null;
+    if (!(n > 0)) return null;
+    if (kind === 'strength') return validDeadline ? { type: 'strength', exercise, metric, target: n, unit, ...(deadline ? { deadline } : {}) } : null;
+    if (kind === 'volume') return { type: 'volume', ...(muscle ? { muscle } : { exercise }), target: n, unit };
+    return { type: 'reps', exercise, target: Math.round(n), cameraOnly };
+  };
+  const goal = build();
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Add goal">
+      <Chips options={GOAL_TYPES} value={kind} onChange={(k) => { setKind(k); if (k === 'reps' && !CAMERA_LIFTS.some((e) => e.id === exercise)) setExercise('curl'); }} />
+      {kind === 'consistency' ? (
+        <>
+          <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Workouts per week</Text>
+          <Chips options={[1, 2, 3, 4, 5, 6].map((x) => [x, String(x)])} value={perWeek} onChange={setPerWeek} />
+          <View style={{ marginTop: 12 }}><Field label="For how many weeks" keyboardType="number-pad" value={weeks} onChangeText={setWeeks} /></View>
+        </>
+      ) : (
+        <>
+          {kind === 'volume' ? (
+            <>
+              <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Muscle group (or pick a lift below)</Text>
+              <Chips options={[['', 'Lift'], ...MUSCLE_GROUPS.map((m) => [m.id, m.name])]} value={muscle} onChange={setMuscle} />
+            </>
+          ) : null}
+          {kind !== 'volume' || !muscle ? (
+            <>
+              <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Exercise</Text>
+              <Chips options={(kind === 'reps' && cameraOnly ? CAMERA_LIFTS : EXERCISES).map((e) => [e.id, e.name])} value={exercise} onChange={setExercise} />
+            </>
+          ) : null}
+          {kind === 'strength' ? (
+            <>
+              <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Measure</Text>
+              <Chips options={[['e1rm', 'Est. 1RM'], ['weight', 'Top set weight']]} value={metric} onChange={setMetric} />
+            </>
+          ) : null}
+          {kind === 'reps' ? (
+            <>
+              <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Counts</Text>
+              <Chips options={[[true, 'Camera-verified only'], [false, 'Any logged set']]} value={cameraOnly} onChange={setCameraOnly} />
+            </>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <Field
+              label={kind === 'reps' ? 'Reps in one set' : kind === 'volume' ? `Weekly volume (${unit})` : `Target (${unit})`}
+              keyboardType="decimal-pad"
+              value={target}
+              onChangeText={setTarget}
+            />
+            {kind === 'strength' ? <Field label="By (YYYY-MM-DD, optional)" value={deadline} onChangeText={setDeadline} placeholder="2026-12-31" /> : null}
+          </View>
+        </>
+      )}
+      {goal ? <Text style={[type.small, { marginTop: 10 }]}>{describeGoal(goal)}</Text> : null}
+      <PrimaryButton disabled={!goal} onPress={() => onAdd(goal)}>Save goal</PrimaryButton>
+    </Sheet>
   );
 }
 
 const st = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
   tile: { width: '48%', flexGrow: 1, alignItems: 'center', paddingVertical: 16 },
+  badge: { borderWidth: 1, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  bar: { height: 8, borderRadius: R.pill, backgroundColor: T.surface, marginTop: 10, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: R.pill, backgroundColor: T.green },
 });
