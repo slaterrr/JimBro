@@ -37,7 +37,10 @@ jobs:
         working-directory: server/jim-proxy
         env:
           ANTHROPIC_API_KEY: ${{ secrets.CLAUD_TOKEN }}
-          # One plain call by default; a commit message containing [smoke:read+write] runs the
-          # history-lookup and proposal checks instead.
-          CHECKS: ${{ contains(github.event.head_commit.message, '[smoke:read+write]') && '--checks=read,write' || '--one' }}
-        run: npm run smoke -- $CHECKS
+          # Default: one plain call. A commit message tag like [smoke:vision,physique] picks checks
+          # (plain, read, write, vision, physique). The message is read from env and filtered to
+          # letters and commas, so it cannot inject shell.
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          checks=$(printf '%s' "$COMMIT_MSG" | grep -o '\[smoke:[a-z,]*\]' | head -1 | sed -E 's/\[smoke:([a-z,]*)\]/\1/')
+          if [ -n "$checks" ]; then npm run smoke -- --checks="$checks"; else npm run smoke -- --one; fi
