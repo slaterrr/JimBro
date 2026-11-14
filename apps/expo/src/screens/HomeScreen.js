@@ -26,12 +26,12 @@ function Glow() {
     <Svg width="100%" height={110} viewBox="0 0 400 110" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
       <Defs>
         <LinearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={T.purple} stopOpacity="0.55" />
-          <Stop offset="1" stopColor={T.purple} stopOpacity="0" />
+          <Stop offset="0" stopColor={T.accent} stopOpacity="0.55" />
+          <Stop offset="1" stopColor={T.accent} stopOpacity="0" />
         </LinearGradient>
       </Defs>
       <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34 L400 110 L0 110 Z" fill="url(#glow)" />
-      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke="#c084fc" strokeWidth="2" fill="none" />
+      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke={T.accent} strokeWidth="2" fill="none" />
     </Svg>
   );
 }
@@ -164,15 +164,15 @@ export function HomeScreen({ openLog, openActivity }) {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="arm-flex" size={30} color={T.purple} />
+          <Icon name="arm-flex" size={30} color={T.accent} />
           <Text style={type.h2}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
           <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
-            <Text style={[st.badgeText, source === 'ai' && { color: T.violetText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
+            <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
           </View>
         </View>
         <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
-          <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.text : T.textDim} />
-          <Text style={{ color: talk ? T.text : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
+          <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
+          <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />
@@ -190,7 +190,7 @@ export function HomeScreen({ openLog, openActivity }) {
             <View style={st.goals}>
               {GOALS.map((g) => (
                 <TouchableOpacity key={g.id} style={st.goal} onPress={() => send(g.ask, g.id)}>
-                  <Icon name={g.icon} size={30} color={T.purple} />
+                  <Icon name={g.icon} size={30} color={T.accent} />
                   <Text style={st.goalText}>{g.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -216,13 +216,13 @@ export function HomeScreen({ openLog, openActivity }) {
                 {!m.me ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <JimBars height={14} />
-                    <Text style={{ color: T.violetText, fontWeight: '700' }}>Jim</Text>
+                    <Text style={{ color: T.accentText, fontWeight: '700' }}>Jim</Text>
                   </View>
                 ) : null}
                 <Text style={{ color: T.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
                 {m.suggestion ? (
                   <TouchableOpacity onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8 }}>
-                    <Text style={{ color: T.purple, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
+                    <Text style={{ color: T.accent, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -249,7 +249,7 @@ export function HomeScreen({ openLog, openActivity }) {
             style={{ flex: 1, color: T.text, fontSize: 16, paddingHorizontal: 10 }}
           />
           {text.trim() ? (
-            <IconButton icon="arrow-up" size={34} ring={T.purple} fill={T.purple} label="Send" onPress={() => send(text)} />
+            <IconButton icon="arrow-up" size={34} ring={T.accent} fill={T.accent} color={T.onAccent} label="Send" onPress={() => send(text)} />
           ) : (
             <TouchableOpacity accessibilityLabel="Dictate (use the keyboard microphone)" onPress={() => input.current?.focus()}>
               <Icon name="microphone-outline" size={24} color={T.textDim} />
@@ -266,13 +266,13 @@ const st = StyleSheet.create({
   goals: { flexDirection: 'row', gap: 12, marginTop: 40, alignSelf: 'stretch' },
   goal: { flex: 1, alignItems: 'center', paddingVertical: 18, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8 },
   goalText: { color: T.text, fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(10,8,14,0.9)' },
+  composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(6,10,9,0.9)' },
   bubble: { borderRadius: R.md, padding: 12, marginTop: 10, maxWidth: '88%', borderWidth: 1 },
-  me: { alignSelf: 'flex-end', backgroundColor: T.purpleSoft, borderColor: T.purple },
+  me: { alignSelf: 'flex-end', backgroundColor: T.accentSoft, borderColor: T.accent },
   badge: { borderWidth: 1, borderColor: T.border, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeAI: { borderColor: T.purple, backgroundColor: T.purpleSoft },
+  badgeAI: { borderColor: T.accent, backgroundColor: T.accentSoft },
   badgeText: { color: T.textMute, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14 },
-  talkOn: { backgroundColor: T.purple, borderColor: T.purple },
+  talkOn: { backgroundColor: T.accent, borderColor: T.accent },
   jim: { alignSelf: 'flex-start', backgroundColor: T.card, borderColor: T.border },
 });

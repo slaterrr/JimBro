@@ -104,7 +104,7 @@ function ClipPlayer({ movement, clip, fault }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginVertical: 12 }}>
       <Skeleton
-        poses={poses} index={i} side={clip.analysis.side} color={T.violetText}
+        poses={poses} index={i} side={clip.analysis.side} color={T.accentText}
         focus={fault.joint} highlight={Math.abs(i - worst) <= 1} label={`Your rep ${clip.index}`}
       />
       <IdealDemo movement={movement} />
@@ -124,8 +124,8 @@ function FaultDetail({ fault }) {
         onPress={() => say(fault.cue)} accessibilityRole="button" accessibilityLabel={`Hear cue: ${fault.cue}`}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}
       >
-        <Icon name="volume-high" size={18} color={T.violetText} />
-        <Text style={{ color: T.violetText, fontWeight: '700', fontSize: 15 }}>Cue: “{fault.cue}”</Text>
+        <Icon name="volume-high" size={18} color={T.accentText} />
+        <Text style={{ color: T.accentText, fontWeight: '700', fontSize: 15 }}>Cue: “{fault.cue}”</Text>
       </TouchableOpacity>
     </View>
   );
