@@ -1,15 +1,24 @@
-// First-run "Beginner / Comeback" setup: three questions -> persona, a starter plan and a
-// consistency goal. Pure: the component applies the result. Not medical advice.
+// First-run "Beginner / Comeback" setup: four short questions -> persona, a starter plan, a
+// consistency goal and goal settings (fitnessGoal, physiqueGoal, focusMuscles). Pure: the
+// component applies the result. Not medical advice.
 import { SAFETY_TEXT } from './coach.js';
+import { cleanFocusMuscles, FITNESS_GOAL_IDS, FITNESS_GOALS, normalizeFitnessGoal, planGoalFor } from './fitnessGoal.js';
 import { buildPlan } from './plans.js';
 
 export const ONBOARDING_QUESTIONS = [
   { id: 'experience', title: 'How familiar is the gym for you?', options: [['new', "I'm new to this"], ['returning', 'Coming back after a break'], ['experienced', 'I train regularly']] },
-  { id: 'goal', title: "What's your main goal?", options: [['habit', 'Start a workout habit'], ['stronger', 'Get stronger'], ['muscle', 'Build muscle'], ['health', 'General health']] },
+  { id: 'goal', title: "What's your main goal?", options: FITNESS_GOALS.map((g) => [g.id, g.label]) },
+  // Optional: free text + tap-select focus muscles. Answer shape: { text, muscles }.
+  { id: 'look', title: 'What do you want to look like?', optional: true, options: [] },
   { id: 'pain', title: 'Any pain or injury right now?', options: [['no', 'No'], ['yes', 'Yes']] },
 ];
 
-const PLAN_GOAL = { habit: 'general', stronger: 'strength', muscle: 'hypertrophy', health: 'general' };
+/** Goal answers -> settings patch (null when the goal question was skipped). */
+function goalSettings({ experience, goal, look }) {
+  if (!FITNESS_GOAL_IDS.includes(goal)) return null;
+  const text = typeof look?.text === 'string' ? look.text.trim().slice(0, 200) : '';
+  return { fitnessGoal: normalizeFitnessGoal(goal), physiqueGoal: text, focusMuscles: cleanFocusMuscles(look?.muscles), ...(experience ? { experience } : {}) };
+}
 const WARMUP_MIN = 5;
 const SEE_A_PRO = 'Please check with a doctor or physical therapist before starting. ' +
   "When they clear you, come back and Jim will build a gentle plan. You can reopen this setup from the bell.";
@@ -32,23 +41,25 @@ function conservativePlan(goal) {
 }
 
 /**
- * Answers -> { persona, plan, goal, safety, message }. persona/plan/goal are null when nothing
+ * Answers -> { persona, plan, goal, settings, safety, message }. persona/plan/goal are null when nothing
  * should change. Pain always wins: no plan, show the safety text and recommend a professional.
  */
 export function onboardingResult(answers = {}) {
   const { experience, goal, pain } = answers;
   const easy = experience === 'new' || experience === 'returning';
   const persona = easy ? 'zen' : null;
-  if (pain === 'yes') return { persona, plan: null, goal: null, safety: SAFETY_TEXT, message: SEE_A_PRO };
+  const settings = goalSettings(answers);
+  if (pain === 'yes') return { persona, plan: null, goal: null, settings, safety: SAFETY_TEXT, message: SEE_A_PRO };
   if (!experience || !goal || pain !== 'no') {
-    return { persona: null, plan: null, goal: null, safety: null, message: 'No changes made. You can run this setup again from the bell.' };
+    return { persona: null, plan: null, goal: null, settings: null, safety: null, message: 'No changes made. You can run this setup again from the bell.' };
   }
-  const planGoal = PLAN_GOAL[goal] ?? 'general';
+  const planGoal = planGoalFor(goal);
   if (easy) {
     return {
       persona,
       plan: conservativePlan(planGoal),
       goal: { type: 'consistency', perWeek: 2, weeks: 4 },
+      settings,
       safety: null,
       message: 'Your starter plan: 2 short sessions a week, light weights, plenty of rest. Showing up is the win.',
     };
@@ -58,6 +69,7 @@ export function onboardingResult(answers = {}) {
     persona: null,
     plan: { ...buildPlan(request), request },
     goal: { type: 'consistency', perWeek: 3, weeks: 4 },
+    settings,
     safety: null,
     message: 'Your plan: 3 sessions a week. Adjust it any time with "Create a New Plan".',
   };
