@@ -190,6 +190,24 @@ def put_me(body: AthleteIn, db: DB, who: Athlete) -> AthleteOut:
     return db.update_athlete(who, body)
 
 
+@router.get("/export")
+def export(db: DB, who: Athlete) -> dict[str, object]:
+    """Everything stored about the requesting athlete, as portable JSON."""
+    return {
+        "format": "jimbro-export-v1",
+        "athlete": db.get_athlete(who),
+        "sessions": db.list_sessions(who, limit=100_000),
+        "sets": db.sets_for_athlete(who),
+    }
+
+
+@router.delete("/athletes/me")
+def erase_me(db: DB, who: Athlete, confirm: bool = False) -> dict[str, int]:
+    if not confirm:
+        raise HTTPException(422, "pass ?confirm=true to permanently erase your data")
+    return db.erase_athlete(who)
+
+
 @router.get("/leaderboard")
 def leaderboard(
     db: DB,

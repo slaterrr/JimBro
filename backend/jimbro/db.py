@@ -307,3 +307,16 @@ class Database:
     def size_bytes(self) -> int:
         files = [self.path, self.path.with_name(self.path.name + "-wal")]
         return sum(f.stat().st_size for f in files if f.exists())
+
+    # privacy --------------------------------------------------------------------
+
+    def erase_athlete(self, athlete_id: str) -> dict[str, int]:
+        """Delete an athlete's sessions, sets, rep summaries and profile in one transaction."""
+        with self.tx() as conn:
+            own = "SELECT id FROM sessions WHERE athlete_id = ?"
+            own_sets = f"SELECT id FROM sets WHERE session_id IN ({own})"
+            conn.execute(f"DELETE FROM rep_summaries WHERE set_id IN ({own_sets})", (athlete_id,))
+            sets = conn.execute(f"DELETE FROM sets WHERE session_id IN ({own})", (athlete_id,))
+            sessions = conn.execute("DELETE FROM sessions WHERE athlete_id = ?", (athlete_id,))
+            conn.execute("DELETE FROM athletes WHERE id = ?", (athlete_id,))
+        return {"deleted_sessions": sessions.rowcount, "deleted_sets": sets.rowcount}
