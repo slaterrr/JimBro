@@ -42,6 +42,9 @@ rm -rf "$OUT/app/backend/tests" "$OUT/app/backend"/*.egg-info
 cp -R "$ROOT/apps/mobile/dist" "$OUT/app/web"
 cp "$ROOT/pyproject.toml" "$ROOT/README.md" "$OUT/app/"
 cp -R "$ROOT/deploy/pi/." "$OUT/"
+# A Windows checkout may have CRLF endings; bash and systemd on the Pi need LF.
+find "$OUT" -maxdepth 2 -type f \( -name '*.sh' -o -name '*.service' -o -name '*.desktop' -o -name '*.py' \) \
+  -exec sed -i 's/\r$//' {} +
 chmod +x "$OUT"/*.sh 2>/dev/null || true
 
 say "Downloading aarch64 wheels for Python $PY_VERSION"
@@ -52,6 +55,8 @@ print("\n".join(deps))
 # Environment markers are evaluated on the build host (maybe Windows), so name the
 # Linux-only extra of uvicorn[standard] explicitly.
 print("uvloop")
+# pip itself, so install.sh can bootstrap a venv on images without python3-venv.
+print("pip")
 PYEOF
 PIP_CONFIG_FILE=/dev/null "$PY" -m pip download --quiet --disable-pip-version-check \
   --only-binary=:all: --implementation cp --python-version "$PY_VERSION" \
