@@ -38,7 +38,7 @@ import {
   type DetectorOptions,
   type SkeletonStyle,
 } from "./pose_detection";
-import { SquatRepCounter, type CompletedRep, type RepCounterConfig } from "./rep_counter";
+import { HipDropMeter, SquatRepCounter, type CompletedRep, type RepCounterConfig } from "./rep_counter";
 
 export type TrackerStatus =
   | "idle"
@@ -71,6 +71,8 @@ export interface TrackerState {
   lastAttempt: { counted: boolean; minKneeAngle: number | null; code: string | null } | null;
   /** Smoothed angles, degrees; null when not visible. Updated at uiUpdateHz. */
   liveAngles: { knee: number | null; hip: number | null };
+  /** How far the hips are below standing height, as a fraction of leg length (measured). */
+  liveHipDrop: number | null;
   landmarksVisible: boolean;
   /** Leg used for counting. */
   activeSide: BodySide | null;
@@ -108,6 +110,7 @@ export function initialTrackerState(): TrackerState {
     lastRejection: null,
     lastAttempt: null,
     liveAngles: { knee: null, hip: null },
+    liveHipDrop: null,
     landmarksVisible: false,
     activeSide: null,
     cameraView: INITIAL_VIEW,
@@ -122,6 +125,8 @@ export class SquatTracker {
   private readonly counter: SquatRepCounter;
   private readonly kneeSmoother: AngleSmoother;
   private readonly hipSmoother: AngleSmoother;
+  private readonly hipDropMeter = new HipDropMeter();
+  private readonly hipYSmoother: AngleSmoother;
   private stream: MediaStream | null = null;
   private landmarker: PoseLandmarker | null = null;
   private loop: PoseLoop | null = null;
@@ -150,6 +155,8 @@ export class SquatTracker {
     this.counter = new SquatRepCounter(options.counter);
     this.kneeSmoother = new AngleSmoother(this.opts.smoothingAlpha);
     this.hipSmoother = new AngleSmoother(this.opts.smoothingAlpha);
+    // AngleSmoother is a plain EMA, so it smooths hip height just as well.
+    this.hipYSmoother = new AngleSmoother(this.opts.smoothingAlpha);
   }
 
   // ---- public API ------------------------------------------------------
@@ -280,6 +287,7 @@ export class SquatTracker {
     this.frames = 0;
     this.visibleFrames = 0;
     this.counter.reset();
+    this.hipDropMeter.reset();
     this.setState({ repCount: 0, lastRep: null, lastRejection: null, lastAttempt: null }, true);
   }
 
@@ -294,6 +302,10 @@ export class SquatTracker {
     });
     const knee = this.kneeSmoother.next(joints.kneeAngle);
     const hip = this.hipSmoother.next(joints.hipAngle);
+    const hipY = this.hipYSmoother.next(joints.hipY);
+    const upright =
+      this.counter.phase === "standing" && knee !== null && knee >= this.counter.config.standingAngle;
+    const hipDrop = this.hipDropMeter.update(hipY, joints.legLength, upright);
 
     this.frames += 1;
     if (joints.visible) this.visibleFrames += 1;
@@ -310,7 +322,7 @@ export class SquatTracker {
 
     this.drawOverlay(lm, joints.side);
 
-    const event = this.counter.update(ts, knee, hip);
+    const event = this.counter.update(ts, knee, hip, hipDrop);
 
     const frame: PoseFrame = {
       timestamp: ts,
@@ -325,6 +337,7 @@ export class SquatTracker {
       phase: this.counter.phase,
       armed: this.counter.armed,
       liveAngles: { knee: round1(knee), hip: round1(hip) },
+      liveHipDrop: hipDrop === null ? null : Math.round(hipDrop * 100) / 100,
       landmarksVisible: joints.visible,
       activeSide: joints.side ?? this.state.activeSide,
       cameraView,

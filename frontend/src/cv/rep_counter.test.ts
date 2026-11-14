@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SquatRepCounter, type RepCounterEvent } from "./rep_counter";
+import { HipDropMeter, SquatRepCounter, type RepCounterEvent } from "./rep_counter";
 import { hold, sequence, squat, type Sample } from "./test_utils";
 
 function run(samples: Sample[], counter = new SquatRepCounter()) {
@@ -171,8 +171,80 @@ describe("SquatRepCounter", () => {
     expect(counter.config.depthAngle).toBe(85);
   });
 
+  describe("hip drop", () => {
+    /** Attach a hip-drop value to each sample: `drop(kneeAngle)`. */
+    const withDrop = (samples: Sample[], drop: (knee: number) => number) =>
+      samples.map((s) => ({ ...s, drop: s.knee === null ? null : drop(s.knee) }));
+    const runDrop = (samples: Array<Sample & { drop: number | null }>, counter = new SquatRepCounter()) => {
+      const events = samples.map((s) => counter.update(s.t, s.knee, null, s.drop)).filter((e) => e !== null);
+      return {
+        reps: events.flatMap((e) => (e.type === "rep" ? [e.rep] : [])),
+        rejected: events.flatMap((e) => (e.type === "rejected" ? [e.rejected] : [])),
+      };
+    };
+    const oneSquat = () =>
+      sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
+
+    it("counts a real squat where the hips drop with the knee", () => {
+      // Hips drop in proportion to knee bend: ~0.5 of leg length at 80°.
+      const { reps } = runDrop(withDrop(oneSquat(), (k) => ((175 - k) / 95) * 0.5));
+      expect(reps.length).toBe(1);
+      expect(reps[0]!.maxHipDrop).toBeCloseTo(0.5, 1);
+    });
+
+    it("does not count a bent knee when the hips stay up (raised leg on one foot)", () => {
+      const { reps, rejected } = runDrop(withDrop(oneSquat(), () => 0.05));
+      expect(reps).toEqual([]);
+      expect(rejected.map((r) => r.reason)).toEqual(["NO_HIP_DROP"]);
+    });
+
+    it("does not count a small dip even if the knee angle reads deep", () => {
+      const { reps } = runDrop(withDrop(oneSquat(), (k) => ((175 - k) / 95) * 0.2));
+      expect(reps).toEqual([]);
+    });
+
+    it("falls back to the knee angle when hip drop isn't measured", () => {
+      const { reps } = runDrop(withDrop(oneSquat(), () => NaN).map((s) => ({ ...s, drop: null })));
+      expect(reps.length).toBe(1);
+    });
+
+    it("can be disabled", () => {
+      const { reps } = runDrop(withDrop(oneSquat(), () => 0), new SquatRepCounter({ minHipDrop: 0 }));
+      expect(reps.length).toBe(1);
+    });
+  });
+
   it("validates its config", () => {
     expect(() => new SquatRepCounter({ standingAngle: 140, descentStartAngle: 150 })).toThrow(RangeError);
     expect(() => new SquatRepCounter({ depthAngle: 145 })).toThrow(RangeError);
+  });
+});
+
+describe("HipDropMeter", () => {
+  it("returns null until a standing baseline exists", () => {
+    const m = new HipDropMeter();
+    expect(m.update(0.5, 0.4, false)).toBeNull();
+  });
+
+  it("measures drop as a fraction of standing leg length", () => {
+    const m = new HipDropMeter(1);
+    expect(m.update(0.45, 0.4, true)).toBeCloseTo(0);
+    expect(m.update(0.65, 0.3, false)).toBeCloseTo(0.5); // 0.2 down / 0.4 leg
+    expect(m.update(0.4, 0.4, false)).toBeCloseTo(-0.125); // above standing height
+  });
+
+  it("only learns the baseline while standing", () => {
+    const m = new HipDropMeter(1);
+    m.update(0.45, 0.4, true);
+    m.update(0.65, 0.3, false); // squatting: baseline must not move
+    expect(m.update(0.65, 0.3, false)).toBeCloseTo(0.5);
+  });
+
+  it("returns null without a hip position, and resets", () => {
+    const m = new HipDropMeter(1);
+    m.update(0.45, 0.4, true);
+    expect(m.update(null, 0.4, false)).toBeNull();
+    m.reset();
+    expect(m.update(0.6, 0.4, false)).toBeNull();
   });
 });

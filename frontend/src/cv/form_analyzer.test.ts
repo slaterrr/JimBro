@@ -20,6 +20,7 @@ function rep(n: number, durationMs: number, minKneeAngle: number, descentMs = 90
     durationMs,
     minKneeAngle,
     minHipAngle: 80,
+    maxHipDrop: 0.5,
     descentMs,
     bottomMs: 200,
     ascentMs: durationMs - descentMs - 200,

@@ -103,6 +103,13 @@ call does nothing.
    | ascent starts | knee > 108° (8° hysteresis) |
    | rep complete | back to ≥ 160° after reaching depth |
 
+   **Hip drop:** depth also requires the hips to drop at least 30% of standing
+   leg length (`minHipDrop`). The baseline (standing hip height and hip→ankle
+   length) is learned while the user stands straight. This stops a bent knee
+   on its own from counting, for example the raised leg when standing on one
+   foot, or a knee angle misread on a small dip (`NO_HIP_DROP`). If hip height
+   can't be measured, counting falls back to the knee angle alone.
+
    **Not counted:** descents that never reach depth (reported as `SHALLOW_DEPTH`
    if they went below 135°), reps under 0.6 s (`TOO_FAST`) or over 12 s
    (`TOO_SLOW`), and reps where the legs were out of view for more than 0.7 s
@@ -119,6 +126,7 @@ All thresholds are options (`counter: { depthAngle: 95, ... }`).
 
 | Metric | Label | Why |
 |---|---|---|
+| Hip drop (% of standing leg length) | **measured** | Vertical hip movement against the standing baseline, side-on |
 | Rep count, rep and phase durations | **measured** | Threshold crossings of the observed knee angle, timestamped |
 | Knee / hip angle, bottom knee angle | **measured** | Read from the image. Accurate only when side-on, which is why the view check exists |
 | `FAST_DESCENT` flag (< 400 ms) | **measured** | From the timed descent |
@@ -162,3 +170,4 @@ an anatomical "hip crease below knee" judgement.
   `detector.modelAssetPath`) for offline use or production.
 - Only one person is tracked. Someone walking behind the user can steal tracking.
 - Very deep or very shallow lifters may need `depthAngle` adjusted.
+- Single-leg squats (pistols) are not supported; they may be rejected as `NO_HIP_DROP` or counted unreliably.

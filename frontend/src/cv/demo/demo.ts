@@ -58,6 +58,11 @@ function render(s: TrackerState) {
   $("metrics").innerHTML = [
     row("Knee angle", fmt(s.liveAngles.knee, "°"), "measured"),
     row("Hip angle", fmt(s.liveAngles.hip, "°"), "measured"),
+    row(
+      `Hips dropped (need ${Math.round(tracker.getCounterConfig().minHipDrop * 100)}%)`,
+      s.liveHipDrop === null ? "–" : `${Math.max(0, Math.round(s.liveHipDrop * 100))}%`,
+      "measured",
+    ),
     row("Last rep time", s.lastRep ? `${(s.lastRep.durationMs / 1000).toFixed(2)} s` : "–", "measured"),
     row("Last rep depth", s.lastRep ? fmt(s.lastRep.minKneeAngle.value, "°") : "–", "measured"),
     row(

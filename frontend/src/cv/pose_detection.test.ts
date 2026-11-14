@@ -27,6 +27,12 @@ describe("extractSquatJoints", () => {
     expect(j.visible).toBe(true);
   });
 
+  it("reports hip height (averaged over both hips) and leg length", () => {
+    const j = extractSquatJoints(pose());
+    expect(j.hipY).toBeCloseTo(0.45);
+    expect(j.legLength).toBeCloseTo(0.4);
+  });
+
   it("reports a bent knee", () => {
     const j = extractSquatJoints(pose({ kneeBend: true }));
     expect(j.kneeAngle!).toBeLessThan(120);
@@ -34,7 +40,7 @@ describe("extractSquatJoints", () => {
 
   it("returns nulls when neither leg passes the confidence threshold", () => {
     const j = extractSquatJoints(pose({ leftVis: 0.4, rightVis: 0.3 }));
-    expect(j).toEqual({ side: null, kneeAngle: null, hipAngle: null, visible: false });
+    expect(j).toEqual({ side: null, kneeAngle: null, hipAngle: null, visible: false, hipY: null, legLength: null });
   });
 
   it("returns nulls with no landmarks", () => {

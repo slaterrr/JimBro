@@ -46,6 +46,13 @@ export interface RepCounterConfig {
   maxRepDurationMs: number;
   /** An in-progress rep is aborted if landmarks stay lost for longer than this. */
   trackingLossTimeoutMs: number;
+  /**
+   * Hips must drop at least this fraction of standing leg length (hip→ankle)
+   * for depth to count. Stops a bent knee on its own (e.g. a raised leg on a
+   * one-legged stance, or a small dip) from counting. 0 disables the check.
+   * Roughly: half squat ≈ 0.25–0.3, knee at 100° ≈ 0.4, parallel ≈ 0.5+.
+   */
+  minHipDrop: number;
 }
 
 export const DEFAULT_REP_COUNTER_CONFIG: Readonly<RepCounterConfig> = Object.freeze({
@@ -57,6 +64,7 @@ export const DEFAULT_REP_COUNTER_CONFIG: Readonly<RepCounterConfig> = Object.fre
   minRepDurationMs: 600,
   maxRepDurationMs: 12_000,
   trackingLossTimeoutMs: 700,
+  minHipDrop: 0.3,
 });
 
 /** A rep that passed every validation check. Timings are in the caller's clock. */
@@ -67,6 +75,8 @@ export interface CompletedRep {
   durationMs: number;
   minKneeAngle: number;
   minHipAngle: number | null;
+  /** Largest hip drop as a fraction of standing leg length; null if not measured. */
+  maxHipDrop: number | null;
   /** From leaving lockout to first reaching depth. */
   descentMs: number;
   /** Time spent at or near depth. */
@@ -75,7 +85,7 @@ export interface CompletedRep {
   ascentMs: number;
 }
 
-export type RejectionReason = "SHALLOW_DEPTH" | "TOO_FAST" | "TOO_SLOW" | "TRACKING_LOST";
+export type RejectionReason = "SHALLOW_DEPTH" | "NO_HIP_DROP" | "TOO_FAST" | "TOO_SLOW" | "TRACKING_LOST";
 
 export interface RejectedRep {
   reason: RejectionReason;
@@ -91,6 +101,7 @@ interface InProgressRep {
   startedAt: number;
   minKnee: number;
   minHip: number | null;
+  maxHipDrop: number | null;
   bottomAt: number | null;
   ascentAt: number | null;
 }
@@ -141,7 +152,13 @@ export class SquatRepCounter {
    * Feed one frame. `kneeAngle` / `hipAngle` are null when landmarks are below
    * the confidence threshold; state transitions pause rather than guess.
    */
-  update(timestamp: number, kneeAngle: number | null, hipAngle: number | null = null): RepCounterEvent | null {
+  update(
+    timestamp: number,
+    kneeAngle: number | null,
+    hipAngle: number | null = null,
+    /** Hip drop as a fraction of standing leg length (see HipDropMeter). null = unknown. */
+    hipDrop: number | null = null,
+  ): RepCounterEvent | null {
     const c = this.config;
 
     if (kneeAngle === null) {
@@ -171,6 +188,7 @@ export class SquatRepCounter {
     if (rep) {
       if (kneeAngle < rep.minKnee) rep.minKnee = kneeAngle;
       if (hipAngle !== null && (rep.minHip === null || hipAngle < rep.minHip)) rep.minHip = hipAngle;
+      if (hipDrop !== null && (rep.maxHipDrop === null || hipDrop > rep.maxHipDrop)) rep.maxHipDrop = hipDrop;
     }
 
     switch (this._phase) {
@@ -181,6 +199,7 @@ export class SquatRepCounter {
             startedAt: this.lastStandingAt ?? timestamp,
             minKnee: kneeAngle,
             minHip: hipAngle,
+            maxHipDrop: hipDrop,
             bottomAt: null,
             ascentAt: null,
           };
@@ -192,12 +211,14 @@ export class SquatRepCounter {
 
       case "descending": {
         if (!rep) return this.desync();
-        if (kneeAngle <= c.depthAngle) {
+        if (kneeAngle <= c.depthAngle && this.hipsLowEnough(rep)) {
           this._phase = "bottom";
           rep.bottomAt = timestamp;
         } else if (kneeAngle >= c.standingAngle) {
           const minKnee = rep.minKnee;
           this.toStanding(timestamp);
+          // Knee bent far enough but the hips stayed up: e.g. a raised leg, not a squat.
+          if (minKnee <= c.depthAngle) return this.reject("NO_HIP_DROP", timestamp, minKnee);
           if (minKnee < c.partialMinAngle) return this.reject("SHALLOW_DEPTH", timestamp, minKnee);
         }
         return null;
@@ -245,6 +266,13 @@ export class SquatRepCounter {
     this.lastStandingAt = null;
   }
 
+  /** True when hip drop is disabled, unmeasured, or deep enough. */
+  private hipsLowEnough(rep: InProgressRep): boolean {
+    const min = this.config.minHipDrop;
+    if (min <= 0 || rep.maxHipDrop === null) return true;
+    return rep.maxHipDrop >= min;
+  }
+
   private complete(rep: InProgressRep, endedAt: number): RepCounterEvent {
     const c = this.config;
     const durationMs = endedAt - rep.startedAt;
@@ -264,6 +292,7 @@ export class SquatRepCounter {
         durationMs,
         minKneeAngle: rep.minKnee,
         minHipAngle: rep.minHip,
+        maxHipDrop: rep.maxHipDrop,
         descentMs: bottomAt - rep.startedAt,
         bottomMs: ascentAt - bottomAt,
         ascentMs: endedAt - ascentAt,
@@ -307,5 +336,43 @@ function validateConfig(c: RepCounterConfig): void {
   }
   if (!(c.minRepDurationMs >= 0 && c.maxRepDurationMs > c.minRepDurationMs)) {
     throw new RangeError("maxRepDurationMs must be greater than minRepDurationMs");
+  }
+  if (!(c.minHipDrop >= 0 && c.minHipDrop < 1)) {
+    throw new RangeError("minHipDrop must be in [0, 1)");
+  }
+}
+
+/**
+ * Measures how far the hips have dropped below their standing height, as a
+ * fraction of standing leg length (hip→ankle). The baseline is learned only
+ * while the user stands with straight legs, so it adapts if they step closer
+ * to or further from the camera between reps.
+ *
+ * Image y grows downward, so a positive value means the hips went down.
+ */
+export class HipDropMeter {
+  private baseHipY: number | null = null;
+  private baseLeg: number | null = null;
+
+  /** @param alpha EMA factor for the standing baseline (0–1). */
+  constructor(private readonly alpha = 0.2) {}
+
+  /**
+   * @param standing true only when the user is upright with straight legs
+   *   (e.g. counter phase is "standing" and knee ≥ standingAngle).
+   */
+  update(hipY: number | null, legLength: number | null, standing: boolean): number | null {
+    if (hipY === null) return null;
+    if (standing && legLength !== null && legLength > 0) {
+      this.baseHipY = this.baseHipY === null ? hipY : this.alpha * hipY + (1 - this.alpha) * this.baseHipY;
+      this.baseLeg = this.baseLeg === null ? legLength : this.alpha * legLength + (1 - this.alpha) * this.baseLeg;
+    }
+    if (this.baseHipY === null || !this.baseLeg) return null;
+    return (hipY - this.baseHipY) / this.baseLeg;
+  }
+
+  reset(): void {
+    this.baseHipY = null;
+    this.baseLeg = null;
   }
 }

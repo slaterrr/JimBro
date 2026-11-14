@@ -82,6 +82,13 @@ export interface SquatJoints {
   hipAngle: number | null;
   /** True when the leg used for counting is above the confidence threshold. */
   visible: boolean;
+  /**
+   * Vertical hip position (normalised image y, 0 = top), averaged over both
+   * hips so it doesn't jump when the counting leg switches. null if not visible.
+   */
+  hipY: number | null;
+  /** Hip-to-ankle distance of the counting leg, in the same units as hipY. */
+  legLength: number | null;
 }
 
 const vis = (p: LandmarkLike | undefined) => p?.visibility ?? 0;
@@ -97,7 +104,14 @@ export function extractSquatJoints(
 ): SquatJoints {
   const minVisibility = options.minVisibility ?? 0.6;
   const aspectRatio = options.aspectRatio ?? 1;
-  const none: SquatJoints = { side: null, kneeAngle: null, hipAngle: null, visible: false };
+  const none: SquatJoints = {
+    side: null,
+    kneeAngle: null,
+    hipAngle: null,
+    visible: false,
+    hipY: null,
+    legLength: null,
+  };
   if (!landmarks || landmarks.length < 33) return none;
 
   const legScore = (side: BodySide) => {
@@ -128,7 +142,18 @@ export function extractSquatJoints(
   const hipAngle =
     shoulder && vis(shoulder) >= minVisibility ? calculateAngle(shoulder, hip, knee, aspectRatio) : null;
 
-  return { side, kneeAngle, hipAngle, visible: kneeAngle !== null };
+  const otherHip = landmarks[side === "left" ? L.RIGHT_HIP : L.LEFT_HIP];
+  const hipY = otherHip ? (hip.y + otherHip.y) / 2 : hip.y;
+  const legLength = Math.hypot((hip.x - ankle.x) * aspectRatio, hip.y - ankle.y);
+
+  return {
+    side,
+    kneeAngle,
+    hipAngle,
+    visible: kneeAngle !== null,
+    hipY,
+    legLength: legLength > 1e-6 ? legLength : null,
+  };
 }
 
 // ---- camera --------------------------------------------------------------

@@ -67,6 +67,7 @@ export const SETUP_INSTRUCTIONS =
 /** Short spoken versions of form-flag codes. Codes not listed fall back to the flag's message. */
 const SPOKEN: Record<string, string> = {
   SHALLOW_DEPTH: "Not counted. Go a little lower.",
+  NO_HIP_DROP: "Not counted. Keep both feet down and lower your hips.",
   REP_TOO_FAST: "Not counted. Too quick.",
   REP_TOO_SLOW: "Not counted. That took too long.",
   TRACKING_LOST: "Not counted. I lost sight of your legs.",

@@ -100,6 +100,12 @@ export function describeRejection(rejected: RejectedRep): FormFlag {
         message: "Not counted: you didn't reach the depth line. Go a little lower.",
         source: "measured",
       };
+    case "NO_HIP_DROP":
+      return {
+        code: "NO_HIP_DROP",
+        message: "Not counted: your knee bent but your hips didn't go down. Keep both feet down and sit your hips back.",
+        source: "measured",
+      };
     case "TOO_FAST":
       return {
         code: "REP_TOO_FAST",
