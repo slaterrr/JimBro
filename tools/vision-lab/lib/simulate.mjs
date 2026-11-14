@@ -294,3 +294,83 @@ export function simulateUprightElbowBends({ reps = 8, kneeling = false, repMs = 
   }
   return { frames, trueEnds: [] };
 }
+
+// ---- Deadlift (side view) and pull-up (facing the camera). SIMULATED: logic tests only. ----
+const up = (p, len, tiltDeg, fwd = 1) => ({ x: p.x + fwd * len * Math.sin(rad(tiltDeg)), y: p.y - len * Math.cos(rad(tiltDeg)) });
+
+/**
+ * Hip hinge from the side. hip: shoulder–hip–knee angle; knee: hip–knee–ankle angle; shin: forward
+ * shin tilt (deg). Arms hang straight down holding the bar.
+ */
+export function deadliftBody({ hip = 175, knee = 175, shin = 0, cx = 0.45 } = {}) {
+  const ankle = { x: cx, y: 0.92 };
+  const kneeP = up(ankle, BONE.shank, shin);
+  const thighBack = Math.max(0, 180 - knee - shin);
+  const hipP = up(kneeP, BONE.thigh, -thighBack);
+  const torsoFwd = Math.max(0, 180 - hip - thighBack);
+  const shoulder = up(hipP, BONE.torso, torsoFwd);
+  const elbowP = { x: shoulder.x, y: shoulder.y + BONE.upper };
+  const wrist = { x: shoulder.x, y: elbowP.y + BONE.fore };
+  const pose = Array.from({ length: 33 }, () => ({ x: shoulder.x + 0.03, y: shoulder.y - 0.08, visibility: 0.99 }));
+  const near = { 11: shoulder, 13: elbowP, 15: wrist, 23: hipP, 25: kneeP, 27: ankle };
+  for (const [i, p] of Object.entries(near)) {
+    pose[+i] = { ...p, visibility: 0.98 };
+    pose[+i + 1] = { x: p.x + 0.015, y: p.y, visibility: 0.55 };
+  }
+  return pose;
+}
+
+/** p 0 = bar at the floor (hip 100°, knee 125°), 1 = lockout. */
+const deadliftAt = (p) => deadliftBody({ hip: 100 + 75 * p, knee: 125 + 50 * p, shin: 20 * (1 - p) });
+
+/**
+ * Pull-up facing the camera: hands fixed on the bar at barY; the body rises as the elbows bend.
+ * elbow: interior elbow angle (170 hanging, ~60 chin over the bar).
+ */
+export function pullupBody({ elbow = 170, cx = 0.5, barY = 0.1 } = {}) {
+  const thetaU = 15 + (170 - elbow) * 0.45; // upper arm from vertical, outward
+  const phi = thetaU - (180 - elbow); // forearm direction, bends inward
+  const elbowRel = { x: BONE.upper * Math.sin(rad(thetaU)), y: -BONE.upper * Math.cos(rad(thetaU)) };
+  const wristRel = { x: elbowRel.x + BONE.fore * Math.sin(rad(phi)), y: elbowRel.y - BONE.fore * Math.cos(rad(phi)) };
+  const shoulderY = barY - wristRel.y;
+  const pose = Array.from({ length: 33 }, () => ({ x: cx, y: shoulderY - 0.1, visibility: 0.99 }));
+  for (const [side, sx] of [[0, 1], [1, -1]]) { // subject's left appears on the image right
+    const sh = { x: cx + sx * 0.09, y: shoulderY };
+    const v = (p) => ({ ...p, visibility: p.y > 1 ? 0.2 : 0.97 });
+    pose[11 + side] = v(sh);
+    pose[13 + side] = v({ x: sh.x + sx * elbowRel.x, y: sh.y + elbowRel.y });
+    pose[15 + side] = v({ x: sh.x + sx * wristRel.x, y: sh.y + wristRel.y });
+    pose[23 + side] = v({ x: cx + sx * 0.06, y: shoulderY + BONE.torso });
+    pose[25 + side] = v({ x: cx + sx * 0.065, y: shoulderY + BONE.torso + BONE.thigh });
+    pose[27 + side] = v({ x: cx + sx * 0.06, y: shoulderY + BONE.torso + BONE.thigh + BONE.shank });
+  }
+  return pose;
+}
+
+const pullupAt = (p) => pullupBody({ elbow: 170 - 105 * p });
+
+function repSet(at, { reps = 8, repMs = 2400, slowdown = 0, rom = 1, restMs = 500, noise = 0.003, fps = 20, seed = 91, leadMs = 1000 } = {}) {
+  const r = rng(seed);
+  const durs = Array.from({ length: reps }, (_, i) => repMs * (1 + (slowdown * i) / Math.max(1, reps - 1)) * (0.9 + 0.2 * r.next()));
+  const starts = [];
+  const trueEnds = [];
+  let t = leadMs;
+  for (const d of durs) {
+    starts.push(t);
+    t += d;
+    if (rom >= 0.9) trueEnds.push(Math.round(t));
+    t += restMs;
+  }
+  const frames = [];
+  for (let tt = 0; tt <= t + leadMs; tt += 1000 / fps) {
+    let p = 0;
+    for (let i = 0; i < reps; i++) if (tt >= starts[i] && tt < starts[i] + durs[i]) p = rom * Math.sin((Math.PI * (tt - starts[i])) / durs[i]) ** 2;
+    frames.push({ t: Math.round(tt), pose: jitter(at(p), r, noise, 0) });
+  }
+  return { frames, trueEnds };
+}
+
+/** Deadlift set from the floor (starts and ends at the bottom). */
+export const simulateDeadlifts = (o = {}) => repSet(deadliftAt, { seed: 91, ...o });
+/** Pull-up set from a dead hang. */
+export const simulatePullups = (o = {}) => repSet(pullupAt, { seed: 101, ...o });
