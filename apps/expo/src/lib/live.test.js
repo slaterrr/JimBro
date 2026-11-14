@@ -129,6 +129,26 @@ describe('LiveSession', () => {
     assert.equal(session.count, 0);
   });
 
+  it('uses leg and hip visibility for squat tracking, not arm visibility', () => {
+    const pose = Array.from({ length: 33 }, () => P(0.5, 0.5, 0.1));
+    pose[23] = P(0.5, 0.4);
+    pose[25] = P(0.5, 0.6);
+    pose[27] = P(0.5, 0.8);
+    pose[11] = P(0.5, 0.2);
+    const s = new LiveSession('squat');
+    assert.equal(s.frame(33, pose).tracking.status, 'ok');
+  });
+
+  it('keeps completed reps when later tracking is lost', () => {
+    const s = new LiveSession('curl');
+    for (const f of curlFrames(1)) s.frame(f.t, f.pose);
+    assert.equal(s.count, 1);
+    const out = s.frame(99999, null);
+    assert.equal(out.count, 1);
+    assert.equal(out.issue, 'tracking');
+    assert.equal(s.repsDetail().length, 1);
+  });
+
   it('resets and switches movement', () => {
     const s = new LiveSession('curl');
     for (const f of curlFrames(1)) s.frame(f.t, f.pose);
