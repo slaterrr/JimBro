@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Keyboard, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
+import { restSeconds } from '../lib/rest.js';
 import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
@@ -89,7 +90,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={type.title}>{saved.isPR ? '🏆 New personal record' : 'Set saved'}</Text>
             <Text style={type.body}>{saved.text}</Text>
           </Card>
-          <RestTimer seconds={settings.restSeconds} onDone={onClose} />
+          <RestTimer seconds={restSeconds(exercise, Number(reps))} onDone={onClose} />
         </>
       ) : (
         <>
@@ -169,8 +170,6 @@ export function ActivitySheet({ visible, onClose }) {
       <Chips options={[['lb', 'lb'], ['kg', 'kg']]} value={settings.unit} onChange={(unit) => update({ unit })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Weekly goal</Text>
       <Chips options={[1, 2, 3, 4, 5, 6].map((n) => [n, String(n)])} value={settings.weeklyGoal} onChange={(weeklyGoal) => update({ weeklyGoal })} />
-      <Text style={[type.label, { marginVertical: 8 }]}>Rest timer</Text>
-      <Chips options={[[60, '1:00'], [90, '1:30'], [120, '2:00'], [180, '3:00']]} value={settings.restSeconds} onChange={(restSeconds) => update({ restSeconds })} />
 
       <Text style={[type.h2, { marginTop: 24 }]}>Your data</Text>
       <Text style={type.body}>{history.length} workouts on this phone. Nothing is uploaded.</Text>

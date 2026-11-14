@@ -60,7 +60,7 @@ export function BarChart({ points, height = 150, width = 300, unit }) {
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         <Defs>
           <LinearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#c084fc" />
+            <Stop offset="0" stopColor="#b6efdf" />
             <Stop offset="1" stopColor={T.purpleDeep} />
           </LinearGradient>
         </Defs>

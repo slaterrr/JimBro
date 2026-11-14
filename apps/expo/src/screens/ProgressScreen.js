@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { Comparisons } from '../components/Comparisons.js';
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
 import { Card, Chips, Icon, PrimaryButton, Segmented } from '../components/kit.js';
@@ -75,6 +76,7 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
       <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs']]} value={tab} onChange={setTab} />
 
+      <Comparisons history={history} unit={unit} />
       {tab === 'overview' ? (
         <>
           <Card style={{ marginTop: 14 }}>
@@ -93,7 +95,7 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
           </View>
           <Text style={[type.h2, { marginTop: 24 }]}>History</Text>
           {!history.length ? <Text style={[type.body, { marginTop: 8 }]}>Finished workouts show up here.</Text> : null}
-          {history.slice().reverse().map((w) => (
+          {history.slice().sort((a,b) => b.startedAt.localeCompare(a.startedAt)).map((w) => (
             <HistoryItem
               key={w.id}
               workout={w}

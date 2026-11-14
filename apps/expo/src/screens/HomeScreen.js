@@ -27,7 +27,7 @@ function Glow() {
         </LinearGradient>
       </Defs>
       <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34 L400 110 L0 110 Z" fill="url(#glow)" />
-      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke="#c084fc" strokeWidth="2" fill="none" />
+      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke="#b6efdf" strokeWidth="2" fill="none" />
     </Svg>
   );
 }
@@ -63,8 +63,8 @@ function PlanCard({ goal }) {
   );
 }
 
-export function HomeScreen({ openLog, openActivity }) {
-  const { settings, say, allSets, logSet } = useApp();
+export function HomeScreen({ openLog, openActivity, go }) {
+  const { settings, say, allSets, logSet, active, startWorkout, history } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const scroll = useRef(null);
@@ -122,19 +122,27 @@ export function HomeScreen({ openLog, openActivity }) {
             <JimBars height={64} />
             <Text style={[type.h1, { marginTop: 28, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
-              Your AI gym coach. Tell me what{'\n'}you want to work on today.
+              Your AI gym bro. Tell me what you want to work on today.
             </Text>
             <View style={st.goals}>
-              {GOALS.map((g) => (
-                <TouchableOpacity key={g.id} style={st.goal} onPress={() => send(g.ask, g.id)}>
-                  <Icon name={g.icon} size={30} color={T.purple} />
-                  <Text style={st.goalText}>{g.label}</Text>
+              {[
+                ['play', 'Start a Workout', () => { if (!active) startWorkout('Strength session'); openLog(); }],
+                ['calendar-plus', 'Create a New Plan', () => push({ kind: 'choose-plan' })],
+                ['chart-line', 'Review My Progress', () => {
+                  push({ me: false, text: history.length ? `You've completed ${history.length} workouts. Compare your strength and volume across sessions, months, and years.` : 'Finish your first workout to begin reviewing your progress.' }, { kind: 'review' });
+                }],
+              ].map(([icon, label, action]) => (
+                <TouchableOpacity key={label} style={st.goal} onPress={action}>
+                  <Icon name={icon} size={30} color={T.purple} />
+                  <Text style={st.goalText}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         ) : (
           messages.map((m, i) => {
+            if (m.kind === 'review') return <PrimaryButton key={i} onPress={() => go('Progress')}>View comparisons</PrimaryButton>;
+            if (m.kind === 'choose-plan') return <Card key={i}><Text style={type.title}>Choose your goal</Text>{GOALS.filter(g => g.id !== 'general').map(g => <PrimaryButton key={g.id} onPress={() => send(g.ask, g.id)}>{g.label.replace('\n', ' ')}</PrimaryButton>)}</Card>;
             if (m.kind === 'plan') return <PlanCard key={i} goal={m.goal} />;
             if (m.kind === 'confirm') {
               return (
