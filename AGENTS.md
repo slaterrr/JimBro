@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 (integration branch `feat/integration-v2`).
+Last updated: 2026-11-14 evening (demo branch `feat/integration-v4` = #30–#34 on top of v3).
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
@@ -72,6 +72,21 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | First-run Beginner / Comeback setup (3 questions → Zen persona, starter plan, consistency goal; pain → safety text, no plan), re-open from bell | 🧪 feat/beginner-health | `lib/onboarding.js`, `components/Onboarding.js`, `App.jsx` | 7 unit tests + wiring checks, web screenshot | device tap-through |
 | Home weekly health card (sessions · camera-verified reps · consistency x/y · next step) → Progress | 🧪 feat/beginner-health | `lib/healthSummary.js`, `HomeScreen.js` | 5 unit tests on demo fixture (hand-computed) | device check |
 | Integration of #21–#26 | ✅ | `feat/integration-v2` | 148 + 15 + 15 tests, Android + iOS bundles, real replay unchanged | merge decision (human) |
+
+## Latest fixes and features (integration-v4)
+| Feature | Status | Where | Tested how | Still needs |
+|---|---|---|---|---|
+| Sound: voice on by default, iOS silent mode, one sound module | 🧪 #30 | `lib/sound.js`, AppState | 7 unit + wiring checks | hear it on iPhone with ringer on silent |
+| Front-facing squats counted | 🧪 #31 | `angles.js` `frontalKneeAngle` | sim sweep 479/480, 40/40 exact; real clips unchanged | a real front-squat clip |
+| Never-silent camera guidance (names missing body part, spoken, 8 s throttle) | 🧪 #31 | `lib/guidance.js`, CoachScreen | unit tests | device |
+| Lunge in squat mode detected, not counted | 🧪 #31 | `lowerBodyShape`, live.js latch | sweep: 0/640 lunges counted, 80/80 detected; real squat 2/2 | a real lunge clip |
+| Curl ↔ press switch detected | 🧪 #34 | `armShape`, live.js | sweep: 0 other-lift reps, 20/20 detected per cell; wave stays arm_swing; real clips unchanged | real curl/press clips; front-on curls can't be counted |
+| Switch suggestion card + lunge as manual exercise | 🧪 #32 | `lib/switchExercise.js`, CoachScreen, exercises.js | unit + wiring | card position on device |
+| Beginner/comeback first-run setup (pain → safety, no plan) | 🧪 #33 | `lib/onboarding.js`, `Onboarding.js` | unit + wiring | device |
+| Weekly health card on Home | 🧪 #33 | `lib/healthSummary.js` | unit (demo fixture, hand-computed) | device with data |
+| Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
+
+Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.
 
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
