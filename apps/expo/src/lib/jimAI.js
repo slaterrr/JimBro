@@ -157,7 +157,7 @@ export function historyFor(messages) {
 
 function offline(message, state, reason) {
   const settings = state.settings ?? {};
-  const intent = parseIntent(message, { history: state.history ?? [], active: state.active ?? null, unit: settings.unit });
+  const intent = parseIntent(message, { history: state.history ?? [], active: state.active ?? null, unit: settings.unit, persona: settings.persona });
   if (['log', 'correct', 'delete'].includes(intent.type)) return { source: 'offline', reason, reply: '', proposals: [intent], suggestion: null };
   if (intent.type === 'clarify') return { source: 'offline', reason, reply: intent.question, proposals: [], suggestion: null };
   const r = coachReply(message, settings.persona ?? settings.tone, workoutsOf(state).flatMap((w) => w.sets ?? []));

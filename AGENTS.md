@@ -122,7 +122,7 @@ Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
 2. ✅ **Proxy shared secret** (`X-Jim-Key`, #47). Host it with `render.yaml` (Render blueprint), then set `EXPO_PUBLIC_JIM_PROXY_URL` / `EXPO_PUBLIC_JIM_PROXY_KEY` in the Expo `preview` environment.
 3. ✅ **Live Claude smoke test**: `.github/workflows/claude-smoke.yml` (repo secret `CLAUD_TOKEN`).
-4. 📋 Persona wording for remaining Home chat replies (goal intro, confirm/clarify text).
+4. ✅ Persona wording for Home chat replies (`lib/homeReplies.js`; confirm-card questions stay neutral).
 5. 📋 Record + label team clips (consented): 15–20-rep sets per lift side-on; wave; middle finger; elbow-swing curls; shallow squats. Put half in `heldout`.
 6. 📋 Validate form thresholds and the 50° swing on those clips; press lean-back direction.
 7. 📋 2-minute demo script + backup screen recording.
