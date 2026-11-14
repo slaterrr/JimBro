@@ -37,5 +37,5 @@ npm run harness -- fs_squat_rear
 npm test
 ```
 
-The first command replays real-clip landmarks through both engines; `npm test` runs all 517 tests.
+The first command replays real-clip landmarks through both engines; `npm test` runs all 518 tests.
 **Live Claude check:** `cd server/jim-proxy && npm ci && npm run smoke` (needs an API key or `ant auth login`).

@@ -27,20 +27,25 @@ export function AppProvider({ children }) {
   const [data, setData] = useState(EMPTY);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState(null);
+  // Saving starts only after a successful load: if reading or migrating saved data fails, writing
+  // the empty starting state would overwrite the user's workouts.
+  const [canSave, setCanSave] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
-        if (!raw) return;
-        const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
+        if (raw) {
+          const saved = JSON.parse(raw);
+          setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
+        }
+        setCanSave(true);
       })
-      .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
+      .catch(() => setNotice("Couldn't read your saved workouts. Nothing was overwritten; changes this session won't be saved."))
       .finally(() => setReady(true));
   }, []);
   useEffect(() => {
-    if (ready) AsyncStorage.setItem(KEY, JSON.stringify(data)).catch(() => setNotice('Could not save to phone storage.'));
-  }, [data, ready]);
+    if (ready && canSave) AsyncStorage.setItem(KEY, JSON.stringify(data)).catch(() => setNotice('Could not save to phone storage.'));
+  }, [data, ready, canSave]);
 
   const settings = data.settings;
   const update = (patch) => setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
