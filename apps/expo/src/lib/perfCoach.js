@@ -81,7 +81,7 @@ export function answerPerformance(message, { history = [], active = null } = {})
   if (kind === 'heavier') {
     const rec = recommendNext({
       exercise: last.exercise, unit: last.unit, weight: last.weight, target: last.target ?? last.reps, completed: last.reps,
-      rpe: last.rpe ?? null, fatigue, history: prior,
+      rpe: last.rpe ?? null, fatigue, history: prior, metrics: fatigue.metrics,
     });
     const style = coachingStyle({ sessions: history.filter((w) => (w.sets ?? []).length).length });
     return style.askUserFirst ? `${style.prompt} For reference: ${rec.reasons.join(' ')}` : `${rec.reasons.join(' ')} It's your call.`;

@@ -9,6 +9,7 @@ import { describeGoal, goalProgress, migrateGoals, weeklyCheckIn } from './goals
 import { parseIntent } from './intents.js';
 import { personalRecords } from './progress.js';
 import { planFromGoal, planProposal, validateEmphasis } from './planFromGoal.js';
+import { repMetrics } from './performance.js';
 import { setReport } from './sessionReport.js';
 
 const DAY = 86400000;
@@ -46,7 +47,16 @@ export function buildContext(state, now = new Date()) {
   let lastSetReport = null;
   if (cam) {
     const r = setReport({ movement: cam.exercise, reps: cam.reps_detail, quality: cam.camera_quality ?? null, rpe: cam.rpe ?? null, target: cam.target ?? null });
-    lastSetReport = { ...pick(r, ['movement', 'counted', 'target', 'rpe', 'partials', 'trackingPct', 'tempo']), suggestions: r.suggestions.map(({ text, evidence }) => ({ text, evidence })) };
+    const pm = repMetrics(cam.exercise, cam.reps_detail);
+    lastSetReport = {
+      ...pick(r, ['movement', 'counted', 'target', 'rpe', 'partials', 'trackingPct', 'tempo']),
+      suggestions: r.suggestions.map(({ text, evidence }) => ({ text, evidence })),
+      measured: {
+        velocityLossPct: pm.velocityLossPct, romLossPct: pm.romLossPct,
+        peakDps: pm.reps.map((x) => x.peak_dps), meanDps: pm.reps.map((x) => x.speed_dps),
+        note: 'Joint angular speed from the camera (relative, degrees per second): not bar speed, not m/s. Velocity loss is one fatigue signal, not proof of failure.',
+      },
+    };
   }
   const settings = state.settings ?? {};
   // Workout context for get_workout_context: the same deterministic answers the app gives.

@@ -136,7 +136,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       partials: fromCamera ? camera.quality?.partials ?? 0 : 0, partialAfterLastRep: fromCamera ? camera.quality?.partialAfterLastRep ?? false : false,
       weight: w, unit, history: prior,
     });
-    const rec = recommendNext({ exercise, unit, weight: w, target: target ?? r, completed: r, rpe: rpeN, fatigue, history: prior });
+    const rec = recommendNext({ exercise, unit, weight: w, target: target ?? r, completed: r, rpe: rpeN, fatigue, history: prior, metrics: fatigue.metrics });
     const m = fatigue.metrics;
     const { isPR } = logSet({
       exercise, weight: w, unit, reps: r, rpe: rpeN,

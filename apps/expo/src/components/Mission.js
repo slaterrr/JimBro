@@ -108,7 +108,7 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
     });
     const rec = recommendNext({
       exercise: t.exercise, unit: t.unit, weight: w, target: t.reps, completed: n, rir: rirNow,
-      fatigue, setNo: t.setNo, sets: t.sets, history: pastSets,
+      fatigue, setNo: t.setNo, sets: t.sets, history: pastSets, metrics: fatigue.metrics,
     });
     return { fatigue, rec: { ...rec, unit: t.unit } };
   };

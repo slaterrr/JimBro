@@ -76,8 +76,8 @@ export function createCoach({ sessionId, frequency = 'normal', onEvent = () => {
         partialAfterLastRep: s.summary?.partialAfterLastRep ?? false, rpe, rir, weight, unit, history,
       });
       emit('FatigueAssessment', { level: fatigue.level, signals: fatigue.signals, text: fatigue.text }, { validation: 'unvalidated', confidence: fatigue.confidence === 'medium' ? 0.6 : 0.3 });
-      const rec = recommendNext({ exercise: exerciseId, unit, weight, target: target ?? n, completed: n, rpe, rir, fatigue, setNo, sets, history });
-      emit('LoadRecommendation', { action: rec.action, weight: rec.weight, unit, reps: rec.reps, extraRestS: rec.extraRestS, reasons: rec.reasons, needsApproval: true }, { units: { weight: unit, extraRestS: 's' } });
+      const rec = recommendNext({ exercise: exerciseId, unit, weight, target: target ?? n, completed: n, rpe, rir, fatigue, setNo, sets, history, metrics: s.perf ?? fatigue.metrics });
+      emit('LoadRecommendation', { action: rec.action, weight: rec.weight, unit, reps: rec.reps, extraRestS: rec.extraRestS, reasons: rec.reasons, needsApproval: true, agreement: rec.agreement, evidence: rec.evidence }, { units: { weight: unit, extraRestS: 's' }, confidence: rec.confidence === 'higher' ? 0.7 : 0.4 });
       const lines = afterSetLines({ completed: n, target: target ?? n, fatigue, rec });
       respond('after_set', lines.say, { question: lines.ask });
       const result = { fatigue, rec };

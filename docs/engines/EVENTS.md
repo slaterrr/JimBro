@@ -27,13 +27,13 @@ note it here. Adding optional fields is not breaking.
 | `ExerciseDetected` | vision | **view** `side/front`, **side** `left/right` | First good tracking |
 | `ExerciseMismatch` | vision | **expected**, **observed** (exercise id or `unknown`), **reason**, guidance | Once per episode (e.g. lunges in squat mode) |
 | `RepStarted` | vision | **repIndex** | Movement leaves rest |
-| `RepCompleted` | vision | **repIndex**, **count**, lift_ms, lower_ms, pause_ms, rom_deg, variant | A rep passes every gate |
+| `RepCompleted` | vision | **repIndex**, **count**, lift_ms, lower_ms, pause_ms, rom_deg, peak_dps, mean_dps (joint angular speed from the angle trace, relative), variant | A rep passes every gate |
 | `RepRejected` | vision | **reason** (`arm_swing`, `framing`, `implausible_motion`, `tracking`), words | A moving rep was aborted by a quality gate |
 | `FormObservation` | vision | **repIndex**, **fault**, **cue**, why, fix, severity, measured, threshold | After the set; validation `unvalidated` |
 | `SetCompleted` | vision | **count**, **target**, **reps[]**, **partials**, partialAfterLastRep, trackingPct | `finishSet()` |
 | `PerformanceMeasurement` | vision | **calibrated** (`false`), meanLiftMs, velocityLossPct, romLossPct, consistencyCv, omitted[] | `finishSet()`; m/s, displacement, force and power fields are **rejected** while uncalibrated |
 | `FatigueAssessment` | coach | **level**, **signals[]**, **text** | `completeSet()`; validation `unvalidated` |
-| `LoadRecommendation` | coach | **action**, **needsApproval** (`true`), **reasons[]**, weight, unit, reps, extraRestS | `completeSet()` |
+| `LoadRecommendation` | coach | **action**, **needsApproval** (`true`), **reasons[]**, weight, unit, reps, extraRestS, agreement (measured slowdown vs reported effort), evidence[] (`measured` / `reported`) | `completeSet()`; confidence 0.7 when both sources agree, 0.4 otherwise |
 | `CoachResponse` | coach | **text**, **kind** (`count/cue/after_set/answer/summary`), **speak**, question | Counts, cues (once per set), after-set, answers |
 | `WorkoutSummary` | coach | **setsDone**, **repsDone**, setsPlanned, minutes, lines | `summarize()` |
 | `CameraPerformance` | vision | **fps**, **inferenceMs**, droppedPct, device | Measured on the running device |

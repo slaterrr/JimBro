@@ -49,6 +49,9 @@ export type FatigueAssessment = Envelope<'FatigueAssessment', {
 export type LoadRecommendation = Envelope<'LoadRecommendation', {
   action: 'increase' | 'same' | 'decrease' | 'more_rest' | 'fewer_reps' | 'none';
   weight: number | null; unit: 'lb' | 'kg'; reps: number | null; extraRestS: number; reasons: string[]; needsApproval: true;
+  /** how the camera's measured slowdown and the user's reported effort relate */
+  agreement?: 'agree' | 'measured_harder' | 'reported_harder' | 'measured_only' | 'reported_only' | 'none';
+  evidence?: { source: 'measured' | 'reported'; text: string }[];
 }>;
 export type CoachResponse = Envelope<'CoachResponse', {
   text: string; kind: 'count' | 'cue' | 'after_set' | 'answer' | 'summary'; speak: boolean; question?: string | null;
