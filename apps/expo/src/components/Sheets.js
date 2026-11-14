@@ -136,7 +136,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     say(report
       ? `${isPR ? 'New record! ' : ''}${spokenReport(report, settings.persona)}`
       : loggedText(settings.persona, { exercise, reps: r, weight: w, unit, isPR }, allSets.length));
-    setSaved({ isPR, report, rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe) }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
+    setSaved({ isPR, report, rest: restFor({ exercise, reps: r, rpe: rpe === '' ? null : Number(rpe), fitnessGoal: settings.fitnessGoal, experience: settings.experience, activityLevel: settings.activityLevel }), text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
   return (
