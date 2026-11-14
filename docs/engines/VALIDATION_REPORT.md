@@ -47,9 +47,11 @@ absolute tempo.
 - **Form-review thresholds:** no real bad-form clips.
 - **Load recommendations:** the outcome tracking exists (`evaluateRecommendations`), but there are
   0 real outcomes; it reports "too early" until there are at least 5.
-- **Claude:** **no successful live call has been made from this environment** (no credentials
-  here). Run `cd server/jim-proxy && npm ci && npm run smoke`. It passes only if a plain reply, a
-  read-tool answer and a confirm-first proposal all work.
+- **Claude: one live call verified** (GitHub Actions run 43642717579 (2026-11-14), workflow `claude-smoke.yml`, key from the
+  `CLAUD_TOKEN` repository secret). `claude-sonnet-5-5`, fallbacks on: **PASS** in 2.4 s. Jim called
+  `get_workout_context`, then answered from it: "Today is plan day 2, which is deadlift for 3 sets
+  of 5…". That was 2 API calls and 78 output tokens. **Not yet run live:** the read-tool history
+  check and the write-proposal check (`npm run smoke` without `--one`), and `/physique`.
 - **Equipment detection, calibrated velocity, force and power:** not built.
 
 ## Next data to collect (consented participants; half to `heldout`)

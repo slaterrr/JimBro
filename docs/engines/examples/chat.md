@@ -1,7 +1,7 @@
 # Chat request and response shapes
 
-These show the **shapes** the code accepts and returns. They are not recorded from a live Claude
-call; none has been made from this environment yet.
+These show the **shapes** the code accepts and returns. They are not recorded from a live call. One
+live call has been verified (GitHub Actions run 43642717579 (2026-11-14)): a plain question answered from `get_workout_context`.
 
 ## Request: app → `POST /chat`
 ```http
