@@ -1,5 +1,5 @@
-import React from 'react';
-import { Alert, Share, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Share, Text, TextInput, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
 import { exerciseName } from '../lib/exercises.js';
@@ -9,7 +9,20 @@ import { Button, C, Card, Choice, Kicker, Metric, s } from '../ui.js';
 const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
 
 export function HomeScreen({ go }) {
-  const { settings, update, history, active, allSets, exportJSON, eraseAll } = useApp();
+  const { settings, update, history, active, allSets, exportJSON, eraseAll, importData } = useApp();
+  const [restoring, setRestoring] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const [restoreMsg, setRestoreMsg] = useState(null);
+  const restore = () => {
+    try {
+      const added = importData(pasted);
+      setRestoreMsg(added ? `Restored ${added} workout${added === 1 ? '' : 's'}.` : 'Nothing new: those workouts are already here.');
+      setPasted('');
+      setRestoring(false);
+    } catch (e) {
+      setRestoreMsg(e.message);
+    }
+  };
   const week = weeklyProgress(history, settings.weeklyGoal);
   const weeks = streak(history);
   const volume = allSets.reduce((t, x) => t + x.weight * x.reps, 0);
@@ -66,6 +79,21 @@ export function HomeScreen({ go }) {
         <Kicker>YOUR DATA</Kicker>
         <Text style={s.body}>{history.length} workouts saved on this phone. Nothing is uploaded.</Text>
         <Button secondary onPress={() => Share.share({ message: exportJSON(), title: 'JimBro workouts' })}>Export workouts</Button>
+        <Button secondary onPress={() => setRestoring((r) => !r)}>{restoring ? 'Cancel restore' : 'Restore from an export'}</Button>
+        {restoring ? (
+          <>
+            <TextInput
+              style={[s.input, { minHeight: 90, marginTop: 10, textAlignVertical: 'top' }]}
+              multiline
+              value={pasted}
+              onChangeText={setPasted}
+              placeholder="Paste the text of a JimBro export here"
+              placeholderTextColor={C.muted}
+            />
+            <Button disabled={!pasted.trim()} onPress={restore}>Restore workouts</Button>
+          </>
+        ) : null}
+        {restoreMsg ? <Text style={s.fine}>{restoreMsg}</Text> : null}
         <Button secondary onPress={confirmErase}>Erase all workouts</Button>
         <Text style={[s.fine, { color: C.muted }]}>Not a medical device. TUT is estimated movement timing, not muscle tension.</Text>
       </Card>

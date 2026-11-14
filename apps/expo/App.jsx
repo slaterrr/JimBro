@@ -45,7 +45,7 @@ function Shell() {
         {ready && !camera && tab === 'Workout' ? <WorkoutScreen prefill={prefill} clearPrefill={clearPrefill} cameraReps={cameraReps} clearCameraReps={clearCameraReps} openCamera={setCamera} /> : null}
         {ready && !camera && tab === 'Jim' ? <JimScreen applySuggestion={applySuggestion} /> : null}
         {ready && !camera && tab === 'Plan' ? <PlanScreen go={setTab} /> : null}
-        {ready && !camera && tab === 'Progress' ? <ProgressScreen /> : null}
+        {ready && !camera && tab === 'Progress' ? <ProgressScreen go={setTab} /> : null}
       </ScrollView>
       <View style={s.tabs}>
         {TABS.map(([label, icon]) => (

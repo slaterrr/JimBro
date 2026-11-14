@@ -3,6 +3,7 @@ import * as Speech from 'expo-speech';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { personalRecords } from './lib/progress.js';
+import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
@@ -65,6 +66,16 @@ export function AppProvider({ children }) {
       return { ...d, active: null, history: [...d.history, { ...d.active, finishedAt: new Date().toISOString() }] };
     });
 
+  const deleteWorkout = (id) => setData((d) => ({ ...d, history: d.history.filter((w) => w.id !== id) }));
+
+  /** Restore an export: merges workouts by id; returns how many were added. Throws on bad input. */
+  const importData = (text) => {
+    const incoming = parseImport(text);
+    const merged = mergeHistory(data.history, incoming.history);
+    setData((d) => ({ ...d, history: mergeHistory(d.history, incoming.history), plan: d.plan ?? incoming.plan }));
+    return merged.length - data.history.length;
+  };
+
   const savePlan = (plan) => setData((d) => ({ ...d, plan }));
   const exportJSON = () => JSON.stringify({ format: 'jimbro-phone-export-v1', exportedAt: new Date().toISOString(), ...data }, null, 2);
   const eraseAll = () => setData({ ...EMPTY, settings: data.settings });
@@ -72,7 +83,7 @@ export function AppProvider({ children }) {
   const value = {
     ready, notice, setNotice, settings, update, say,
     active: data.active, history: data.history, plan: data.plan, allSets,
-    startWorkout, logSet, deleteSet, finishWorkout, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, deleteSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
