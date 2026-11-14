@@ -4,6 +4,7 @@
 // so an LLM tool-call layer can later emit the same intent objects.
 import { SAFETY } from './coach.js';
 import { exerciseName } from './exercises.js';
+import { clarifyText } from './homeReplies.js';
 import { EXERCISE_PATTERNS, normalise, parseSetUtterance } from './parse.js';
 
 const UNIT = String.raw`(kg|kgs|kilos?|kilograms?|lb|lbs|pounds?)`;
@@ -35,14 +36,14 @@ function lastSet({ history = [], active = null }, exercise) {
   return null;
 }
 
-function noSet(exercise) {
-  return clarify(exercise ? `I can't find a ${name(exercise)} set to change. Which set do you mean?` : "You haven't logged any sets yet. Want to log one?");
+function noSet(exercise, persona) {
+  return clarify(exercise ? clarifyText.noSetOf(name(exercise), persona) : clarifyText.noSets(persona));
 }
 
 function parseDelete(text, ctx) {
   const [ex] = mentions(text);
   const target = lastSet(ctx, ex);
-  if (!target) return noSet(ex);
+  if (!target) return noSet(ex, ctx.persona);
   return { type: 'delete', target: { setId: target.id }, summary: `Delete your last ${name(target.exercise)} (${fmtSet(target)})?` };
 }
 
@@ -88,7 +89,7 @@ function parseCorrect(text, ctx) {
     }
   }
   const stray = rest.match(/\d+(?:\.\d+)?/);
-  if (stray) return clarify(`Did you mean ${stray[0]} reps or ${stray[0]} ${ctx.unit ?? 'lb'}?`);
+  if (stray) return clarify(clarifyText.repsOrWeight(stray[0], ctx.unit ?? 'lb', ctx.persona));
   if (!changes.unit) {
     const bareUnit = rest.match(new RegExp(String.raw`\b(?:in\s+)${UNIT}\b`));
     if (bareUnit) changes.unit = toUnit(bareUnit[1]);
@@ -96,7 +97,7 @@ function parseCorrect(text, ctx) {
   if (!Object.keys(changes).length) return null;
 
   const target = lastSet(ctx, targetEx);
-  if (!target) return noSet(targetEx);
+  if (!target) return noSet(targetEx, ctx.persona);
   const next = { ...target, ...changes };
   const exPart = changes.exercise ? `${name(changes.exercise)} ` : '';
   return {
@@ -114,7 +115,7 @@ function parseLog(text, ctx) {
   if (multi) {
     count = Number(multi[1]);
     body = text.replace(multi[0], ' ');
-    if (count < 1 || count > MAX_SETS) return clarify(`${count} sets? Tell me up to ${MAX_SETS} at a time.`);
+    if (count < 1 || count > MAX_SETS) return clarify(clarifyText.tooManySets(count, MAX_SETS, ctx.persona));
   }
   const parsed = parseSetUtterance(body);
   if (!parsed) return null;
@@ -126,7 +127,7 @@ function parseLog(text, ctx) {
 
 /**
  * text -> {type: 'log'|'correct'|'delete'|'clarify'|'question', ...}.
- * ctx: {history, active, unit} where unit is the user's default for unlabelled weights.
+ * ctx: {history, active, unit, persona?} where unit is the user's default for unlabelled weights.
  */
 export function parseIntent(raw, ctx = {}) {
   const original = String(raw ?? '').trim();
