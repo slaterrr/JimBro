@@ -6,8 +6,23 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "ios": { "supportsTablet": true },
-    "android": { "adaptiveIcon": { "backgroundColor": "#101310" } }
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#101310"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "JimBro uses the camera to count your reps from your pose. Video stays on your phone and is never saved or uploaded.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }
-
