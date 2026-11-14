@@ -99,3 +99,40 @@ describe('walking is not a rep in any mode', () => {
     }
   });
 });
+
+describe('lunge (experimental, simulated, side view)', () => {
+  it('counts every rep, alternating or not, across seeds and noise, and records the lead leg', async () => {
+    const { simulateLungeSet } = await import('../../../../tools/vision-lab/lib/simulate.mjs');
+    for (const seed of [141, 142, 143, 144]) {
+      for (const alternate of [true, false]) {
+        const { frames, trueEnds, leads } = simulateLungeSet({ reps: 8, seed, alternate, noise: seed % 2 ? 0.005 : 0.002 });
+        const { s } = run('lunge', frames);
+        assert.equal(s.count, trueEnds.length, `seed ${seed} alternate ${alternate}`);
+        assert.deepEqual(s.repsDetail().map((r) => r.lead), leads, `lead legs seed ${seed}`);
+      }
+    }
+  });
+
+  it('half lunges, squats, walking and curls in lunge mode count nothing; squats are flagged', async () => {
+    const { simulateLungeSet, simulateWalk } = await import('../../../../tools/vision-lab/lib/simulate.mjs');
+    assert.equal(run('lunge', simulateLungeSet({ reps: 6, rom: 0.4 }).frames).s.count, 0, 'half lunges');
+    const sq = run('lunge', simulateSet('squat', { reps: 8 }).frames);
+    assert.equal(sq.s.count, 0, 'squats');
+    assert.equal(sq.s.suggested, 'squat');
+    assert.equal(run('lunge', simulateWalk({ steps: 12 }).frames).s.count, 0, 'walking');
+    assert.equal(run('lunge', simulateSet('curl', { reps: 8 }).frames).s.count, 0, 'curls');
+  });
+
+  it('front-view lunges: not supported, but never false-counted', async () => {
+    const { simulateLungeSet } = await import('../../../../tools/vision-lab/lib/simulate.mjs');
+    assert.equal(run('lunge', simulateLungeSet({ reps: 6, view: 'front' }).frames).s.count <= 6, true);
+    assert.equal(run('squat', simulateLungeSet({ reps: 6, view: 'front' }).frames).s.count, 0, 'still not counted as squats');
+  });
+
+  it('is registered as experimental, with honest limits', async () => {
+    const { ANALYZERS, countsWithCamera } = await import('./analyzers.js');
+    assert.equal(ANALYZERS.lunge.status, 'experimental');
+    assert.equal(countsWithCamera('lunge'), true);
+    assert.match(ANALYZERS.lunge.limits, /side/i);
+  });
+});

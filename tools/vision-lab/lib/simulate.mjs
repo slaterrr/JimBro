@@ -392,3 +392,34 @@ export function simulateWalk({ steps = 10, stepMs = 550, fps = 20, seed = 111, n
   }
   return { frames, trueEnds: [] };
 }
+
+/**
+ * Labeled lunge set (side view by default). alternate: legs swap every rep (left leg forward on odd
+ * reps). Returns trueEnds and the lead leg per rep. SIMULATED: logic tests only.
+ */
+export function simulateLungeSet({ reps = 8, repMs = 2200, restMs = 400, view = 'side', alternate = true, fps = 20, seed = 141, noise = 0.003, rom = 1 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const trueEnds = [];
+  const leads = [];
+  const cycle = repMs + restMs;
+  const end = 1000 + reps * cycle + 1000;
+  for (let i = 0; i < reps; i += 1) {
+    if (rom >= 0.9) trueEnds.push(Math.round(1000 + i * cycle + repMs));
+    leads.push(alternate && i % 2 ? 'right' : 'left');
+  }
+  for (let t = 0; t <= end; t += 1000 / fps) {
+    const u = t - 1000;
+    const k = Math.floor(Math.max(0, u) / cycle);
+    const inRep = u > 0 && k < reps && u % cycle < repMs;
+    const p = inRep ? rom * Math.sin((Math.PI * (u % cycle)) / repMs) ** 2 : 0;
+    let pose = lungeBody(p);
+    if (leads[Math.min(k, reps - 1)] === 'right') {
+      // Mirror the leg roles: the right leg leads (swap left/right hip, knee, ankle).
+      pose = pose.map((q) => ({ ...q }));
+      for (const [a, b] of [[23, 24], [25, 26], [27, 28]]) [pose[a], pose[b]] = [{ ...pose[b], x: pose[a].x }, { ...pose[a], x: pose[b].x }];
+    }
+    frames.push({ t: Math.round(t), pose: jitter(view === 'front' ? frontView(pose) : pose, r, noise, 0) });
+  }
+  return { frames, trueEnds, leads };
+}
