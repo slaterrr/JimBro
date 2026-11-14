@@ -44,7 +44,8 @@ class MovementConfig:
         return abs(self.rest_deg - self.peak_deg)
 
     def depth(self, angle_deg: float) -> float:
-        direction = 1.0 if self.peak_deg < self.rest_deg else -1.0
+        # no mutate: < vs <= is equivalent because a zero span is rejected in __post_init__
+        direction = 1.0 if self.peak_deg < self.rest_deg else -1.0  # pragma: no mutate
         return direction * (self.rest_deg - angle_deg)
 
 
@@ -99,10 +100,10 @@ class RepCounter:
 
     def _abort(self) -> None:
         self.state = "rest"
-        self._armed = False
+        self._armed = False  # pragma: no mutate (None/False both falsy)
         self._smoothed = None
-        self._marks = {}
-        self._reached_peak = False
+        self._marks = {}  # pragma: no mutate (marks are rebuilt before any read)
+        self._reached_peak = False  # pragma: no mutate (re-set when a rep starts)
 
     def update(self, sample: AngleSample) -> RepSummary | None:
         """Consume one sample; return a summary when a full rep completes."""
@@ -139,7 +140,7 @@ class RepCounter:
             if depth > rest_exit and t >= self._cooldown_until:
                 self.state = "concentric"
                 self._marks = {"start": t}
-                self._reached_peak = False
+                self._reached_peak = False  # pragma: no mutate (None/False both falsy)
         elif self.state == "concentric":
             if depth >= peak_enter:
                 self.state = "peak"
@@ -161,7 +162,7 @@ class RepCounter:
         marks = self._marks
         self.state = "rest"
         self._cooldown_until = t + self.config.cooldown_ms
-        self._marks = {}
+        self._marks = {}  # pragma: no mutate (marks are rebuilt before any read)
         start = marks["start"]
         if not self._reached_peak or t - start < self.config.min_rep_ms:
             self.partials += 1
