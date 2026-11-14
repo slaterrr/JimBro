@@ -5,7 +5,7 @@ import { Comparisons } from '../components/Comparisons.js';
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
 import { HealthConnect } from '../components/HealthConnect.js';
-import { Card, Chips, Field, Icon, PrimaryButton, Segmented, Sheet } from '../components/kit.js';
+import { Card, Chips, Dropdown, Field, Icon, PrimaryButton, Segmented, Sheet } from '../components/kit.js';
 import { ACTIVITY_LABELS } from '../lib/activityLevel.js';
 import { compareSessions, comparePeriods, historyNewestFirst } from '../lib/compare.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
@@ -265,9 +265,7 @@ function HistoryTab({ workouts, history, unit, active, onRepeat, onDelete }) {
 
       <Card style={{ marginTop: 12 }}>
         <Text style={type.title}>{period === 'month' ? 'Month to month' : 'Year to year'}</Text>
-        <View style={{ marginTop: 8 }}>
-          <Chips options={[['month', 'Month'], ['year', 'Year']]} value={period} onChange={setPeriod} />
-        </View>
+        <Dropdown testID="history-frame" label="Compare by" value={period} options={[['month', 'Month to month'], ['year', 'Year to year']]} onChange={setPeriod} />
         <Text style={[type.body, { marginTop: 12 }]}>{p.text}</Text>
         {p.previous ? (
           <View style={{ flexDirection: 'row', marginTop: 10 }}>

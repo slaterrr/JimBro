@@ -38,17 +38,63 @@ export function Pill({ children, active = false, onPress, style }) {
 }
 
 /** Segmented control like the Progression tabs (Overview / Strength / Volume / PRs). */
+// More than 4 options don't fit a small phone, so the control scrolls sideways instead of squeezing.
 export function Segmented({ options, value, onChange }) {
+  const scroll = options.length > 4;
+  const ref = React.useRef(null);
+  const xs = React.useRef({});
+  React.useEffect(() => { // keep the selected tab in view
+    const x = xs.current[value];
+    if (scroll && x !== undefined) ref.current?.scrollTo?.({ x: Math.max(0, x - 24), animated: true });
+  }, [value, scroll]);
+  const items = options.map(([v, label]) => {
+    const on = v === value;
+    return (
+      <TouchableOpacity key={v} testID={`seg-${v}`} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label}
+        onPress={() => onChange(v)} onLayout={(e) => { xs.current[v] = e.nativeEvent.layout.x; }} style={[st.segmentItem, scroll && st.segmentScrollItem, on && st.segmentOn]}>
+        <Text numberOfLines={scroll ? undefined : 1} style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
+      </TouchableOpacity>
+    );
+  });
+  return scroll ? (
+    <View style={[st.segment, { paddingHorizontal: 0, paddingVertical: 0 }]}>
+      <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 4, padding: 4 }}>{items}</ScrollView>
+    </View>
+  ) : (
+    <View style={st.segment}>{items}</View>
+  );
+}
+
+/** Dropdown: shows the current choice; tapping opens a scrollable list. options: [[value, label]]. */
+export function Dropdown({ label, value, options, onChange, testID }) {
+  const [open, setOpen] = React.useState(false);
+  const current = options.find(([v]) => v === value)?.[1] ?? 'Choose';
   return (
-    <View style={st.segment}>
-      {options.map(([v, label]) => {
-        const on = v === value;
-        return (
-          <TouchableOpacity key={v} onPress={() => onChange(v)} style={[st.segmentItem, on && st.segmentOn]}>
-            <Text style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={{ marginTop: 10 }}>
+      {label ? <Text style={st.dropLabel}>{label}</Text> : null}
+      <TouchableOpacity testID={testID} accessibilityRole="button" accessibilityLabel={`${label ?? 'Choose'}: ${current}`} onPress={() => setOpen(true)} style={st.drop}>
+        <Text numberOfLines={1} style={st.dropText}>{current}</Text>
+        <Icon name="chevron-down" color={T.textDim} />
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={st.dropBackdrop} onPress={() => setOpen(false)} accessibilityLabel="Close list">
+          <View style={st.dropMenu}>
+            {label ? <Text style={[st.dropLabel, { padding: 14, paddingBottom: 6 }]}>{label}</Text> : null}
+            <ScrollView>
+              {options.map(([v, l]) => {
+                const on = v === value;
+                return (
+                  <TouchableOpacity key={String(v)} accessibilityRole="button" accessibilityLabel={l} accessibilityState={{ selected: on }}
+                    onPress={() => { onChange(v); setOpen(false); }} style={[st.dropItem, on && { backgroundColor: T.accentSoft }]}>
+                    <Text numberOfLines={1} style={[st.dropText, on && { color: T.accentText }]}>{l}</Text>
+                    {on ? <Icon name="check" size={20} color={T.accent} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -110,7 +156,7 @@ export function Sheet({ visible, onClose, title, children }) {
           <View style={st.sheetHeader}>
             <Text style={type.h2}>{title}</Text>
             <TouchableOpacity accessibilityLabel="Hide keyboard" onPress={Keyboard.dismiss} style={{ padding: 8 }}><Icon name="keyboard-close" color={T.textDim} /></TouchableOpacity>
-            <TouchableOpacity accessibilityLabel="Close" onPress={onClose}>
+            <TouchableOpacity accessibilityLabel="Close" onPress={onClose} style={{ padding: 10 }}>
               <Icon name="close" color={T.textDim} />
             </TouchableOpacity>
           </View>
@@ -130,6 +176,13 @@ export const st = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   segment: { flexDirection: 'row', backgroundColor: T.surface, borderRadius: R.pill, borderWidth: 1, borderColor: T.border, padding: 4 },
   segmentItem: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: R.pill, overflow: 'hidden' },
+  segmentScrollItem: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', paddingHorizontal: 16 },
+  drop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44, paddingHorizontal: 14, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: T.surface },
+  dropText: { color: T.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  dropLabel: { color: T.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 },
+  dropBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  dropMenu: { maxHeight: '60%', backgroundColor: T.cardSolid, borderRadius: R.lg, borderWidth: 1, borderColor: T.border, overflow: 'hidden' },
+  dropItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: T.border },
   segmentOn: { backgroundColor: T.accent, shadowColor: T.accent, shadowOpacity: 0.6, shadowRadius: 10, elevation: 4 },
   segmentText: { color: T.textDim, fontSize: 14, fontWeight: '600' },
   button: { backgroundColor: T.accent, borderRadius: R.md, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
