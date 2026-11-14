@@ -128,9 +128,10 @@ fi
 cp "$HERE/99-jimbro-usb.rules" /etc/udev/rules.d/99-jimbro-usb.rules 2>/dev/null || true
 udevadm control --reload-rules 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now jimbro.service
-systemctl enable --now jimbro-backup.timer 2>/dev/null || true
-systemctl restart jimbro.service
+# Enable first so a first-boot run (systemd not fully up) still starts on next boot.
+systemctl enable jimbro.service jimbro-backup.timer
+systemctl start jimbro-backup.timer 2>/dev/null || true
+systemctl restart jimbro.service || echo "warning: jimbro will start on next boot" >&2
 if [ "$BUTTON" -eq 1 ]; then
   systemctl enable --now jimbro-button.service || true
 else
