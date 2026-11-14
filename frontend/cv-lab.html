@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jim Bro – validation lab</title>
+    <style>
+      :root { color-scheme: dark; --bg: #141414; --card: #1e1e1e; --line: #2c2c2c; --text: #f2f2f2; --muted: #9a9a9a; --lime: #c6ff00; --warn: #ffb020; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+      main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
+      @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+      h1 { font-size: 18px; margin: 0 0 4px; } h1 span { color: var(--lime); }
+      h2 { font-size: 15px; margin: 0 0 8px; }
+      .note { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+      .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; }
+      .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .stage canvas { pointer-events: none; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+      label { display: inline-flex; gap: 6px; align-items: center; }
+      input, select, textarea { background: #111; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; }
+      input[type="number"] { width: 6em; }
+      button { background: var(--lime); color: #111; border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 700; cursor: pointer; }
+      button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+      button:disabled { opacity: 0.4; cursor: default; }
+      table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      #status { color: var(--warn); min-height: 1.4em; }
+      pre { white-space: pre-wrap; font: 12px/1.5 ui-monospace, monospace; color: var(--muted); max-height: 320px; overflow: auto; margin: 0; }
+      .tag { font-size: 11px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--warn); color: var(--warn); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Jim <span>Bro</span> · validation lab</h1>
+        <p class="note">
+          Turn exercise videos into landmark recordings, annotate them as an independent reviewer, measure the
+          tracker's real-world accuracy, and export a training dataset. Everything runs in this browser; video is
+          never uploaded or saved, only landmarks and annotations. <span class="tag">internal tool</span>
+        </p>
+
+        <div class="card">
+          <h2>1. Recording</h2>
+          <div class="row">
+            <label>Video <input id="video-file" type="file" accept="video/*" /></label>
+            <label>Subject ID <input id="subject" placeholder="e.g. s-014 (no names)" /></label>
+            <label><input id="mirrored" type="checkbox" /> mirrored (selfie)</label>
+          </div>
+          <div class="row">
+            <label>Model
+              <select id="model">
+                <option value="lite">lite</option>
+                <option value="full">full</option>
+                <option value="heavy">heavy</option>
+              </select>
+            </label>
+            <label>Sample every <input id="sample-ms" type="number" min="10" max="200" value="33" /> ms</label>
+            <button id="extract" disabled>Extract landmarks</button>
+          </div>
+          <div class="row">
+            <label>Load recording(s) <input id="load" type="file" accept=".json,application/json" multiple /></label>
+            <label>Active
+              <select id="active"></select>
+            </label>
+            <button id="save" class="secondary" disabled>Save recording (.json)</button>
+          </div>
+          <p class="note">To annotate a loaded recording, also choose its video above: it's matched by SHA-256.</p>
+        </div>
+
+        <div class="stage">
+          <video id="video" controls playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <p id="status"></p>
+      </section>
+
+      <aside>
+        <div class="card">
+          <h2>2. Annotate (independent reviewer)</h2>
+          <div class="row">
+            <label>Reviewer ID <input id="reviewer" placeholder="e.g. coach-3" /></label>
+            <label>Role
+              <select id="role">
+                <option>coach</option><option>physio</option><option>researcher</option><option>other</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label>Exercise <select id="exercise"></select></label>
+            <label>View
+              <select id="view"><option>side</option><option>front</option><option>diagonal</option></select>
+            </label>
+          </div>
+          <div class="row"><label>Variation <input id="variation" placeholder="e.g. reverse lunge" size="22" /></label></div>
+
+          <div class="row">
+            <button id="rep-start" class="secondary">Rep start (S)</button>
+            <button id="rep-end" class="secondary">Rep end (E)</button>
+            <span id="pending" class="note"></span>
+          </div>
+          <table><thead><tr><th>#</th><th>start–end (s)</th><th>front leg / arm</th><th></th></tr></thead><tbody id="reps"></tbody></table>
+
+          <h2 style="margin-top:12px">Reference angle</h2>
+          <div class="row">
+            <select id="angle-joint"></select>
+            <input id="angle-deg" type="number" step="0.5" placeholder="deg" />
+            <select id="angle-method">
+              <option value="goniometer">goniometer</option>
+              <option value="mocap">mocap</option>
+              <option value="on-screen">on-screen (not ground truth)</option>
+            </select>
+            <button id="angle-add" class="secondary">Add at current time</button>
+          </div>
+          <div id="angles" class="note"></div>
+
+          <h2 style="margin-top:12px">Technique characteristic</h2>
+          <p class="note">Your own judgement. Codes are free text agreed by your reviewer team; nothing is pre-filled.</p>
+          <div class="row">
+            <select id="trait-rep"></select>
+            <input id="trait-code" placeholder="code, e.g. KNEES_CAVING" size="18" />
+            <select id="trait-value"><option>yes</option><option>no</option><option>unsure</option></select>
+            <button id="trait-add" class="secondary">Add</button>
+          </div>
+          <div id="traits" class="note"></div>
+          <div class="row"><textarea id="notes" rows="2" cols="40" placeholder="Notes (optional)"></textarea></div>
+          <div class="row"><button id="ann-save">Save annotation</button><button id="ann-clear" class="secondary">Clear</button></div>
+          <div id="ann-list" class="note"></div>
+        </div>
+
+        <div class="card">
+          <h2>3. Evaluate and export</h2>
+          <div class="row">
+            <button id="evaluate">Evaluate all</button>
+            <button id="report-dl" class="secondary" disabled>Download report</button>
+            <button id="dataset-dl" class="secondary">Export dataset (.jsonl)</button>
+          </div>
+          <pre id="report"></pre>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="/src/cv/lab/lab.ts"></script>
+  </body>
+</html>

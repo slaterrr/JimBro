@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { calculateAngle } from "../angle_calculator";
 import { POSE_LANDMARKS as L } from "../pose_detection";
 import { lungeRep, pose, type PoseSpec } from "../test_fixtures";
+import { exportDataset, parseJsonl, toJsonl, type DatasetRep } from "./dataset";
 import { countKneeSwaps, evaluate, matchReps, type Evaluation } from "./evaluate";
 import { RECORDING_SCHEMA, assertRecording, type Annotation, type Recording } from "./format";
 import { recognizeExercise } from "./recognize";
@@ -200,5 +201,40 @@ describe("reliability verdicts", () => {
   it("renders an explicit 'nothing validated' report with no data", () => {
     expect(renderMarkdown([])).toMatch(/No annotated recordings evaluated yet/);
     expect(renderMarkdown(summarize([one]))).toMatch(/not from the unit tests/);
+  });
+});
+
+describe("dataset export", () => {
+  const { specs, spans } = squatSpecs(2);
+  const rec = recording(specs);
+  rec.annotations = [
+    annotation({ id: "a1", reviewer: { id: "coach-1", role: "coach" }, reps: spans, traits: [{ rep: 0, code: "DEPTH_OK", value: "yes" }] }),
+    annotation({
+      id: "a2",
+      reviewer: { id: "coach-2", role: "coach" },
+      // Slightly different boundaries for the same reps.
+      reps: spans.map((s) => ({ start: s.start + 60, end: s.end - 30 })),
+      traits: [
+        { rep: 0, code: "DEPTH_OK", value: "no" },
+        { rep: null, code: "SET_NOTE", value: "unsure" },
+      ],
+    }),
+  ];
+
+  it("exports one row per rep with every reviewer's labels kept separate", () => {
+    const rows = exportDataset([rec]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.labels.DEPTH_OK).toEqual({ "coach-1": "yes", "coach-2": "no" });
+    expect(rows[0]!.labels.SET_NOTE).toEqual({ "coach-2": "unsure" });
+    expect(rows[1]!.labels.DEPTH_OK).toBeUndefined();
+    expect(rows[0]!.reviewers).toEqual(["coach-1", "coach-2"]);
+    expect(rows[0]).toMatchObject({ subjectId: "subj-1", sourceSha256: "abc", exercise: "squat" });
+    // Context frames around the rep.
+    expect(rows[0]!.frames[0]!.t).toBeLessThan(spans[0]!.start);
+  });
+
+  it("round-trips through JSON Lines", () => {
+    const rows = exportDataset([rec]);
+    expect(parseJsonl<DatasetRep>(toJsonl(rows))).toEqual(JSON.parse(JSON.stringify(rows)));
   });
 });
