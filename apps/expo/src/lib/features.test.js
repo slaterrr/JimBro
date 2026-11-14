@@ -31,8 +31,8 @@ const WIRING = {
   'lib/homeActions.js': [
     [/Your AI gym bro\. Tell me what you want to work on today\./, 'team subtitle'],
     [/Start a Workout/, 'Start a Workout'],
-    [/Create a New Plan/, 'Create a New Plan'],
-    [/Review My Progress/, 'Review My Progress'],
+    [/Create a(\s|\\n)New Plan/, 'Create a New Plan'],
+    [/Review My(\s|\\n)Progress/, 'Review My Progress'],
   ],
   'screens/ProgressScreen.js': [
     [/Goals/, 'Goals tab'],
@@ -58,8 +58,11 @@ for (const [file, checks] of Object.entries(WIRING)) {
   }
 }
 
-test('only the voice module calls expo-speech directly (one place for sound rules)', () => {
-  for (const f of ['screens/CoachScreen.js', 'screens/HomeScreen.js', 'components/Sheets.js', 'AppState.js']) {
-    assert.doesNotMatch(src(f), /Speech\.speak\(/, `${f} must speak through voice.js`);
+test('screens never call expo-speech directly; AppState only adapts it for sound.js', () => {
+  for (const f of ['screens/CoachScreen.js', 'screens/HomeScreen.js', 'components/Sheets.js', 'screens/ProgressScreen.js']) {
+    assert.doesNotMatch(src(f), /Speech\.(speak|stop)\(/, `${f} must speak through sound.js`);
   }
+  const app = src('AppState.js');
+  assert.equal(app.match(/Speech\.speak\(/g)?.length, 1);
+  assert.match(app, /createVoice\(\s*\{\s*speak: \(t, o\) => Speech\.speak\(t, o\)/);
 });

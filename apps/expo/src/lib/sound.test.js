@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './voice.js';
+import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './sound.js';
 
 const fakeEngine = () => {
   const calls = [];
