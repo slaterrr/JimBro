@@ -41,7 +41,7 @@ function render() {
   $('#progress-volume').innerHTML = `${Math.round(volume).toLocaleString()} <b>lb</b>`;
   $('#leaderboard-score').textContent = `${sessions.length} workout${sessions.length === 1 ? '' : 's'}`;
   $('#recent-activity').innerHTML = sessions.length ? sessions.slice().reverse().slice(0, 3).map((session) => `<div class="history-item"><span><strong>${escapeHtml(session.name)}</strong><br><small>${formatDate(session.startedAt)}</small></span><span>${session.sets.length} sets</span></div>`).join('') : 'No workouts yet. Your first session starts here.';
-  $('#history').innerHTML = state.sessions.length ? state.sessions.slice().reverse().map((session) => `<div class="history-item"><span><strong>${escapeHtml(session.name)}</strong><br><small>${formatDate(session.startedAt)}</small></span><span>${session.sets.length} sets</span></div>`).join('') : 'Your finished workouts will appear here.';
+  $('#history').innerHTML = state.sessions.length ? state.sessions.slice().reverse().map((session) => `<details class="history-entry"><summary><span><strong>${escapeHtml(session.name)}</strong><br><small>${formatDate(session.startedAt)}</small></span><span>${session.sets.length} sets</span></summary>${session.sets.map((set) => `<div class="history-set"><strong>${escapeHtml(set.exercise)}</strong> · ${set.reps} reps × ${set.weight} lb${set.rpe ? ` · RPE ${set.rpe}` : ''}${set.notes ? `<small>Note: ${escapeHtml(set.notes)}</small>` : ''}</div>`).join('')}</details>`).join('') : 'Your finished workouts will appear here.';
   $('#session-start').hidden = Boolean(state.active);
   $('#session-active').hidden = !state.active;
   $('#session-title').textContent = state.active ? state.active.name : 'Start a session';
@@ -49,9 +49,9 @@ function render() {
   if (state.active) {
     $('#session-time').textContent = `Started ${new Date(state.active.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
     $('#session-count').textContent = `${state.active.sets.length} sets logged`;
-    $('#set-list').innerHTML = state.active.sets.slice().reverse().map((set) => `<div class="set-item"><span><strong>${escapeHtml(set.exercise)}</strong><br><small>${set.reps} reps × ${set.weight} lb${set.rpe ? ` · RPE ${set.rpe}` : ''}</small></span><small>${new Date(set.loggedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></div>`).join('');
+    $('#set-list').innerHTML = state.active.sets.slice().reverse().map((set) => `<div class="set-item"><span><strong>${escapeHtml(set.exercise)}</strong><br><small>${set.reps} reps × ${set.weight} lb${set.rpe ? ` · RPE ${set.rpe}` : ''}</small>${set.notes ? `<small class="set-note">Note: ${escapeHtml(set.notes)}</small>` : ''}</span><small>${new Date(set.loggedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small></div>`).join('');
   }
-  const names = [...new Set(sets.map((set) => set.exercise))];
+  const names = [...new Set(state.sessions.flatMap((session) => session.sets.map((set) => set.exercise)))];
   const select = $('#compare-exercise');
   const selected = select.value;
   select.innerHTML = names.length ? names.map((name) => `<option>${escapeHtml(name)}</option>`).join('') : '<option>No exercises logged</option>';
@@ -59,14 +59,20 @@ function render() {
   renderComparison();
   renderPlan();
 }
+function compareWorkouts(sessions, exercise) {
+  const workouts = sessions.map((session) => {
+    const sets = session.sets.filter((set) => set.exercise === exercise);
+    return { date: session.startedAt, sets, volume: sets.reduce((sum, set) => sum + set.weight * set.reps, 0), maxWeight: Math.max(...sets.map((set) => set.weight)) };
+  }).filter((workout) => workout.sets.length).sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (workouts.length < 2) return null;
+  const first = workouts[0], latest = workouts[workouts.length - 1];
+  return { first, latest, change: first.volume ? (latest.volume - first.volume) / first.volume * 100 : null };
+}
 function renderComparison() {
-  const exercise = $('#compare-exercise').value;
-  const sets = allSets().filter((set) => set.exercise === exercise).sort((a, b) => new Date(a.loggedAt) - new Date(b.loggedAt));
-  if (sets.length < 2) { $('#comparison').innerHTML = 'Log two sets of an exercise to see a comparison.'; return; }
-  const first = sets[0], latest = sets[sets.length - 1];
-  const firstVolume = first.weight * first.reps, latestVolume = latest.weight * latest.reps;
-  const change = firstVolume ? ((latestVolume - firstVolume) / firstVolume * 100) : null;
-  $('#comparison').innerHTML = `<div class="comparison-stat">${change === null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</div><div class="comparison-detail">Change in set volume · ${firstVolume} lb → ${latestVolume} lb</div><div class="comparison-detail">${formatDate(first.loggedAt)} vs ${formatDate(latest.loggedAt)}</div>`;
+  const result = compareWorkouts(state.sessions, $('#compare-exercise').value);
+  if (!result) { $('#comparison').innerHTML = 'Finish two workouts with this exercise to compare them.'; return; }
+  const { first, latest, change } = result;
+  $('#comparison').innerHTML = `<div class="comparison-stat">${change === null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</div><div class="comparison-detail">Exercise volume · ${first.volume} lb → ${latest.volume} lb</div><div class="comparison-detail">Heaviest set · ${first.maxWeight} lb → ${latest.maxWeight} lb</div><div class="comparison-detail">${formatDate(first.date)} vs ${formatDate(latest.date)}</div>`;
 }
 function renderPlan() {
   if (!state.plan) return;
