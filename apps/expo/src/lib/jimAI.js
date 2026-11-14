@@ -7,6 +7,7 @@ import { EXERCISES } from './exercises.js';
 import { describeGoal, goalProgress, migrateGoals, weeklyCheckIn } from './goals.js';
 import { parseIntent } from './intents.js';
 import { personalRecords } from './progress.js';
+import { planFromGoal, planProposal, validateEmphasis } from './planFromGoal.js';
 import { setReport } from './sessionReport.js';
 
 const DAY = 86400000;
@@ -124,6 +125,50 @@ export async function askJim({ message, history = [], state, url, fetchImpl = gl
     return { source: body.safety ? 'safety' : 'ai', reply, proposals, suggestion: null, safety: Boolean(body.safety) };
   } catch (e) {
     return offline(message, state, e?.message ?? 'error');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------- Physique photo -> plan ----------
+// The photo goes to the proxy only with explicit consent, only for this request, and with no
+// workout data attached. The phone keeps no copy. Every failure path still returns a plan built
+// on-device from the user's goal, focus muscles and history (planFromGoal).
+export const PHYSIQUE_TIMEOUT_MS = 30000;
+export const MAX_PHOTO_BASE64 = 5_000_000; // ~3.75 MB decoded, matches the proxy limit
+const NOT_PHYSIQUE = "I couldn't read a physique in that photo, so this plan is built from your goal and history instead.";
+const FALLBACK = "I couldn't analyse the photo right now, so this plan is built from your goal and history instead.";
+
+/** { image: { base64, mediaType } | null, consent, state, url } -> { source, reason?, message, emphasis, proposal } */
+export async function askPhysique({ image, consent, state = {}, url, fetchImpl = globalThis.fetch, timeoutMs = PHYSIQUE_TIMEOUT_MS }) {
+  const s = state.settings ?? {};
+  const fitnessGoal = typeof s.fitnessGoal === 'string' ? s.fitnessGoal : 'general';
+  const focusMuscles = Array.isArray(s.focusMuscles) ? s.focusMuscles : [];
+  const physiqueGoal = typeof s.physiqueGoal === 'string' ? s.physiqueGoal.slice(0, 300) : '';
+  const history = workoutsOf(state);
+  const build = (emphasis) => planProposal(planFromGoal({ fitnessGoal, focusMuscles, emphasis, history }));
+  const offlineRes = (reason, message = FALLBACK) => ({ source: 'offline', reason, message, emphasis: [], proposal: build([]) });
+  if (!image?.base64) return offlineRes('no photo', 'Here is a plan built from your goal and history.');
+  if (consent !== true) return offlineRes('no consent', 'No photo was sent. Here is a plan built from your goal and history.');
+  if (image.base64.length > MAX_PHOTO_BASE64) return offlineRes('photo too large', 'That photo is too large to send. Here is a plan built from your goal and history.');
+  if (!url || !fetchImpl) return offlineRes('no proxy configured');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(`${url}/physique`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consent: true, image: { media_type: image.mediaType ?? 'image/jpeg', data: image.base64 }, fitnessGoal, physiqueGoal, focusMuscles }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`proxy ${res.status}`);
+    const body = await res.json();
+    if (body?.ok !== true) return offlineRes(String(body?.reason ?? 'no_proposal'), body?.reason === 'not_physique' ? NOT_PHYSIQUE : FALLBACK);
+    const emphasis = validateEmphasis(body.emphasis);
+    if (!emphasis.length) return offlineRes('no_valid_emphasis');
+    return { source: 'ai', message: 'Here is a plan that puts extra work on the muscles that stand out in your reference photo.', emphasis, proposal: build(emphasis) };
+  } catch (e) {
+    return offlineRes(e?.name === 'AbortError' ? 'timeout' : (e?.message ?? 'error'));
   } finally {
     clearTimeout(timer);
   }
