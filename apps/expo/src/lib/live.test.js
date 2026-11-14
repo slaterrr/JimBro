@@ -15,6 +15,7 @@ function armPose(deg, visibility = 0.9) {
   pose[12] = P(0.5, 0.2, visibility); // shoulder (above elbow)
   pose[14] = P(0.5, 0.5, visibility); // elbow
   pose[16] = P(0.5 + 0.3 * Math.sin(rad), 0.5 - 0.3 * Math.cos(rad), visibility); // wrist
+  pose[24] = P(0.5, 0.8, visibility); // ipsilateral hip makes this a torso-visible curl
   return pose;
 }
 
@@ -73,6 +74,61 @@ describe('LiveSession', () => {
     assert.equal(out.tracking.status, 'lost');
     assert.equal(s.count, 0);
   });
+  it('never counts an arm-only hallucinated pose when the torso is missing', () => {
+    const session = new LiveSession('curl');
+    for (const frame of curlFrames(1)) {
+      frame.pose[24].visibility = 0.1;
+      session.frame(frame.t, frame.pose);
+    }
+    assert.equal(session.count, 0);
+  });
+
+  it('does not switch to an independently moving arm mid-set', () => {
+    const session = new LiveSession('curl');
+    session.frame(1, armPose(170)); // lock right arm first
+    for (const f of curlFrames(1)) {
+      const rightStill = armPose(170, 0.75);
+      rightStill[11] = P(0.4, 0.2, 0.99);
+      rightStill[13] = P(0.4, 0.5, 0.99);
+      rightStill[15] = P(0.4 + f.pose[16].x - 0.5, f.pose[16].y, 0.99);
+      rightStill[23] = P(0.4, 0.8, 0.99);
+      session.frame(f.t + 1, rightStill);
+    }
+    assert.equal(session.count, 0);
+  });
+
+  it('abandons an unfinished rep immediately when pose tracking is lost', () => {
+    const frames = curlFrames(1);
+    const session = new LiveSession('curl');
+    for (const f of frames.slice(0, 25)) session.frame(f.t, f.pose);
+    session.frame(frames[24].t + 1, null);
+    for (const f of frames.slice(25)) session.frame(f.t, f.pose);
+    assert.equal(session.count, 0);
+  });
+
+  it('does not treat a large upper-arm swing as a curl', () => {
+    const session = new LiveSession('curl');
+    const theta = Math.PI / 3;
+    const swing = (deg) => {
+      const pose = armPose(deg);
+      const wrist = { x: pose[16].x - 0.5, y: pose[16].y - 0.5 };
+      const rotate = (p) => ({
+        x: p.x * Math.cos(theta) + p.y * Math.sin(theta),
+        y: -p.x * Math.sin(theta) + p.y * Math.cos(theta),
+      });
+      const elbow = rotate({ x: 0, y: 0.3 });
+      const rotatedWrist = rotate(wrist);
+      pose[14] = P(0.5 + elbow.x, 0.2 + elbow.y);
+      pose[16] = P(pose[14].x + rotatedWrist.x, pose[14].y + rotatedWrist.y);
+      return pose;
+    };
+    for (const f of curlFrames(1)) {
+      const angle = movementAngle(f.pose, 'curl').angle;
+      session.frame(f.t, swing(angle));
+    }
+    assert.equal(session.count, 0);
+  });
+
   it('resets and switches movement', () => {
     const s = new LiveSession('curl');
     for (const f of curlFrames(1)) s.frame(f.t, f.pose);
