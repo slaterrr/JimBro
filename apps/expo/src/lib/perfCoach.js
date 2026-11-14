@@ -30,8 +30,9 @@ export function afterSetLines({ completed, target, fatigue = null, rec = null })
       ask: recoveryQuestion({ fatigue }) ?? (lower ? 'You missed your rep target. Would you like to reduce the weight for your next set?' : 'How hard was that?'),
     };
   }
+  if (!completed) return { say: 'No reps counted for that set.', ask: 'Want to log it by hand?' };
   return {
-    say: `You completed all ${completed} reps.${slow}`,
+    say: `You completed all ${completed} rep${completed === 1 ? '' : 's'}.${slow}`,
     ask: 'How many more do you think you could have done?',
   };
 }

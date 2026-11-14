@@ -42,6 +42,7 @@ export function recommendNext({ exercise, unit = 'lb', weight, target, completed
   const out = (action, extra = {}, reasons = []) => ({
     action, weight, reps: target, extraRestS: 0, needsApproval: true, reasons, ...extra,
   });
+  if (completed === 0) return out('none', {}, ['No reps were logged for this set, so there is nothing to base a change on.']);
   if (weight == null || completed == null) {
     return out('none', {}, ['Log the weight and reps for this set first; then I can suggest the next one.']);
   }

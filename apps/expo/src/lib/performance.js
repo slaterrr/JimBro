@@ -123,6 +123,10 @@ export function assessFatigue({ movement, reps = [], target = null, completed, p
     }
   }
 
+  if (done === 0) {
+    // No counted reps: gestures or half-movements are not a set, so there is nothing to assess.
+    return { level: 'uncertain', signals: [], text: 'No reps counted, so there is nothing to assess.', confidence: 'low', metrics: m };
+  }
   if (partials > 0 && partialAfterLastRep && target && done < target) {
     level = 'failed_attempt';
     signals.unshift(`An attempt after rep ${done} didn't reach full range.`);
