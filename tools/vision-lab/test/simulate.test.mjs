@@ -52,3 +52,21 @@ test('curls with the hips below the frame edge (waist-up framing) are paused, no
   assert.equal(out.predEnds.length, 0);
   assert.ok(out.frames.some((f) => f.issue === 'framing'));
 });
+
+test('front squats (facing the camera) are counted: 10 of 10', () => {
+  const { frames, trueEnds } = simulateSet('squat', { reps: 10, view: 'front', seed: 31 });
+  const s = scoreClip({ trueEnds, predEnds: replay('squat', frames).predEnds });
+  assert.deepEqual({ tp: s.tp, fp: s.fp, fn: s.fn }, { tp: 10, fp: 0, fn: 0 });
+});
+
+test('front-view half squats are still not counted', () => {
+  const { frames } = simulateSet('squat', { reps: 8, rom: 0.4, view: 'front', seed: 32 });
+  assert.equal(replay('squat', frames).predEnds.length, 0);
+});
+
+test('front squat with feet cut off tells the user what to fix (not silent)', () => {
+  const { frames } = simulateSet('squat', { reps: 3, view: 'front', seed: 33 });
+  const cut = frames.map((f) => ({ ...f, pose: f.pose.map((p, i) => ([27, 28, 29, 30, 31, 32].includes(i) ? { ...p, visibility: 0.05 } : p)) }));
+  const out = replay('squat', cut);
+  assert.ok(out.frames.some((f) => f.issue && f.hint === 'feet'), 'expected a "show your feet" hint');
+});

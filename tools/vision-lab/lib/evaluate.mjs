@@ -61,7 +61,7 @@ export function replay(movement, frames) {
   for (const { t, pose } of frames) {
     const out = session.frame(t, pose);
     if (out.rep) predEnds.push(t);
-    log.push({ t, count: out.count, state: out.state, angle: out.angle, tracking: out.tracking.status, issue: out.issue ?? null, rep: Boolean(out.rep) });
+    log.push({ t, count: out.count, state: out.state, angle: out.angle, tracking: out.tracking.status, issue: out.issue ?? null, hint: out.hint ?? null, rep: Boolean(out.rep) });
   }
   const ok = log.filter((f) => f.tracking === 'ok').length;
   return { predEnds, frames: log, trackingOkRatio: ratio(ok, log.length), reps: session.repsDetail() };

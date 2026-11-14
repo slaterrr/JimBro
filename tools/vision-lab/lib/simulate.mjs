@@ -40,6 +40,19 @@ export function body({ upperArm = 0, elbow = 170, knee = 175, cx = 0.5 }) {
   return pose;
 }
 
+// Facing the camera: the sagittal motion (knees and hips travelling toward the lens) is lost
+// in x; only the vertical projection remains. Left/right joints separate by body width.
+const HALF_WIDTH = { 11: 0.09, 13: 0.11, 15: 0.11, 23: 0.06, 25: 0.065, 27: 0.06 };
+export function frontView(pose, cx = 0.5) {
+  const out = pose.map((p) => ({ ...p }));
+  for (const [i, w] of Object.entries(HALF_WIDTH)) {
+    const y = pose[+i].y;
+    out[+i] = { x: cx + w, y, visibility: 0.98 }; // subject's left appears on image right
+    out[+i + 1] = { x: cx - w, y, visibility: 0.98 };
+  }
+  return out;
+}
+
 const ease = (u) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, u)));
 
 // Angle trajectories per movement: rest → peak → rest.
@@ -55,7 +68,7 @@ const MOVES = {
  * probability the tracked arm/leg visibility collapses), fps, seed.
  */
 export function simulateSet(movement, o = {}) {
-  const { reps = 10, repMs = 2000, slowdown = 0, rom = 1, restMs = 400, noise = 0.003, dropout = 0, fps = 20, seed = 1, leadMs = 1000 } = o;
+  const { reps = 10, repMs = 2000, slowdown = 0, rom = 1, restMs = 400, noise = 0.003, dropout = 0, fps = 20, seed = 1, leadMs = 1000, view = 'side' } = o;
   const r = rng(seed);
   const dt = 1000 / fps;
   const frames = [];
@@ -78,7 +91,8 @@ export function simulateSet(movement, o = {}) {
   let k = 0;
   for (let tt = 0; tt <= end; tt += dt) {
     while (k < phases.length - 1 && tt > phases[k].until) k++;
-    const pose = body(MOVES[movement](phases[k].p(tt)));
+    const side = body(MOVES[movement](phases[k].p(tt)));
+    const pose = view === 'front' ? frontView(side) : side;
     frames.push({ t: Math.round(tt), pose: jitter(pose, r, noise, dropout) });
   }
   return { frames, trueEnds };
