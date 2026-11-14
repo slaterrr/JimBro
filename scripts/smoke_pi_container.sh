@@ -60,5 +60,16 @@ async def main():
 asyncio.run(main())
 PY
 test -s /var/lib/jimbro/jimbro.db && echo "db persisted at /var/lib/jimbro/jimbro.db"
+echo "--- usb stick hook"
+mkdir -p /tmp/stick && cp -R /usb /tmp/stick/jimbro-usb
+bash /opt/jimbro/app/usb-hook.sh --mounted /tmp/stick > /tmp/hook1.log 2>&1
+ls /tmp/stick/jimbro-backups/jimbro-*.db >/dev/null && echo "stick: backup written"
+grep -q "\"ok\":true" /tmp/stick/jimbro-status.txt && echo "stick: status file says healthy"
+grep -q "updating" /tmp/hook1.log && { echo "FAIL: same version must not reinstall"; exit 1; }
+echo smoke-newer > /tmp/stick/jimbro-usb/VERSION; echo smoke-newer > /tmp/stick/jimbro-usb/app/VERSION
+bash /opt/jimbro/app/usb-hook.sh --mounted /tmp/stick > /tmp/hook2.log 2>&1
+grep -q "update ok" /tmp/hook2.log && [ "$(cat /opt/jimbro/app/VERSION)" = smoke-newer ] && echo "stick: newer bundle auto-installed"
+curl -fsk $B/v1/status | grep -q "smoke-newer" && echo "status reports new version"
+curl -fsk $B/v1/sessions/$sid/summary >/dev/null && echo "data survived the update"
 echo SMOKE_OK
 '
