@@ -7,7 +7,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "test": "node --test src/lib/"
+    "test": "node --test src/lib/*.test.js"
   },
   "dependencies": {
     "expo": "~58.0.0",
