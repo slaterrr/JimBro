@@ -134,3 +134,9 @@ def test_profile_roundtrip_and_validation(client: TestClient) -> None:
         "/v1/athletes/me", json={"display_name": "", "leaderboard_opt_in": True}, headers=h
     )
     assert bad.status_code == 422
+
+
+def test_leaderboard_explicit_week(client: TestClient) -> None:
+    board = client.get("/v1/leaderboard?week=2020-W01").json()
+    assert board["week"] == "2020-W01" and board["entries"] == []
+    assert client.get("/v1/leaderboard?week=2026-W60").status_code == 422
