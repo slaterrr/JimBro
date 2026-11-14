@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-import { useApp } from '../AppState.js';
+import { useApp, useLiveCamera } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
@@ -26,7 +26,8 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active, settings, voice: jim } = useApp();
+  const { active, settings, voice: jim, startWorkout } = useApp();
+  const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -44,11 +45,20 @@ export function CoachScreen({ openLog }) {
   const caughtTimer = useRef(null);
   const [suggestion, setSuggestion] = useState(null);
   const seenSuggestion = useRef(null);
+  const cameraWorkoutStarted = useRef(false);
   useEffect(() => () => clearTimeout(caughtTimer.current), []);
   const session = useRef(new LiveSession(movement));
   const speakGuide = useRef(guidanceThrottle(8000));
   const web = useRef(null);
   const html = useMemo(() => poseHtml({ facing: 'user' }), []);
+
+  // Opening Coach directly is an explicit request to work out; give its camera session
+  // the same on-device workout id used by Home and Jim.
+  useEffect(() => {
+    if (!permission?.granted || cameraWorkoutStarted.current) return;
+    cameraWorkoutStarted.current = true;
+    if (!active) startWorkout('Camera workout');
+  }, [permission?.granted, active, startWorkout]);
 
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
@@ -61,6 +71,7 @@ export function CoachScreen({ openLog }) {
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
     setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
+    clearCameraSummary(active?.id);
     setSuggestion(null);
     seenSuggestion.current = null;
   };
@@ -73,6 +84,20 @@ export function CoachScreen({ openLog }) {
     resetSet(movement);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movement]);
+
+  // Share a compact summary only when the counted rep changes. Camera frames stay in
+  // the WebView/LiveSession and never enter persisted workout data or React app state.
+  useEffect(() => {
+    if (!active?.id || view.count < 1) return;
+    const quality = session.current.quality();
+    publishCameraSummary({
+      sessionId: active.id,
+      updatedAt: new Date().toISOString(),
+      exercise: movement,
+      reps: view.count,
+      trackingPct: quality.frames ? (quality.okFrames / quality.frames) * 100 : null,
+    });
+  }, [active?.id, movement, publishCameraSummary, view.count]);
 
   const onMessage = (e) => {
     let m;
