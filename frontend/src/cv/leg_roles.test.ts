@@ -218,7 +218,7 @@ describe("lunge reader", () => {
       frontKnee: { min: 92.4, max: 170, coverage: 1 },
       backKnee: { min: 110.6, max: 170, coverage: 1 },
       "stepRatio@peak": { min: 1, max: 1.3, coverage: 1 },
-    });
+    }, []);
     expect(m.frontKneeMin).toEqual({ value: 92, unit: "deg", source: "measured" });
     expect(m.backKneeMin?.value).toBe(111);
     expect(m.stepLength?.value).toBe(130);

@@ -5,7 +5,7 @@
  * entry in exercises/index.ts. No changes to the tracker, counter or UI.
  */
 
-import type { ExerciseId, FormFlag, Metric, PrimaryJoint, RepPhase } from "../../../../shared/types";
+import type { ExerciseId, FormFlag, Metric, PrimaryJoint, RepEvent, RepPhase } from "../../../../shared/types";
 import type { CameraView } from "../form_analyzer";
 import type { BodySide, LandmarkLike, WorldLandmarkLike } from "../pose_detection";
 import type { QualityModel } from "../ml/quality_model";
@@ -54,6 +54,9 @@ export interface ReadOptions {
  * checks never judge from a few frames.
  */
 export type FormStats = Record<string, { min: number; max: number; coverage: number }>;
+
+/** The smoothed form signals of every frame of one rep, in order. */
+export type FormSeries = ReadonlyArray<{ t: number; phase: RepPhase; form: Readonly<Record<string, number | null>> }>;
 
 /**
  * A check against the user's own earlier reps instead of a universal angle.
@@ -116,7 +119,9 @@ export interface ExerciseDefinition {
    * Exercise-specific per-rep measurements from the recorded form signals
    * (e.g. back-knee depth for lunges). Reported as numbers, not judged.
    */
-  repMetrics?: (stats: FormStats) => Record<string, Metric>;
+  repMetrics?: (stats: FormStats, series: FormSeries) => Record<string, Metric>;
+  /** Exercise-specific set-level observations from the counted reps (e.g. curl style). */
+  sessionInsights?: (reps: readonly RepEvent[]) => FormFlag[];
   /** Exercise-specific wording for PARTIAL_RANGE and PROGRESS_NOT_MET. */
   rejections: Partial<Record<RejectionReason, RejectionText>>;
   /** Exercise-specific per-rep form flags from the recorded form signals. */

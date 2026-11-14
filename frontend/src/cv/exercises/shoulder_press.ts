@@ -49,7 +49,7 @@ export const shoulderPress: ExerciseDefinition = {
       visible: false,
       primaryAngle: null,
       progress: null,
-      form: { armDiff: null },
+      form: { armDiff: null, leftElbow: null, rightElbow: null, handsUp: null },
       side: null,
       highlight: [],
       positionHint: null,
@@ -82,7 +82,7 @@ export const shoulderPress: ExerciseDefinition = {
       // The lagging arm decides: both must lock out for the rep to count.
       primaryAngle: Math.min(left, right),
       progress: { kind: "absolute", value: Math.min(lUp, rUp) },
-      form: { armDiff: Math.abs(left - right) },
+      form: { armDiff: Math.abs(left - right), leftElbow: left, rightElbow: right, handsUp: Math.min(lUp, rUp) },
       side: "both",
       highlight: idx,
       positionHint: null,
@@ -115,6 +115,19 @@ export const shoulderPress: ExerciseDefinition = {
     return flags;
   },
   personalChecks: [],
+
+  // Measured per rep: each arm's lockout, their difference, and overhead reach.
+  repMetrics(stats) {
+    const m: Record<string, { value: number; unit: string; source: "measured" }> = {};
+    if (stats.leftElbow) m.lockoutLeft = { value: Math.round(stats.leftElbow.max), unit: "deg", source: "measured" };
+    if (stats.rightElbow) m.lockoutRight = { value: Math.round(stats.rightElbow.max), unit: "deg", source: "measured" };
+    if (stats.leftElbow && stats.rightElbow) {
+      m.lockoutDiff = { value: Math.round(Math.abs(stats.leftElbow.max - stats.rightElbow.max)), unit: "deg", source: "measured" };
+    }
+    if (stats.armDiff) m.armDiffMax = { value: Math.round(stats.armDiff.max), unit: "deg", source: "measured" };
+    if (stats.handsUp) m.overheadReach = { value: Math.round(stats.handsUp.max * 100), unit: "% arm", source: "measured" };
+    return m;
+  },
 
   spoken: {
     FAST_LOWERING: "Lower the weights slowly.",

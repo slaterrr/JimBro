@@ -14,7 +14,7 @@ import type { ExerciseId, FormFlag, Metric, PoseFrame, RepEvent, RepPhase, Worko
 import { repFeatures, type RepFrame } from "./ml/rep_features";
 import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
 import { getExercise } from "./exercises";
-import type { ExerciseDefinition, FormStats } from "./exercises/types";
+import type { ExerciseDefinition, FormSeries, FormStats } from "./exercises/types";
 import {
   analyzeRep,
   assessCameraView,
@@ -164,6 +164,7 @@ export class ExerciseTracker {
   private readonly dropMeter = new BaselineDropMeter();
   private formStats: FormStats = {};
   private formSeen: Record<string, number> = {};
+  private formSeries: Array<FormSeries[number]> = [];
   private repFrames = 0;
   private phaseFrames: Partial<Record<RepPhase, number>> = {};
   private prevPhase: RepPhase = "start";
@@ -607,7 +608,7 @@ export class ExerciseTracker {
       });
       const quality = this.judgeQuality(event.rep, reading.view);
       if (quality.flag) flags.push(quality.flag);
-      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric, ex.repMetrics?.(stats) ?? {});
+      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric, ex.repMetrics?.(stats, this.formSeries) ?? {});
       this.reps.push(event.rep);
       this.repStats.push(stats);
       this.repEvents.push(repEvent);
@@ -650,10 +651,12 @@ export class ExerciseTracker {
    * and per phase ("<signal>@<phase>"), plus how many frames each was seen in.
    */
   private recordForm(form: Record<string, number | null>, ts: number): void {
+    const snapshot: Record<string, number | null> = {};
     const phase = this.counter.phase;
     if (phase !== "start" && this.prevPhase === "start") {
       this.formStats = {};
       this.formSeen = {};
+      this.formSeries = [];
       this.repFrames = 0;
       this.phaseFrames = {};
     }
@@ -671,10 +674,12 @@ export class ExerciseTracker {
       }
       const v = f.next(raw, ts);
       this.lastForm[key] = v;
+      snapshot[key] = v;
       if (v === null || phase === "start") continue;
       this.addFormValue(key, v);
       this.addFormValue(`${key}@${phase}`, v);
     }
+    if (phase !== "start") this.formSeries.push({ t: ts, phase, form: snapshot });
   }
 
   private recordTrace(t: number, knee: number | null, drop: number | null): void {
@@ -770,8 +775,13 @@ export class ExerciseTracker {
       startedAt: (this.sessionStartedAt ?? new Date()).toISOString(),
       endedAt: endedAt ? endedAt.toISOString() : null,
       reps: [...this.repEvents],
-      summary: summarizeSession(this.reps, quality, this.exercise),
+      summary: this.withExerciseInsights(summarizeSession(this.reps, quality, this.exercise)),
     };
+  }
+
+  private withExerciseInsights(summary: WorkoutSession["summary"]): WorkoutSession["summary"] {
+    const extra = this.exercise.sessionInsights?.(this.repEvents) ?? [];
+    return summary && extra.length ? { ...summary, insights: [...summary.insights, ...extra] } : summary;
   }
 
   private fail(err: unknown): void {

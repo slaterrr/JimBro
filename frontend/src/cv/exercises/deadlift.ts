@@ -14,8 +14,30 @@
 import type { FormFlag } from "../../../../shared/types";
 import { calculateAngle } from "../angle_calculator";
 import { facingSign, torsoLean } from "../body_metrics";
-import { POSE_LANDMARKS as L, distance, pickSide } from "../pose_detection";
-import type { ExerciseDefinition, ExerciseReading } from "./types";
+import { POSE_LANDMARKS as L, distance, pickSide, vis } from "../pose_detection";
+import type { ExerciseDefinition, ExerciseReading, FormSeries } from "./types";
+
+/**
+ * When each joint finishes extending on the way up: the first time the hip
+ * angle and the knee angle each reach 90% of their extension for the pull.
+ * Positive `kneeLeadMs` = the knees straightened before the hips (the "hips
+ * shoot up" pattern); near zero = hips and knees extended together. Measured,
+ * not judged: there's no validated threshold for how much lead is a fault.
+ */
+export function extensionTiming(series: FormSeries): { kneeLeadMs: number } | null {
+  const pull = series.filter((f) => f.phase === "toward_peak" || f.phase === "peak");
+  const reach = (key: "hipAngle" | "kneeAngle") => {
+    const pts = pull.flatMap((f) => (f.form[key] == null ? [] : [{ t: f.t, v: f.form[key]! }]));
+    if (pts.length < 5) return null;
+    const lo = Math.min(...pts.map((p) => p.v));
+    const hi = Math.max(...pts.map((p) => p.v));
+    if (hi - lo < 15) return null; // barely moved: nothing to time
+    return pts.find((p) => p.v >= lo + 0.9 * (hi - lo))?.t ?? null;
+  };
+  const hipT = reach("hipAngle");
+  const kneeT = reach("kneeAngle");
+  return hipT === null || kneeT === null ? null : { kneeLeadMs: Math.round(hipT - kneeT) };
+}
 
 const SIDES = {
   left: { shoulder: L.LEFT_SHOULDER, hip: L.LEFT_HIP, knee: L.LEFT_KNEE, ankle: L.LEFT_ANKLE },
@@ -61,7 +83,7 @@ export const deadlift: ExerciseDefinition = {
       visible: false,
       primaryAngle: null,
       progress: null,
-      form: { torsoLean: null },
+      form: { torsoLean: null, hipAngle: null, kneeAngle: null },
       side: null,
       highlight: [],
       positionHint: null,
@@ -82,7 +104,9 @@ export const deadlift: ExerciseDefinition = {
     const shoulder = landmarks[i.shoulder]!;
     const hip = landmarks[i.hip]!;
     const knee = landmarks[i.knee]!;
+    const ankle = landmarks[i.ankle];
     const hipAngle = calculateAngle(shoulder, hip, knee, aspectRatio);
+    const kneeAngle = ankle && vis(ankle) >= minVisibility ? calculateAngle(hip, knee, ankle, aspectRatio) : null;
     const torso = distance(shoulder, hip, aspectRatio);
     const facing = facingSign(landmarks, side, minVisibility);
     return {
@@ -92,7 +116,11 @@ export const deadlift: ExerciseDefinition = {
       // rise of the shoulders reads as positive progress.
       progress: torso > 1e-6 ? { kind: "drop", y: -shoulder.y, refLength: torso } : null,
       // Signed lean needs the facing direction (from the foot); without it, skip.
-      form: { torsoLean: facing === null ? null : torsoLean(shoulder, hip, aspectRatio, facing) },
+      form: {
+        torsoLean: facing === null ? null : torsoLean(shoulder, hip, aspectRatio, facing),
+        hipAngle,
+        kneeAngle,
+      },
       side,
       highlight: [i.shoulder, i.hip, i.knee, i.ankle],
       positionHint: null,
@@ -137,6 +165,25 @@ export const deadlift: ExerciseDefinition = {
         `Your torso angle changed about ${Math.round(d)}° more than usual on the way up. Let hips and shoulders rise together.`,
     },
   ],
+
+  // Measured per rep. No fault labels: no available dataset has validated
+  // deadlift error labels we can train or check thresholds against.
+  repMetrics(stats, series) {
+    const m: Record<string, { value: number; unit: string; source: "measured" }> = {};
+    const deg = (v: number) => ({ value: Math.round(v), unit: "deg", source: "measured" as const });
+    if (stats.hipAngle) {
+      m.hipAngleSetup = deg(stats.hipAngle.min);
+      m.hipAngleLockout = deg(stats.hipAngle.max);
+    }
+    if (stats.kneeAngle) {
+      m.kneeAngleSetup = deg(stats.kneeAngle.min);
+      m.kneeAngleLockout = deg(stats.kneeAngle.max);
+    }
+    if (stats.torsoLean) m.torsoAngleChange = deg(stats.torsoLean.max - stats.torsoLean.min);
+    const timing = extensionTiming(series);
+    if (timing) m.kneeLeadMs = { value: timing.kneeLeadMs, unit: "ms", source: "measured" };
+    return m;
+  },
 
   spoken: {
     FAST_LOWERING: "Lower the bar under control.",

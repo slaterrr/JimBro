@@ -243,6 +243,11 @@ tracker.onRep((r) =>
   addLog(
     `✓ rep ${r.repNumber}: ${Math.round(r.peakAngle.value)}°, ${(r.durationMs / 1000).toFixed(2)}s` +
       (r.movementQuality ? `, pattern score ${r.movementQuality.value}% (estimated)` : "") +
+      (Object.keys(r.metrics).length
+        ? `\n    ${Object.entries(r.metrics)
+            .map(([k, m]) => `${k} ${m.value}${m.unit === "deg" ? "°" : ` ${m.unit}`}`)
+            .join(" · ")}`
+        : "") +
       (r.formFlags.length ? `  [${r.formFlags.map((f) => `${f.code}/${f.source}`).join(", ")}]` : ""),
   ),
 );
