@@ -4,7 +4,7 @@
  */
 
 import type { ExerciseId } from "../../../../shared/types";
-import { EXERCISE_IDS, ExerciseTracker, VoiceCoach, getExercise, type TrackerState } from "../index";
+import { DEFAULT_DETECTOR_OPTIONS, EXERCISE_IDS, ExerciseTracker, VoiceCoach, getExercise, type TrackerState } from "../index";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
@@ -40,9 +40,28 @@ const store = {
   },
 };
 
+// Pose model variant, for comparing accuracy vs. speed: ?model=lite|full|heavy (default lite).
+const MODEL_URLS = {
+  lite: DEFAULT_DETECTOR_OPTIONS.modelAssetPath,
+  full: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+  heavy: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
+} as const;
+type ModelVariant = keyof typeof MODEL_URLS;
+const requested = new URLSearchParams(location.search).get("model");
+const model: ModelVariant = requested === "full" || requested === "heavy" ? requested : "lite";
+
 const savedExercise = store.get("exercise") as ExerciseId | null;
 const tracker = new ExerciseTracker(video, canvas, {
   exercise: savedExercise && EXERCISE_IDS.includes(savedExercise) ? savedExercise : "squat",
+  detector: { modelAssetPath: MODEL_URLS[model] },
+});
+
+const modelSelect = $<HTMLSelectElement>("model");
+modelSelect.value = model;
+modelSelect.addEventListener("change", () => {
+  const url = new URL(location.href);
+  url.searchParams.set("model", modelSelect.value);
+  location.href = url.toString(); // the model loads once per page, so reload
 });
 const coach = new VoiceCoach(tracker);
 let coachAttached = false;
@@ -163,6 +182,13 @@ function render(s: TrackerState) {
   rows.push(
     row("Last rep time", s.lastRep ? `${(s.lastRep.durationMs / 1000).toFixed(2)} s` : "–", "measured"),
     row("Last rep range", s.lastRep ? fmt(s.lastRep.peakAngle.value, "°") : "–", "measured"),
+    row(
+      "Tracking (visible · glitches · gaps)",
+      s.status === "idle"
+        ? "–"
+        : `${pct(s.trackingQuality.visible)} · ${pct(s.trackingQuality.glitches)} · ${pct(s.trackingQuality.bridged)}`,
+      "measured",
+    ),
     row("Measured from", `${s.measuredView} view${s.measuredView === "front" && ex.cameraView === "side" ? " (3D estimate)" : ""}`, "measured"),
     row(
       `Camera view (want ${[ex.cameraView, ...(ex.otherViews ?? [])].join(" or ")})`,

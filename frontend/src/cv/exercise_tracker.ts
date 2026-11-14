@@ -11,7 +11,7 @@
 
 import type { Landmark, NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { ExerciseId, FormFlag, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
-import { AngleSmoother } from "./angle_calculator";
+import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
 import { getExercise } from "./exercises";
 import type { ExerciseDefinition, FormStats } from "./exercises/types";
 import {
@@ -93,6 +93,11 @@ export interface TrackerState {
   viewWarning: FormFlag | null;
   /** View the current exercise is being measured from. */
   measuredView: "side" | "front";
+  /**
+   * Tracking quality this session, as fractions of processed frames:
+   * counting joints visible, readings rejected as glitches, short gaps bridged.
+   */
+  trackingQuality: { visible: number; glitches: number; bridged: number };
 }
 
 export interface ExerciseTrackerOptions {
@@ -100,8 +105,11 @@ export interface ExerciseTrackerOptions {
   exercise?: ExerciseId;
   /** Landmark visibility (0–1) required for a joint to be used. */
   minVisibility?: number;
-  /** EMA factor for smoothing (0–1, higher = less smoothing). */
-  smoothingAlpha?: number;
+  /**
+   * Overrides for the counting-angle filter (One Euro smoothing, short-gap
+   * bridging, glitch rejection). See signal_filter.ts.
+   */
+  filter?: Partial<SignalFilterOptions>;
   /** Max subscriber updates per second. Rep events are never throttled. */
   uiUpdateHz?: number;
   /** Per-exercise threshold overrides. */
@@ -138,18 +146,19 @@ export function initialTrackerState(exercise: ExerciseId = "squat"): TrackerStat
     cameraView: INITIAL_VIEW,
     viewWarning: null,
     measuredView: getExercise(exercise).cameraView,
+    trackingQuality: { visible: 0, glitches: 0, bridged: 0 },
   };
 }
 
 export class ExerciseTracker {
-  private readonly opts: Required<Pick<ExerciseTrackerOptions, "minVisibility" | "smoothingAlpha" | "uiUpdateHz">> &
+  private readonly opts: Required<Pick<ExerciseTrackerOptions, "minVisibility" | "uiUpdateHz">> &
     ExerciseTrackerOptions;
   private exercise: ExerciseDefinition;
   private counter: RepCounter;
   private state: TrackerState;
-  private readonly angleSmoother: AngleSmoother;
-  private readonly progressSmoother: AngleSmoother;
-  private formSmoothers = new Map<string, AngleSmoother>();
+  private readonly angleFilter: SignalFilter;
+  private readonly progressFilter = new SignalFilter(POSITION_FILTER);
+  private formFilters = new Map<string, SignalFilter>();
   private readonly dropMeter = new BaselineDropMeter();
   private formStats: FormStats = {};
   private formSeen: Record<string, number> = {};
@@ -188,12 +197,11 @@ export class ExerciseTracker {
     private readonly canvas: HTMLCanvasElement | null = null,
     options: ExerciseTrackerOptions = {},
   ) {
-    this.opts = { minVisibility: 0.6, smoothingAlpha: 0.5, uiUpdateHz: 10, ...options };
+    this.opts = { minVisibility: 0.6, uiUpdateHz: 10, ...options };
     this.exercise = getExercise(options.exercise ?? "squat");
     this.counter = this.makeCounter();
     this.state = initialTrackerState(this.exercise.id);
-    this.angleSmoother = new AngleSmoother(this.opts.smoothingAlpha);
-    this.progressSmoother = new AngleSmoother(this.opts.smoothingAlpha);
+    this.angleFilter = new SignalFilter({ ...ANGLE_FILTER, ...options.filter });
   }
 
   // ---- public API ------------------------------------------------------
@@ -382,7 +390,7 @@ export class ExerciseTracker {
     this.loop?.stop();
     if (this.source === "file") this.video.pause();
     this.counter.cancelCurrentRep();
-    this.angleSmoother.reset();
+    this.angleFilter.reset();
     this.setState(
       { status: "paused", phase: "start", phaseLabel: this.exercise.phaseLabels.start, armed: false },
       true,
@@ -477,9 +485,9 @@ export class ExerciseTracker {
   }
 
   private resetSignals(): void {
-    this.angleSmoother.reset();
-    this.progressSmoother.reset();
-    this.formSmoothers.clear();
+    this.angleFilter.reset();
+    this.progressFilter.reset();
+    this.formFilters.clear();
     this.dropMeter.reset();
     this.formStats = {};
     this.formSeen = {};
@@ -495,6 +503,7 @@ export class ExerciseTracker {
     this.reps = [];
     this.repEvents = [];
     this.repStats = [];
+    this.angleFilter.resetStats();
     this.frames = 0;
     this.visibleFrames = 0;
     this.counter.reset();
@@ -522,17 +531,17 @@ export class ExerciseTracker {
       world,
       view: this.state.cameraView.view,
     });
-    const angle = this.angleSmoother.next(reading.primaryAngle);
+    const angle = this.angleFilter.next(reading.primaryAngle, ts);
 
     let progress: number | null = null;
     if (reading.progress?.kind === "drop") {
-      const y = this.progressSmoother.next(reading.progress.y);
+      const y = this.progressFilter.next(reading.progress.y, ts);
       const atStart = this.counter.phase === "start" && this.counter.atStart(angle);
       progress = this.dropMeter.update(y, reading.progress.refLength, atStart);
     } else if (reading.progress?.kind === "absolute") {
-      progress = this.progressSmoother.next(reading.progress.value);
+      progress = this.progressFilter.next(reading.progress.value, ts);
     } else {
-      this.progressSmoother.reset();
+      this.progressFilter.reset();
     }
 
     this.frames += 1;
@@ -542,7 +551,7 @@ export class ExerciseTracker {
     this.drawOverlay(lm, reading.highlight);
 
     const event = this.counter.update(ts, angle, progress);
-    this.recordForm(reading.form);
+    this.recordForm(reading.form, ts);
 
     const frame: PoseFrame = {
       timestamp: ts,
@@ -566,6 +575,7 @@ export class ExerciseTracker {
       cameraView,
       viewWarning: cameraViewFlag(cameraView, ex.cameraView, ex.otherViews),
       measuredView: reading.view,
+      trackingQuality: this.trackingQuality(),
       videoProgress:
         this.source === "file" && Number.isFinite(this.video.duration)
           ? { current: this.video.currentTime, duration: this.video.duration }
@@ -621,7 +631,7 @@ export class ExerciseTracker {
    * Track min/max of each (smoothed) form signal over the current rep, overall
    * and per phase ("<signal>@<phase>"), plus how many frames each was seen in.
    */
-  private recordForm(form: Record<string, number | null>): void {
+  private recordForm(form: Record<string, number | null>, ts: number): void {
     const phase = this.counter.phase;
     if (phase !== "start" && this.prevPhase === "start") {
       this.formStats = {};
@@ -635,12 +645,13 @@ export class ExerciseTracker {
       this.phaseFrames[phase] = (this.phaseFrames[phase] ?? 0) + 1;
     }
     for (const [key, raw] of Object.entries(form)) {
-      let sm = this.formSmoothers.get(key);
-      if (!sm) {
-        sm = new AngleSmoother(this.opts.smoothingAlpha);
-        this.formSmoothers.set(key, sm);
+      let f = this.formFilters.get(key);
+      if (!f) {
+        // Form signals mix degrees and ratios, so no glitch gate; just smoothing and gap bridging.
+        f = new SignalFilter({ ...ANGLE_FILTER, maxRatePerSec: Infinity });
+        this.formFilters.set(key, f);
       }
-      const v = sm.next(raw);
+      const v = f.next(raw, ts);
       if (v === null || phase === "start") continue;
       this.addFormValue(key, v);
       this.addFormValue(`${key}@${phase}`, v);
@@ -662,6 +673,13 @@ export class ExerciseTracker {
       out[key] = { ...s, coverage: frames > 0 ? Math.min(1, (this.formSeen[key] ?? 0) / frames) : 0 };
     }
     return out;
+  }
+
+  private trackingQuality(): TrackerState["trackingQuality"] {
+    const n = this.frames || 1;
+    const f = this.angleFilter.getStats();
+    const r2 = (x: number) => Math.round(x * 100) / 100;
+    return { visible: r2(this.visibleFrames / n), glitches: r2(f.rejected / n), bridged: r2(f.bridged / n) };
   }
 
   private updateCameraView(lm: NormalizedLandmark[] | undefined, aspect: number): CameraViewAssessment {

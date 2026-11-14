@@ -5,7 +5,9 @@ the live camera or a prerecorded video. Video never leaves the device.
 Supported exercises: **squat, deadlift, lunge, push-up, bicep curl, shoulder press**.
 
 The plan for datasets, a learned form classifier and accuracy targets is in
-[docs/cv/form-analysis-ml-plan.md](../../../docs/cv/form-analysis-ml-plan.md).
+[docs/cv/form-analysis-ml-plan.md](../../../docs/cv/form-analysis-ml-plan.md); the
+code review and verified dataset compatibility are in
+[docs/cv/codebase-and-dataset-review.md](../../../docs/cv/codebase-and-dataset-review.md).
 
 ## Quick start (frontend)
 
@@ -141,7 +143,12 @@ step too short to be a lunge).
    better-seen side, with a margin so it doesn't flicker) and computes the
    angle, corrected for the video's aspect ratio. Joints below `minVisibility`
    (default 0.6) give `null`, never a guess.
-2. **Smoothing.** EMA (`smoothingAlpha` 0.5), reset when tracking drops.
+2. **Filtering** (`signal_filter.ts`). One Euro smoothing (heavy at rest,
+   light while moving, timestamp-based), gaps up to 150 ms bridged with the
+   last good value, and readings implying a joint speed over 1000 °/s rejected
+   as glitches, so one bad frame can't push a partial rep over the line.
+   Tune with the `filter` option. `trackingQuality` reports visible / glitch /
+   gap rates.
 3. **State machine:** start → toward_peak → peak → returning → start, with a
    dead band between start and leave-start and hysteresis at the peak. The
    `direction` setting handles exercises whose angle opens toward the peak
@@ -202,7 +209,8 @@ are shown, not spoken.
 | `form_analyzer.ts` | Generic rep flags, personal-baseline checks, evidence filter, session summary and insights, camera-view check |
 | `body_metrics.ts` | Torso lean, facing direction, knee-to-ankle ratio |
 | `pose_detection.ts` | Camera, model loading (GPU → CPU fallback), detection loop, side picking, overlay drawing |
-| `angle_calculator.ts` | `calculateAngle`, `calculateAngle3D`, `AngleSmoother` |
+| `angle_calculator.ts` | `calculateAngle`, `calculateAngle3D`, `AngleSmoother` (legacy EMA) |
+| `signal_filter.ts` | `SignalFilter`: One Euro smoothing, gap bridging, glitch rejection |
 | `voice_coach.ts` | `VoiceCoach` |
 | `index.ts` | Public exports. Import from here only. |
 
@@ -217,6 +225,9 @@ are shown, not spoken.
 - Bicep curls from the side count only the arm nearest the camera. Alternating
   curls need two sets, one facing each way.
 - Single-leg squats (pistols) and other variations are not supported.
+- The test page can switch pose model with `?model=lite|full|heavy` for
+  comparisons; the default stays `lite` until a test shows a clear gain (see
+  docs/cv/codebase-and-dataset-review.md).
 - The model (`pose_landmarker_lite`, ~6 s first load) and WASM come from
   Google's and jsDelivr's CDNs. Self-host them (`detector.wasmBaseUrl`,
   `detector.modelAssetPath`) for offline use or production.
