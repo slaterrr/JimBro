@@ -3,7 +3,6 @@
 import sqlite3
 
 import pytest
-
 from backend.jimbro.db import Database
 from backend.jimbro.schemas import SessionIn  # noqa: F401  (legacy schema still importable)
 from backend.jimbro.v2.store import MIGRATIONS, Store
@@ -30,9 +29,22 @@ def test_core_tables_and_indexes_exist(tmp_path):
         tables = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         indexes = {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='index'")}
     for t in [
-        "users", "auth_tokens", "password_resets", "profiles", "goals", "plans",
-        "scheduled_workouts", "workouts", "workout_sets", "set_reps", "vision_events",
-        "recommendations", "ai_proposals", "substitutions", "idempotency_keys", "ai_usage",
+        "users",
+        "auth_tokens",
+        "password_resets",
+        "profiles",
+        "goals",
+        "plans",
+        "scheduled_workouts",
+        "workouts",
+        "workout_sets",
+        "set_reps",
+        "vision_events",
+        "recommendations",
+        "ai_proposals",
+        "substitutions",
+        "idempotency_keys",
+        "ai_usage",
     ]:
         assert t in tables, t
     assert "workout_sets_user_exercise" in indexes
@@ -42,9 +54,13 @@ def test_core_tables_and_indexes_exist(tmp_path):
 def test_constraints_reject_bad_rows(tmp_path):
     s = Store(tmp_path / "a.db")
     with s.tx() as c:
-        c.execute("INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.co', 'x', 't')")
+        c.execute(
+            "INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.co', 'x', 't')"
+        )
         with pytest.raises(sqlite3.IntegrityError):
-            c.execute("INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'A@B.CO', 'x', 't')")
+            c.execute(
+                "INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'A@B.CO', 'x', 't')"
+            )
         c.execute(
             "INSERT INTO workouts (id, user_id, name, started_at, status, version) "
             "VALUES ('w1', 'u1', 'W', 't', 'active', 1)"

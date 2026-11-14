@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: jimbro
+Version: 0.1.0
+Summary: JimBro training API and deterministic exercise metrics
+Requires-Python: >=3.11
+Requires-Dist: fastapi<1,>=0.115
+Requires-Dist: uvicorn[standard]<1,>=0.30
+Requires-Dist: anthropic>=0.70
+Provides-Extra: dev
+Requires-Dist: httpx<1,>=0.27; extra == "dev"
+Requires-Dist: pytest<10,>=8.3; extra == "dev"
+Requires-Dist: pytest-cov<8,>=6; extra == "dev"
+Requires-Dist: ruff<1,>=0.12; extra == "dev"
+Requires-Dist: mypy<2,>=1.15; extra == "dev"
+Requires-Dist: mutmut<4,>=3.7; extra == "dev"
