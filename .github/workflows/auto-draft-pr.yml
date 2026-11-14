@@ -1,0 +1,40 @@
+name: Auto-open draft PR
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  draft:
+    name: create-draft-pr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open a draft pull request when one does not exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const branch = context.ref.replace(/^refs\/heads\//, "");
+            if (branch === "main") return;
+            const existing = await github.rest.pulls.list({
+              owner, repo, state: "open", head: `${owner}:${branch}`, base: "main"
+            });
+            if (existing.data.length) {
+              core.info("PR already exists: " + existing.data[0].html_url);
+              return;
+            }
+            try {
+              const created = await github.rest.pulls.create({
+                owner, repo, head: branch, base: "main", draft: true,
+                title: "Draft: " + branch.replace(/[\/-]/g, " "),
+                body: "Auto-created draft. Complete the PR checklist and link an issue before requesting review."
+              });
+              core.info("Created " + created.data.html_url);
+            } catch (error) {
+              core.warning("Could not create PR; the repo owner may need to enable Actions > General > Allow GitHub Actions to create and approve pull requests. " + error.message);
+            }
