@@ -288,7 +288,7 @@ def mount_pwa(app: FastAPI, static_dir: Path) -> None:
     root = static_dir.resolve()
     index = root / "index.html"
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def pwa(path: str) -> FileResponse:
         if path.startswith("v1/"):
             raise HTTPException(404)

@@ -23,3 +23,12 @@ def test_serves_pwa_with_spa_fallback_without_shadowing_api(tmp_path: Path) -> N
 def test_missing_static_dir_is_ignored(tmp_path: Path) -> None:
     with TestClient(create_app(db_path=tmp_path / "x.db", static_dir=tmp_path / "none")) as c:
         assert c.get("/").status_code == 404
+
+
+def test_head_requests_work_for_offline_model_probe(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    (dist / "mediapipe").mkdir(parents=True)
+    (dist / "index.html").write_text("<html></html>")
+    (dist / "mediapipe" / "pose_landmarker_lite.task").write_bytes(b"model")
+    with TestClient(create_app(db_path=tmp_path / "x.db", static_dir=dist)) as c:
+        assert c.head("/mediapipe/pose_landmarker_lite.task").status_code == 200

@@ -42,7 +42,7 @@ python -m pip install -e ".[dev]"
 ruff check backend
 ruff format --check backend
 mypy backend/jimbro
-pytest --cov=jimbro --cov-report=term-missing --cov-fail-under=90
+pytest --cov=backend/jimbro --cov-report=term-missing --cov-fail-under=90
 mutmut run
 python scripts/check_mutants.py
 ```
