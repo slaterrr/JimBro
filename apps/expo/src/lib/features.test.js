@@ -18,9 +18,12 @@ const WIRING = {
     [/\bvoice\.cue\(|\bcue\(/, 'rep counts spoken through the voice module'],
     [/switchPlan\(/, 'switch-exercise suggestion card'],
     [/\.suggested\b/, 'reads the suggested exercise from the live session'],
+    [/estimateEffort\(/, 'live effort estimate shown on the camera screen'],
+    [/variant/, 'push-up rep type shown on the camera screen'],
   ],
   'lib/exercises.js': [
     [/id: 'lunge'/, 'lunge in the exercise catalog'],
+    [/id: 'push_up'[^}]*camera: true/, 'camera-counted push-ups'],
   ],
   'lib/guidance.js': [
     [/exercise_change/, 'exercise-change guidance'],
@@ -96,6 +99,11 @@ const WIRING = {
     [/lowerBodyShape/, 'exercise-change detection (lunge in squat mode)'],
     [/armShape/, 'exercise-change detection (press in curl mode, curl in press mode)'],
     [/suggested = armOther\.suggested/, 'shoulder press suggested from curl mode'],
+    [/pushupShape/, 'push-up body-orientation gate and rep-type (knee vs standard)'],
+  ],
+  'lib/sessionReport.js': [
+    [/estimateEffort\(/, 'effort estimate in the set report'],
+    [/variants/, 'push-up rep types in the set report'],
   ],
 };
 

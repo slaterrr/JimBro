@@ -1,6 +1,6 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, armShape, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint } from './angles.js';
+import { ARM, armShape, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint, pushupShape } from './angles.js';
 import { analyzeRep } from './form.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
@@ -30,6 +30,11 @@ const CLIP_POST_MS = 400; // frames after rep end, so the lowering reaches the b
 const CLIP_MAX_FRAMES = 60;
 const MAX_FAULT_CLIPS = 10;
 const BUFFER_MS = 15000;
+// Form review has rules for these lifts only (push-up rules not written yet).
+const FORM_REVIEW = new Set(['curl', 'squat', 'shoulder_press']);
+// Push-up mode: arms straight again (elbow >= this) in a push-up position releases the latch.
+const ARMS_STRAIGHT_DEG = 150;
+const ARM_SUGGEST = { curl: 'curl', press: 'shoulder_press' };
 
 /** Evenly pick at most n items, keeping the first and last. */
 export function downsample(items, n) {
@@ -152,6 +157,15 @@ export class LiveSession {
       this.counter.interrupt();
       return this.result(null, tracking, m.angle, 'implausible_motion');
     }
+    const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle) : this._pushupElsewhere(pose);
+    if (changed) {
+      this.counter.interrupt();
+      return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: changed, suggested: this.suggested ?? null };
+    }
+    if (this.movement === 'push_up') {
+      // Body-line rep type for this frame; each rep takes the majority over its frames.
+      (this._variants ??= []).push({ t, v: pushupShape(pose, this.side).variant });
+    }
     if (this.movement === 'squat') {
       const shape = lowerBodyShape(pose, m.angle);
       this._other = shape === 'lunge' ? (this._other ?? 0) + 1 : 0;
@@ -190,11 +204,62 @@ export class LiveSession {
     this._buf.push({ t, pose: pose.map(({ x, y, visibility }) => ({ x, y, visibility })), angle: m.angle });
     const rep = this.counter.update({ t_ms: t, angle_deg: m.angle, confidence: m.confidence });
     if (rep) {
+      this._describeRep(rep);
       this.reps.push(rep);
-      this._pending.push(rep);
+      if (FORM_REVIEW.has(this.movement)) this._pending.push(rep);
     }
     this._flushClips(t);
     return this.result(rep, tracking, m.angle);
+  }
+
+  /**
+   * Push-up mode orientation gate: elbows bending while the body is upright (standing, kneeling
+   * tall) or not near horizontal is not a push-up. Same latch pattern as lunges: the rest of an
+   * aborted rep stays blocked until the user is back in a push-up position with straight arms.
+   * Returns the hint for the exercise_change issue, or null when counting may continue.
+   */
+  _pushupGate(pose, elbow) {
+    const ps = pushupShape(pose, this.side);
+    if (ps.torsoDeg === null) return null; // too little visible to judge; tracking gates handle it
+    const other = ps.shape !== 'pushup';
+    this._other = other ? (this._other ?? 0) + 1 : 0;
+    if (ps.shape === 'upright') {
+      const lift = ARM_SUGGEST[armShape(pose, this.side)];
+      const knee = movementAngle(pose, 'squat', this.side)?.angle ?? 180;
+      const cand = lift ?? (knee < 120 ? 'squat' : null);
+      if (cand) {
+        const seen = (this._seen ??= {});
+        seen[cand] = (seen[cand] ?? 0) + 1;
+        if (seen[cand] >= SUGGEST_FRAMES) this.suggested = cand;
+      }
+    }
+    if (other && (this._other >= CHANGE_FRAMES || this.counter.state !== 'rest')) this._latched = true;
+    if (this._latched && !other && elbow >= ARMS_STRAIGHT_DEG) this._latched = false;
+    return this._latched ? (this.suggested ?? 'upright') : null;
+  }
+
+  /** Other modes: hands and knees/feet on the floor with a flat body is a push-up, not this lift. */
+  _pushupElsewhere(pose) {
+    const ps = pushupShape(pose, this.side);
+    const other = ps.shape === 'pushup' && ps.floor;
+    this._puOther = other ? (this._puOther ?? 0) + 1 : 0;
+    if (other) this._puTotal = (this._puTotal ?? 0) + 1;
+    if (this._puTotal >= SUGGEST_FRAMES) this.suggested = 'push_up';
+    if (other && (this._puOther >= CHANGE_FRAMES || this.counter.state !== 'rest')) this._puLatched = true;
+    if (this._puLatched && ps.shape === 'upright') this._puLatched = false;
+    return this._puLatched ? 'push_up' : null;
+  }
+
+  /** Adds range of motion (degrees) and, for push-ups, the majority rep type to a counted rep. */
+  _describeRep(rep) {
+    const angles = this._buf.filter((f) => f.t >= rep.start_ms - CLIP_PRE_MS && f.t <= rep.end_ms).map((f) => f.angle);
+    rep.rom_deg = angles.length ? Math.round(Math.max(...angles) - Math.min(...angles)) : null;
+    if (this.movement !== 'push_up') return;
+    const tally = {};
+    for (const { t, v } of this._variants ?? []) if (v && t >= rep.start_ms && t <= rep.end_ms) tally[v] = (tally[v] ?? 0) + 1;
+    const best = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    rep.variant = best ? best[0] : null;
+    this._variants = (this._variants ?? []).filter((x) => x.t > rep.end_ms);
   }
 
   /** Set-level evidence for the report: frames, usable frames, issue episodes, partial reps. */
@@ -221,12 +286,15 @@ export class LiveSession {
     this._buf = [];
     this._pending = [];
     this._clips = [];
+    this._variants = [];
   }
 
   /** Reps in the shape a logged set stores. */
   repsDetail() {
-    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms }) => ({
+    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant }) => ({
       index, concentric_ms, peak_pause_ms, eccentric_ms,
+      ...(rom_deg != null ? { rom_deg } : {}),
+      ...(variant !== undefined ? { variant } : {}),
     }));
   }
 }

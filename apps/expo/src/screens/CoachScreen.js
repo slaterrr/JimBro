@@ -8,6 +8,7 @@ import { HowToSheet } from '../components/FormReview.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
+import { estimateEffort } from '../lib/effort.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
 import { poseHtml } from '../lib/poseHtml.js';
@@ -53,6 +54,9 @@ export function CoachScreen({ openLog }) {
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
   const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking, persona: settings.persona });
   const guidance = cameraGuidance(view.issue, view.hint, movement);
+  // Live effort estimate (labelled "est.") and, for push-ups, the last rep's type.
+  const effort = useMemo(() => estimateEffort({ movement, reps: session.current.repsDetail() }), [view.count, movement]);
+  const lastVariant = movement === 'push_up' ? view.lastRep?.variant ?? null : null;
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
@@ -171,6 +175,16 @@ export function CoachScreen({ openLog }) {
             <Text style={{ color: T.purple }}>{view.count}</Text>
             <Text style={{ color: T.textDim, fontWeight: '500' }}> / {target}</Text>
           </Text>
+          {lastVariant ? (
+            <Text style={{ color: T.text, fontSize: 14, fontWeight: '600' }} accessibilityLabel={`Last rep: ${lastVariant} push-up`}>
+              {lastVariant === 'standard' ? 'Standard' : lastVariant === 'knee' ? 'Knee' : 'Incline'} push-up
+            </Text>
+          ) : null}
+          {effort.rpe != null ? (
+            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Estimated effort RPE ${effort.rpe}, ${effort.confidence} confidence`}>
+              Effort est. RPE {effort.rpe}{effort.confidence === 'low' ? ' (low conf.)' : ''}
+            </Text>
+          ) : null}
         </View>
         {caught ? (
           <View
