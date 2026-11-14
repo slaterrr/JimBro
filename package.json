@@ -1,0 +1,10 @@
+{
+  "name": "jimbro-repo",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix apps/expo ci",
+    "start": "npm --prefix apps/expo run start --",
+    "test": "npm --prefix apps/expo test"
+  }
+}
+
