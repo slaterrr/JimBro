@@ -6,6 +6,7 @@ import { WebView } from 'react-native-webview';
 import { useApp } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
+import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
@@ -36,30 +37,23 @@ export function CoachScreen({ openLog }) {
   const [facing, setFacing] = useState('user');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
-  const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null });
+  const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
   const [caught, setCaught] = useState(null);
   const caughtTimer = useRef(null);
   useEffect(() => () => clearTimeout(caughtTimer.current), []);
   const session = useRef(new LiveSession(movement));
+  const speakGuide = useRef(guidanceThrottle(8000));
   const web = useRef(null);
   const html = useMemo(() => poseHtml({ facing: 'user' }), []);
 
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
   const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking, persona: settings.persona });
-  const cameraGuidance = view.issue === 'arm_swing'
-    ? 'Upper arm moved too far — rep not counted. Keep your elbow near your side.'
-    : view.issue === 'framing'
-      ? 'Step back — your shoulders and hips need to be in frame to count reps.'
-    : view.issue === 'implausible_motion'
-      ? 'Tracking jumped — rep paused. Hold steady with only you in frame.'
-    : view.issue === 'tracking'
-      ? 'Tracking uncertain — rep paused. Keep your body and working arm or leg in frame.'
-      : null;
+  const guidance = cameraGuidance(view.issue, view.hint, movement);
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
-    setView({ count: 0, tracking: 'lost', lastRep: null, issue: null });
+    setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
   };
   useEffect(() => {
     const p = plannedFor(active, movement);
@@ -84,9 +78,12 @@ export function CoachScreen({ openLog }) {
     const out = session.current.frame(m.t, m.pose);
     const lastRep = session.current.reps[session.current.reps.length - 1] ?? null;
     setView((v) => {
-      if (v.count === out.count && v.tracking === out.tracking.status && v.issue === out.issue) return v;
-      return { count: out.count, tracking: out.tracking.status, lastRep, issue: out.issue };
+      if (v.count === out.count && v.tracking === out.tracking.status && v.issue === out.issue && v.hint === (out.hint ?? null)) return v;
+      return { count: out.count, tracking: out.tracking.status, lastRep, issue: out.issue, hint: out.hint ?? null };
     });
+    if (out.issue && voice && speakGuide.current(`${out.issue}:${out.hint ?? ''}`, m.t)) {
+      jim.say(cameraGuidance(out.issue, out.hint, movement), { force: true });
+    }
     if (out.blocked) {
       const words = BLOCKED_WORDS[out.blocked.reason] ?? 'lost tracking';
       setCaught({ reason: out.blocked.reason, words });
@@ -167,7 +164,7 @@ export function CoachScreen({ openLog }) {
             <JimBars height={16} />
             <Text style={{ color: T.violetText, fontWeight: '700', fontSize: 16 }}>Jim</Text>
           </View>
-          <Text style={{ color: T.text, fontSize: 16, lineHeight: 22 }}>{error ?? (cameraGuidance || (ready ? cue : 'Loading pose model…'))}</Text>
+          <Text style={{ color: T.text, fontSize: 16, lineHeight: 22 }}>{error ?? (guidance || (ready ? cue : 'Loading pose model…'))}</Text>
         </View>
       </View>
 

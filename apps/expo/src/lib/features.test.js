@@ -13,6 +13,8 @@ const WIRING = {
     [/\.blocked\b/, '"caught it" badge for blocked reps'],
     [/\.quality\(\)/, 'set quality passed to the set report'],
     [/How to do it/, 'proper-form demo button'],
+    [/cameraGuidance(/, 'specific camera guidance (never silent)'],
+    [/speakGuide/, 'spoken, throttled camera corrections'],
     [/\bvoice\.cue\(|\bcue\(/, 'rep counts spoken through the voice module'],
   ],
   'components/Sheets.js': [
@@ -49,6 +51,8 @@ const WIRING = {
     [/torsoInFrame/, 'framing gate (gesture false reps)'],
     [/jointSpeed/, 'joint-speed gate (hallucinated joints)'],
     [/clips/, 'form clips per rep'],
+    [/frontalKneeAngle/, 'front-facing squat counting'],
+    [/missingHint/, 'which body part is out of view'],
   ],
 };
 

@@ -1,6 +1,6 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle } from './angles.js';
+import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, missingHint } from './angles.js';
 import { analyzeRep } from './form.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
@@ -116,10 +116,15 @@ export class LiveSession {
     if (tracking.status !== 'ok') {
       this._prev = null;
       this.counter.interrupt();
-      return this.result(null, tracking, null, 'tracking');
+      return { ...this.result(null, tracking, null, 'tracking'), hint: missingHint(pose, this.movement) };
     }
     if (this.side === null) this.side = tracking.side;
-    const m = movementAngle(pose, this.movement, this.side);
+    let m = movementAngle(pose, this.movement, this.side);
+    this.view = this.movement === 'squat' && m && isFrontal(pose) ? 'front' : 'side';
+    if (this.view === 'front') {
+      const knee = frontalKneeAngle(pose, this.side, (this._cal ??= {}));
+      m = knee === null ? null : { ...m, angle: knee };
+    }
     if (!m) {
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
@@ -161,6 +166,7 @@ export class LiveSession {
   /** Changing the physical camera may mirror sides; preserve completed reps. */
   reacquireTracking() {
     this.counter.interrupt();
+    this._cal = null;
     this._prev = null;
     this.side = null;
   }

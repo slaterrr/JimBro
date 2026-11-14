@@ -49,3 +49,57 @@ export function curlUpperArmSwing(pose, side) {
   const hip = torsoFor('curl', side);
   return jointAngle(pose[elbow], pose[shoulder], pose[hip]);
 }
+
+// Front-facing squats: knees and hips travel toward the lens, so the 2D hip–knee–ankle angle
+// stays near 180° and no rep can complete. Hypothesis under test: when the shoulders appear
+// wide relative to the torso the user faces the camera; then estimate the knee angle from the
+// vertical foreshortening of thigh and shank against their standing (longest seen) lengths.
+const FRONTAL_SHOULDER_RATIO = 0.35;
+// Standing lengths use the 90th percentile of recent samples (robust to jitter), and ratios
+// within 2% of it count as straight; otherwise standing never reads as "back at rest".
+// Tuned on simulation sweeps (40 sets × 12 reps, two noise levels); validate on real video.
+const STRAIGHT_RATIO = 0.98;
+const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+export function isFrontal(pose) {
+  const sh = Math.abs(pose[11].x - pose[12].x);
+  const m1 = mid(pose[11], pose[12]);
+  const m2 = mid(pose[23], pose[24]);
+  const torso = Math.hypot(m1.x - m2.x, m1.y - m2.y);
+  return torso > 0.01 && sh / torso > FRONTAL_SHOULDER_RATIO;
+}
+
+/** Knee angle from vertical projections; `cal` keeps recent thigh/shank lengths for this set. */
+export function frontalKneeAngle(pose, side, cal) {
+  const [h, k, a] = LEG[side];
+  const thigh = pose[k].y - pose[h].y;
+  const shank = pose[a].y - pose[k].y;
+  if (!(thigh > 0) || !(shank > 0)) return null;
+  const q90 = (key, v) => {
+    const xs = (cal[key] ??= []);
+    xs.push(v);
+    if (xs.length > 400) xs.shift();
+    const sorted = [...xs].sort((p, q) => p - q);
+    return sorted[Math.floor(0.9 * (sorted.length - 1))];
+  };
+  const thighLen = q90('thighs', thigh);
+  const shankLen = q90('shanks', shank);
+  const tilt = (d, len) => (Math.acos(Math.min(1, d / (len * STRAIGHT_RATIO))) * 180) / Math.PI;
+  return 180 - tilt(thigh, thighLen) - tilt(shank, shankLen);
+}
+
+/** Which body part to bring into view when tracking is lost (for a specific camera hint). */
+export function missingHint(pose, movement) {
+  if (!pose || pose.length < POSE_LANDMARKS) return 'body';
+  const vis = (i) => pose[i]?.visibility ?? 0;
+  const worst = (pairs) => Math.min(...pairs.map(([l, r]) => Math.max(vis(l), vis(r))));
+  if (movement === 'squat') {
+    if (worst([[27, 28]]) < 0.5) return 'feet';
+    if (worst([[25, 26]]) < 0.5) return 'knees';
+    if (worst([[23, 24]]) < 0.5) return 'hips';
+  } else {
+    if (worst([[15, 16], [13, 14]]) < 0.5) return 'arm';
+    if (worst([[23, 24]]) < 0.5) return 'hips';
+  }
+  return 'body';
+}
