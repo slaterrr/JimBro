@@ -13,6 +13,7 @@ import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
+import { answerPerformance } from '../lib/perfCoach.js';
 import { isCompact } from '../lib/layout.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
@@ -105,6 +106,14 @@ export function HomeScreen({ openLog, openActivity, go }) {
     setText('');
     const prior = historyFor(messages);
     push({ me: true, text: message });
+    // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
+    // recorded sets on the phone, so every claim comes from data.
+    const perfReply = answerPerformance(message, { history, active });
+    if (perfReply) {
+      push({ me: false, text: perfReply });
+      speak(perfReply);
+      return;
+    }
     // Workout Mission: a time-boxed session request is planned on the phone (no AI call), then confirmed.
     const ask = parseMission(message);
     if (ask.recognized) {

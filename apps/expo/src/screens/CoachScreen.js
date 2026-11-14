@@ -11,6 +11,8 @@ import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../compo
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
 import { estimateEffort } from '../lib/effort.js';
+import { liveSlowdownCue } from '../lib/perfCoach.js';
+import { repMetrics } from '../lib/performance.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
 import { stageHeight } from '../lib/layout.js';
@@ -64,9 +66,14 @@ export function CoachScreen({ openLog }) {
   // Live effort estimate (labelled "est.") and, for push-ups, the last rep's type.
   const effort = useMemo(() => estimateEffort({ movement, reps: session.current.repsDetail() }), [view.count, movement]);
   const lastVariant = movement === 'push_up' ? view.lastRep?.variant ?? null : null;
+  // Measured, relative numbers for the overlay (degrees and ms from the camera; not m/s).
+  const perf = useMemo(() => repMetrics(movement, session.current.repsDetail()), [view.count, movement]);
+  const lastLiftS = perf.reps.length ? perf.reps[perf.reps.length - 1].lift_ms / 1000 : null;
+  const slowCued = useRef(false);
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
+    slowCued.current = false;
     setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
     setSuggestion(null);
     seenSuggestion.current = null;
@@ -125,6 +132,14 @@ export function CoachScreen({ openLog }) {
     }
     if (out.rep) setLastRepAt(Date.now());
     if (out.rep && voice) jim.cue(String(out.count), { force: true });
+    if (out.rep && voice) {
+      // At most one short line per set, between reps, and only for a clear slowdown.
+      const line = liveSlowdownCue(movement, session.current.repsDetail(), slowCued.current);
+      if (line) {
+        slowCued.current = true;
+        jim.say(line, { force: true });
+      }
+    }
   };
 
   const stop = () => {
@@ -195,9 +210,19 @@ export function CoachScreen({ openLog }) {
               {lastVariant === 'standard' ? 'Standard' : lastVariant === 'knee' ? 'Knee' : 'Incline'} push-up
             </Text>
           ) : null}
+          {lastLiftS ? (
+            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Last rep lifted in ${lastLiftS.toFixed(1)} seconds`}>
+              Last rep {lastLiftS.toFixed(1)} s up
+            </Text>
+          ) : null}
+          {perf.velocityLossPct != null ? (
+            <Text style={{ color: perf.velocityLossPct >= 30 ? T.amber : T.textDim, fontSize: 13 }} accessibilityLabel={`Rep speed ${perf.velocityLossPct} percent below your first reps`}>
+              Speed −{perf.velocityLossPct}% vs first reps
+            </Text>
+          ) : null}
           {effort.rpe != null ? (
-            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Estimated effort RPE ${effort.rpe}, ${effort.confidence} confidence`}>
-              Effort est. RPE {effort.rpe}{effort.confidence === 'low' ? ' (low conf.)' : ''}
+            <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Rough effort range RPE ${Math.max(6, effort.rpe - 1)} to ${Math.min(10, effort.rpe + 1)}, an estimate`}>
+              Effort est. RPE {Math.max(6, effort.rpe - 1)}–{Math.min(10, effort.rpe + 1)}
             </Text>
           ) : null}
         </View>
@@ -245,6 +270,7 @@ export function CoachScreen({ openLog }) {
           tracking={ready ? view.tracking : 'lost'}
           repsDetail={() => session.current.repsDetail()}
           resetCounter={() => resetSet()}
+          setQuality={() => session.current.quality()}
           voiceOn={voice}
         />
       ) : null}

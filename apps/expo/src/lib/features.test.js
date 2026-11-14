@@ -121,6 +121,24 @@ const WIRING = {
     [/estimateEffort\(/, 'effort estimate in the set report'],
     [/variants/, 'push-up rep types in the set report'],
   ],
+  'components/Mission.js': [
+    [/recommendNext\(/, 'mission next-set recommendation'],
+    [/>Use it</, 'recommendation needs approval (Use it)'],
+    [/How many more could you have done\?/, 'user-reported reps in reserve'],
+    [/assessFatigue\(/, 'fatigue assessment after each mission set'],
+  ],
+  'components/Sheets.js#perf': [
+    [/assessFatigue\(/, 'fatigue and metrics stored with logged sets'],
+    [/recommendNext\(/, 'next-time suggestion after logging a set'],
+  ],
+  'screens/CoachScreen.js#perf': [
+    [/liveSlowdownCue\(/, 'one short live slowdown cue'],
+    [/setQuality=/, 'camera set quality reaches the mission check'],
+    [/Speed −/, 'relative speed change on the camera overlay'],
+  ],
+  'screens/HomeScreen.js#perf': [
+    [/answerPerformance\(/, 'chat answers about the last set from recorded data'],
+  ]
 };
 
 for (const [file, checks] of Object.entries(WIRING)) {

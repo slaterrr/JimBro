@@ -63,7 +63,7 @@ export function setReport({ movement, reps = [], quality = null, rpe = null, tar
   if (effort.rpe != null) {
     suggestions.push({
       id: 'effort',
-      text: `Estimated effort: about RPE ${effort.rpe} (${effort.rir === 0 ? 'at or near your limit' : `roughly ${effort.rir} rep${effort.rir === 1 ? '' : 's'} left`}). This is an estimate, ${effort.confidence} confidence.`,
+      text: `Rough effort from rep speed: about RPE ${Math.max(6, effort.rpe - 1)}–${Math.min(10, effort.rpe + 1)}. An estimate (${effort.confidence} confidence), not a measured reps-left count; tell me how many you had left.`,
       evidence: effort.evidence.join(' '),
     });
   }

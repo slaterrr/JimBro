@@ -134,7 +134,7 @@ export function assessFatigue({ movement, reps = [], target = null, completed, p
   }
 
   const TEXT = {
-    normal: 'Steady reps: normal rep-to-rep variation.',
+    normal: m?.velocityLossPct != null ? 'Steady reps: normal rep-to-rep variation.' : 'No signs of fatigue in what you reported.',
     increasing_difficulty: `The set got harder. ${signals[0] ?? ''}`.trim(),
     possible_fatigue: `Possible fatigue. ${signals[0] ?? ''} Slower reps are one sign of fatigue, not proof of it.`.trim(),
     incomplete_rep: signals[0] ?? 'An incomplete rep was seen.',
