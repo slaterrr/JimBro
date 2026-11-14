@@ -79,3 +79,12 @@ The tests mock the Anthropic SDK client; they make no network calls and need no 
 - **Live check:** `npm ci && npm run smoke` makes three real calls (plain reply, read tool, confirm-first
   proposal) and prints PASS/FAIL. It needs `ANTHROPIC_API_KEY` or an `ant auth login` profile, and costs a few cents.
 - Full contract: `docs/engines/BACKEND_GUIDE.md`.
+
+## Host it (so every phone gets AI Jim)
+1. Render: **New > Blueprint**, pick this repo; it reads `render.yaml`. Enter `ANTHROPIC_API_KEY`
+   and a long random `JIM_PROXY_KEY` when prompted (dashboard only, never git). Set a spend limit on the key.
+2. Check `https://<service>.onrender.com/health` returns `{"ok":true}`.
+3. In expo.dev > project > Environment variables > `preview`: set `EXPO_PUBLIC_JIM_PROXY_URL` to the
+   service URL and `EXPO_PUBLIC_JIM_PROXY_KEY` to the same key. The next `main` push publishes it.
+4. On a phone, the Home badge reads **AI** instead of **offline**. Free instances sleep after ~15 min idle;
+   open `/health` a minute before demoing.

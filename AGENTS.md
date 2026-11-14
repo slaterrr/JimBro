@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`. **Agentic Jim work: follow `docs/AGENT_SPRINTS.md`.**
+Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 #42 #49 #51 #52 #53); see `docs/AUDIT.md`. **Agentic Jim work: follow `docs/AGENT_SPRINTS.md`.**
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
@@ -116,12 +116,12 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 | **Workout Mission**: "I have 20 minutes, help me finish chest day" → on-phone plan from history + goal (time-boxed, every choice explained) → confirm card → hands-free run on Coach (auto-start when tracked, auto-end set, quick RPE check that saves itself, rest with next-set adjustment, switch to a camera-counted lift, skip/end) → summary checked against the plan | 🧪 feat/workout-mission | `lib/mission.js`, `components/Mission.js`, HomeScreen chips + intercept, CoachScreen, AppState `mission` | 15 unit tests (parse, plan budget/progression/rested area, state machine, summary, weight pick, camera swap); iOS bundle; simulator tap-through of the tap-counted path (no camera in simulator) | camera-counted path on a real phone; spoken lines on device |
 
-Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 402. On feat/performance-engine: app 470, vision-lab 44. On feat/engines: app 544, vision-lab 51, proxy 33 (628); handoff docs in `docs/engines/`. Roadmap for equipment tracking, force/power and validation: `docs/PERFORMANCE_ROADMAP.md`.
+Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 402. On feat/performance-engine: app 470, vision-lab 44. On feat/engines: app 544, vision-lab 51, proxy 33 (628); handoff docs in `docs/engines/`. Roadmap for equipment tracking, force/power and validation: `docs/PERFORMANCE_ROADMAP.md`. On main after #55: app 558, vision-lab 51, proxy 35.
 
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
-2. 📋 **Proxy shared secret** (`X-Jim-Key` header) before exposing the AI proxy beyond LAN.
-3. 📋 **Live Claude smoke test** with a real key (not in chat or repo).
+2. ✅ **Proxy shared secret** (`X-Jim-Key`, #47). Host it with `render.yaml` (Render blueprint), then set `EXPO_PUBLIC_JIM_PROXY_URL` / `EXPO_PUBLIC_JIM_PROXY_KEY` in the Expo `preview` environment.
+3. ✅ **Live Claude smoke test**: `.github/workflows/claude-smoke.yml` (repo secret `CLAUD_TOKEN`).
 4. 📋 Persona wording for remaining Home chat replies (goal intro, confirm/clarify text).
 5. 📋 Record + label team clips (consented): 15–20-rep sets per lift side-on; wave; middle finger; elbow-swing curls; shallow squats. Put half in `heldout`.
 6. 📋 Validate form thresholds and the 50° swing on those clips; press lean-back direction.
