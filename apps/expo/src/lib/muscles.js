@@ -22,6 +22,7 @@ export const EXERCISE_MUSCLES = {
   deadlift: ['hamstrings', 'glutes', 'lower_back', 'traps', 'forearms'],
   shoulder_press: ['shoulders', 'triceps', 'traps'],
   pull_up: ['lats', 'biceps', 'forearms'],
+  lunge: ['quads', 'glutes', 'hamstrings'],
 };
 
 const DAY = 86400000;

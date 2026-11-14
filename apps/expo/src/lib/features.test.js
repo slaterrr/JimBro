@@ -16,6 +16,11 @@ const WIRING = {
     [/cameraGuidance\(/,'specific camera guidance (never silent)'],
     [/speakGuide/, 'spoken, throttled camera corrections'],
     [/\bvoice\.cue\(|\bcue\(/, 'rep counts spoken through the voice module'],
+    [/switchPlan\(/, 'switch-exercise suggestion card'],
+    [/\.suggested\b/, 'reads the suggested exercise from the live session'],
+  ],
+  'lib/exercises.js': [
+    [/id: 'lunge'/, 'lunge in the exercise catalog'],
   ],
   'lib/guidance.js': [
     [/exercise_change/, 'exercise-change guidance'],

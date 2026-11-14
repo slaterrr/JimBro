@@ -5,8 +5,8 @@ import { describe, it } from 'node:test';
 import { EXERCISES, exerciseName } from './exercises.js';
 import { parseSetUtterance } from './parse.js';
 describe('exercises', () => {
-  it('maps the six API lifts to display names', () => {
-    assert.deepEqual(EXERCISES.map((e) => e.id), ['curl', 'squat', 'bench', 'deadlift', 'shoulder_press', 'pull_up']);
+  it('maps the catalog lifts to display names', () => {
+    assert.deepEqual(EXERCISES.map((e) => e.id), ['curl', 'squat', 'bench', 'deadlift', 'shoulder_press', 'pull_up', 'lunge']);
     assert.equal(exerciseName('shoulder_press'), 'Shoulder press');
     assert.equal(exerciseName('mystery'), 'mystery');
   });
