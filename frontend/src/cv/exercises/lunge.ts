@@ -43,14 +43,13 @@ function readWith(tracker: LegRoleTracker, landmarks: readonly LandmarkLike[] | 
   }
 
   const ar = o.aspectRatio;
-  const legs = roles.status === "split" ? [roles.front, roles.back] : roles.legs;
-  const hipY = (legs[0]!.hip.y + legs[1]!.hip.y) / 2;
-  const legLength = (Math.hypot((legs[0]!.hip.x - legs[0]!.ankle.x) * ar, legs[0]!.hip.y - legs[0]!.ankle.y) +
-    Math.hypot((legs[1]!.hip.x - legs[1]!.ankle.x) * ar, legs[1]!.hip.y - legs[1]!.ankle.y)) / 2;
+  const legs = roles.status === "split" ? (roles.back ? [roles.front, roles.back] : [roles.front]) : roles.legs;
+  const hipY = legs.reduce((a, l) => a + l.hip.y, 0) / legs.length;
+  const legLength = legs.reduce((a, l) => a + Math.hypot((l.hip.x - l.ankle.x) * ar, l.hip.y - l.ankle.y), 0) / legs.length;
   const ls = landmarks[L.LEFT_SHOULDER];
   const rs = landmarks[L.RIGHT_SHOULDER];
   const shoulder = ls && rs ? (vis(ls) >= vis(rs) ? ls : rs) : null;
-  const midHip = { x: (legs[0]!.hip.x + legs[1]!.hip.x) / 2, y: hipY };
+  const midHip = { x: legs.reduce((a, l) => a + l.hip.x, 0) / legs.length, y: hipY };
   const lean = shoulder && vis(shoulder) >= o.minVisibility ? Math.abs(torsoLean(shoulder, midHip, ar)) : null;
   const progress = legLength > 1e-6 ? ({ kind: "drop", y: hipY, refLength: legLength } as const) : null;
 
@@ -73,7 +72,13 @@ function readWith(tracker: LegRoleTracker, landmarks: readonly LandmarkLike[] | 
     visible: true,
     primaryAngle: roles.front.kneeAngle,
     progress,
-    form: { torsoLean: lean, stepRatio: roles.split, frontKnee: roles.front.kneeAngle, backKnee: roles.back.kneeAngle },
+    form: {
+      torsoLean: lean,
+      // Step length and back knee need both legs; skip them while one is hidden.
+      stepRatio: roles.back ? roles.split : null,
+      frontKnee: roles.front.kneeAngle,
+      backKnee: roles.back?.kneeAngle ?? null,
+    },
     // Which MediaPipe leg is in front, for display.
     side: roles.front.label,
     highlight: roles.front.indices,

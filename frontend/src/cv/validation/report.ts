@@ -41,7 +41,7 @@ export interface GroupSummary {
   recordings: number;
   subjects: number;
   reps: { annotated: number; precision: number | null; recall: number | null; exactCountRate: number | null; verdict: Verdict };
-  angles: { n: number; mae: number | null; verdict: Verdict };
+  angles: { n: number; mae: number | null; verdict: Verdict; n3d: number; mae3d: number | null };
   legRoles: { n: number; accuracy: number | null; uncertainRate: number | null; verdict: Verdict } | null;
   arms: { n: number; accuracy: number | null; verdict: Verdict } | null;
   recognition: { n: number; accuracy: number | null };
@@ -71,6 +71,8 @@ export function summarize(evals: readonly Evaluation[]): GroupSummary[] {
     const angleN = sum((e) => e.angles.groundTruth.n);
     const angleMae = angleN ? sum((e) => (e.angles.groundTruth.meanAbsError ?? 0) * e.angles.groundTruth.n) / angleN : null;
     const angleTarget = view === "side" ? TARGETS.angleMaeSide : TARGETS.angleMaeOther;
+    const n3d = sum((e) => e.angles.groundTruth3d.n);
+    const mae3d = n3d ? sum((e) => (e.angles.groundTruth3d.meanAbsError ?? 0) * e.angles.groundTruth3d.n) / n3d : null;
 
     const legs = es.filter((e) => e.legRoles);
     const legN = legs.reduce((a, e) => a + e.legRoles!.checked, 0);
@@ -95,7 +97,13 @@ export function summarize(evals: readonly Evaluation[]): GroupSummary[] {
         exactCountRate: exact,
         verdict: annotated === 0 ? "not validated" : !enough ? "insufficient evidence" : repsOk ? "validated" : "below target",
       },
-      angles: { n: angleN, mae: angleMae, verdict: verdict(angleN, angleMae !== null && angleMae <= angleTarget, EVIDENCE.minAngleChecks) },
+      angles: {
+        n: angleN,
+        mae: angleMae,
+        verdict: verdict(angleN, angleMae !== null && angleMae <= angleTarget, EVIDENCE.minAngleChecks),
+        n3d,
+        mae3d,
+      },
       legRoles: legs.length
         ? {
             n: legN,
@@ -140,13 +148,13 @@ export function renderMarkdown(summaries: readonly GroupSummary[], generatedAt =
     return lines.join("\n");
   }
   lines.push(
-    "| Exercise | View | People | Reps | Rep precision / recall | Exact count | Rep verdict | Angle MAE (n) | Angle verdict | Leg/arm accuracy (n) | Leg/arm verdict | Recognition |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| Exercise | View | People | Reps | Rep precision / recall | Exact count | Rep verdict | Angle MAE 2D (n) | Angle MAE 3D (n) | Angle verdict (2D) | Leg/arm accuracy (n) | Leg/arm verdict | Recognition |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   );
   for (const s of summaries) {
     const la = s.legRoles ?? s.arms;
     lines.push(
-      `| ${s.exercise} | ${s.view} | ${s.subjects} | ${s.reps.annotated} | ${pct(s.reps.precision)} / ${pct(s.reps.recall)} | ${pct(s.reps.exactCountRate)} | ${s.reps.verdict} | ${s.angles.mae === null ? "–" : `${num(s.angles.mae)}°`} (${s.angles.n}) | ${s.angles.verdict} | ${la ? `${pct(la.accuracy)} (${la.n})` : "–"} | ${la ? la.verdict : "–"} | ${pct(s.recognition.accuracy)} (${s.recognition.n}) |`,
+      `| ${s.exercise} | ${s.view} | ${s.subjects} | ${s.reps.annotated} | ${pct(s.reps.precision)} / ${pct(s.reps.recall)} | ${pct(s.reps.exactCountRate)} | ${s.reps.verdict} | ${s.angles.mae === null ? "–" : `${num(s.angles.mae)}°`} (${s.angles.n}) | ${s.angles.mae3d === null ? "–" : `${num(s.angles.mae3d)}°`} (${s.angles.n3d}) | ${s.angles.verdict} | ${la ? `${pct(la.accuracy)} (${la.n})` : "–"} | ${la ? la.verdict : "–"} | ${pct(s.recognition.accuracy)} (${s.recognition.n}) |`,
     );
   }
   lines.push("", "Landmark quality and latency:", "", "| Exercise | View | No person | Joints not visible | Glitches rejected | Suspected knee swaps /1000 frames | Detect p95 | Pipeline p95 |", "|---|---|---|---|---|---|---|---|");

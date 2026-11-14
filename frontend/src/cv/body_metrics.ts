@@ -55,3 +55,35 @@ export function kneeAnkleRatio(landmarks: readonly LandmarkLike[], minVisibility
   if (ankles < 0.03) return null; // feet together: ratio meaningless
   return Math.abs(lk.x - rk.x) / ankles;
 }
+
+/**
+ * Joint angle in the body's sagittal plane, from 3D world landmarks: the
+ * plane through the body perpendicular to the hip-to-hip axis. Unlike a 2D
+ * image angle, it doesn't change when the camera isn't exactly side on, so it
+ * is a candidate correction for perspective distortion. MediaPipe's depth (z)
+ * is the least accurate coordinate, so whether this beats the 2D angle must be
+ * measured on annotated recordings (the validation lab reports both).
+ */
+export function sagittalAngle(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+  c: { x: number; y: number; z: number },
+  leftHip: { x: number; y: number; z: number },
+  rightHip: { x: number; y: number; z: number },
+): number | null {
+  const sub = (p: typeof a, q: typeof a) => [p.x - q.x, p.y - q.y, p.z - q.z];
+  const dot = (u: number[], v: number[]) => u[0]! * v[0]! + u[1]! * v[1]! + u[2]! * v[2]!;
+  const axis = sub(rightHip, leftHip);
+  const len = Math.sqrt(dot(axis, axis));
+  if (len < 1e-6) return null;
+  const n = axis.map((x) => x / len);
+  const flatten = (v: number[]) => {
+    const k = dot(v, n);
+    return v.map((x, i) => x - k * n[i]!);
+  };
+  const v1 = flatten(sub(a, b));
+  const v2 = flatten(sub(c, b));
+  const m = Math.sqrt(dot(v1, v1) * dot(v2, v2));
+  if (m < 1e-9) return null;
+  return (Math.acos(Math.max(-1, Math.min(1, dot(v1, v2) / m))) * 180) / Math.PI;
+}

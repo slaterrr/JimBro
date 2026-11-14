@@ -65,11 +65,54 @@ function readSide(landmarks: readonly LandmarkLike[], o: ReadOptions, none: Exer
   };
 }
 
+/**
+ * Which arm drives the counter in a front view. Taking the more-bent arm each
+ * frame merges alternating reps when the next arm starts curling before the
+ * previous one is fully down (the angle never returns to the start zone). So
+ * the counting arm is held until it has been straight for a moment, and only
+ * then handed to the other arm if that one is bending.
+ */
+export class ActiveArm {
+  private arm: "left" | "right" | null = null;
+  private straightSince: number | null = null;
+
+  constructor(
+    private readonly straightDeg = 150,
+    private readonly settleMs = 200,
+    private readonly leadDeg = 20,
+  ) {}
+
+  pick(left: number | null, right: number | null, t: number): "left" | "right" | null {
+    const angle = (a: "left" | "right") => (a === "left" ? left : right);
+    const other = (a: "left" | "right") => (a === "left" ? "right" : "left");
+    if (left === null && right === null) return (this.arm = null);
+    if (this.arm === null || angle(this.arm) === null) {
+      this.arm = right === null || (left !== null && left <= right) ? "left" : "right";
+      this.straightSince = null;
+      return this.arm;
+    }
+    const cur = angle(this.arm)!;
+    const alt = angle(other(this.arm));
+    if (cur >= this.straightDeg) {
+      this.straightSince ??= t;
+      if (alt !== null && alt <= cur - this.leadDeg && t - this.straightSince >= this.settleMs) {
+        this.arm = other(this.arm);
+        this.straightSince = null;
+      }
+    } else {
+      this.straightSince = null;
+    }
+    return this.arm;
+  }
+}
+
 function readFront(
   landmarks: readonly LandmarkLike[],
   world: readonly WorldLandmarkLike[],
   o: ReadOptions,
   none: ExerciseReading,
+  active: ActiveArm | null = null,
+  t = 0,
 ): ExerciseReading {
   const arm = (side: "left" | "right") => {
     const i = SIDES[side];
@@ -87,8 +130,14 @@ function readFront(
     ...none,
     view: "front",
     visible: true,
-    // The more-bent arm drives the count: alternating reps each count.
-    primaryAngle: Math.min(...angles),
+    // One arm drives the count at a time (see ActiveArm); without that state
+    // (single-frame reads) the more-bent arm does.
+    primaryAngle: active
+      ? (() => {
+          const arm = active.pick(left?.elbow ?? null, right?.elbow ?? null, t);
+          return arm === "left" ? left!.elbow : arm === "right" ? right!.elbow : Math.min(...angles);
+        })()
+      : Math.min(...angles),
     form: {
       ...NONE_FORM,
       elbowDrift: drifts.length ? Math.max(...drifts) : null,
@@ -173,6 +222,29 @@ export const bicepCurl: ExerciseDefinition = {
     return o.view === "front" && o.world && o.world.length >= 33
       ? readFront(landmarks, o.world, o, none)
       : readSide(landmarks, o, none);
+  },
+
+  createReader() {
+    const active = new ActiveArm();
+    let frame = 0;
+    return (landmarks, o) => {
+      // The tracker passes each frame's time; fall back to ~30 fps if not.
+      frame += 1;
+      const none: ExerciseReading = {
+        visible: false,
+        primaryAngle: null,
+        progress: null,
+        form: { ...NONE_FORM },
+        side: null,
+        highlight: [],
+        positionHint: null,
+        view: "side",
+      };
+      if (!landmarks || landmarks.length < 33) return none;
+      return o.view === "front" && o.world && o.world.length >= 33
+        ? readFront(landmarks, o.world, o, none, active, o.t ?? frame * 33)
+        : readSide(landmarks, o, none);
+    };
   },
 
   rejections: {

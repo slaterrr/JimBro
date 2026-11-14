@@ -44,6 +44,8 @@ export interface ReadOptions {
   world?: readonly WorldLandmarkLike[];
   /** Current (smoothed) camera-view estimate. */
   view?: CameraView;
+  /** Time of this frame (ms), for stateful readers that need durations. */
+  t?: number;
 }
 
 /**

@@ -8,10 +8,11 @@
  */
 
 import type { RepEvent } from "../../../../shared/types";
-import { calculateAngle } from "../angle_calculator";
+import { calculateAngle, calculateAngle3D } from "../angle_calculator";
+import { sagittalAngle } from "../body_metrics";
 import { armsUsed } from "../exercises/bicep_curl";
 import { POSE_LANDMARKS as L } from "../pose_detection";
-import { ANGLE_JOINTS, toLandmarks, type Annotation, type AngleJoint, type Recording, type View } from "./format";
+import { ANGLE_JOINTS, toLandmarks, toWorld, type Annotation, type AngleJoint, type Recording, type View } from "./format";
 import { recognizeExercise } from "./recognize";
 import { replayRecording, type ReplayResult } from "./replay";
 
@@ -44,6 +45,12 @@ export interface Evaluation {
     /** Only goniometer / mocap references count as ground truth; on-screen ones are reported separately. */
     groundTruth: AngleErrors;
     onScreen: AngleErrors;
+    /**
+     * Same ground-truth checks, measured from the model's 3D world landmarks
+     * (knee/hip in the sagittal plane, elbow in 3D) instead of the 2D image.
+     * Compare with `groundTruth` to see whether 3D corrects perspective.
+     */
+    groundTruth3d: AngleErrors;
   };
   /** Lunges with annotated front legs. */
   legRoles: { checked: number; correct: number; wrong: number; uncertain: number } | null;
@@ -117,16 +124,25 @@ export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult)
   }
 
   const aspect = rec.source.width / rec.source.height;
-  const angleErr = (method: (m: string) => boolean): AngleErrors => {
+  const angleErr = (method: (m: string) => boolean, use3d = false): AngleErrors => {
     const errs: Array<{ joint: AngleJoint; e: number }> = [];
     for (const c of ann.angleChecks.filter((x) => method(x.method))) {
       const frame = nearestFrame(rec, c.t);
-      const lm = toLandmarks(frame?.lm ?? null);
-      if (!lm) continue;
       // A mirrored video's "left knee" in MediaPipe terms is the person's right.
       const joint = rec.source.mirrored ? mirrorJoint(c.joint) : c.joint;
       const [a, b, cc] = ANGLE_JOINTS[joint];
-      const angle = calculateAngle(lm[a]!, lm[b]!, lm[cc]!, aspect);
+      let angle: number | null;
+      if (use3d) {
+        const w = toWorld(frame?.world ?? null);
+        if (!w) continue;
+        angle = joint.endsWith("elbow")
+          ? calculateAngle3D(w[a]!, w[b]!, w[cc]!)
+          : sagittalAngle(w[a]!, w[b]!, w[cc]!, w[L.LEFT_HIP]!, w[L.RIGHT_HIP]!);
+      } else {
+        const lm = toLandmarks(frame?.lm ?? null);
+        if (!lm) continue;
+        angle = calculateAngle(lm[a]!, lm[b]!, lm[cc]!, aspect);
+      }
       if (angle !== null) errs.push({ joint: c.joint, e: Math.abs(angle - c.degrees) });
     }
     const perJoint: AngleErrors["perJoint"] = {};
@@ -164,6 +180,7 @@ export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult)
     angles: {
       groundTruth: angleErr((m) => m === "goniometer" || m === "mocap"),
       onScreen: angleErr((m) => m === "on-screen"),
+      groundTruth3d: angleErr((m) => m === "goniometer" || m === "mocap", true),
     },
     legRoles,
     arms,

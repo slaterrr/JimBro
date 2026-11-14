@@ -586,6 +586,7 @@ export class ExerciseTracker {
       preferredSide: this.state.activeSide === "left" || this.state.activeSide === "right" ? this.state.activeSide : null,
       world,
       view: this.state.cameraView.view,
+      t: ts,
     });
     const angle = this.angleFilter.next(reading.primaryAngle, ts);
 

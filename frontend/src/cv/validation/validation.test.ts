@@ -238,3 +238,37 @@ describe("dataset export", () => {
     expect(parseJsonl<DatasetRep>(toJsonl(rows))).toEqual(JSON.parse(JSON.stringify(rows)));
   });
 });
+
+describe("evaluate: 2D vs 3D angle error under camera yaw", () => {
+  const rotY = (p: { x: number; y: number; z: number }, deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return { x: p.x * Math.cos(a) + p.z * Math.sin(a), y: p.y, z: -p.x * Math.sin(a) + p.z * Math.cos(a) };
+  };
+  function yawedRecording(yaw: number): Recording {
+    const body = {
+      [L.LEFT_HIP]: { x: -0.1, y: 0, z: 0 },
+      [L.RIGHT_HIP]: { x: 0.1, y: 0, z: 0 },
+      [L.RIGHT_KNEE]: { x: 0.1, y: -0.3, z: 0.3 },
+      [L.RIGHT_ANKLE]: { x: 0.1, y: -0.7, z: 0.15 },
+    } as Record<number, { x: number; y: number; z: number }>;
+    const world = Array.from({ length: 33 }, (_, i) => {
+      const p = rotY(body[i] ?? { x: 0, y: 0, z: 0 }, yaw);
+      return [p.x, p.y, p.z];
+    });
+    // Side-on camera: image x = depth axis z, image y = down.
+    const lm = world.map(([, y, z]) => [0.5 + z! * 0.5, 0.5 - y! * 0.5, 0, 0.95]);
+    const rec = recording(squatSpecs(1).specs.slice(0, 3));
+    rec.frames = rec.frames.map((f) => ({ ...f, lm, world }));
+    return rec;
+  }
+
+  it("shows the 2D error growing with yaw while the 3D sagittal angle stays right", () => {
+    const truth = 114.44;
+    const check = { t: 0, joint: "right_knee" as const, degrees: truth, method: "goniometer" as const };
+    const side = evaluate(yawedRecording(0), annotation({ angleChecks: [check] }));
+    const turned = evaluate(yawedRecording(40), annotation({ angleChecks: [check] }));
+    expect(side.angles.groundTruth.meanAbsError!).toBeLessThan(0.5);
+    expect(turned.angles.groundTruth.meanAbsError!).toBeGreaterThan(10);
+    expect(turned.angles.groundTruth3d.meanAbsError!).toBeLessThan(0.5);
+  });
+});

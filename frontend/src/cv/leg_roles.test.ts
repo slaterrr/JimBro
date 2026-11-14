@@ -17,7 +17,7 @@ describe("LegRoleTracker", () => {
         if (r.status === "split") {
           expect(r.front.label).toBe(frontLabel);
           expect(r.facing).toBe(facing);
-          expect(r.front.kneeAngle).toBeLessThan(r.back.kneeAngle);
+          expect(r.front.kneeAngle).toBeLessThan(r.back!.kneeAngle);
         }
       }
     }
@@ -75,13 +75,40 @@ describe("LegRoleTracker", () => {
     expect(r.status).toBe("split");
     if (r.status === "split" && expected.status === "split") {
       expect(r.front.kneeAngle).toBeCloseTo(expected.front.kneeAngle, 0);
-      expect(r.back.kneeAngle).toBeCloseTo(expected.back.kneeAngle, 0);
+      expect(r.back!.kneeAngle).toBeCloseTo(expected.back!.kneeAngle, 0);
     }
   });
 
   it("is uncertain when a leg is hidden, instead of guessing", () => {
     const r = new LegRoleTracker().update(pose({ facing: 1, frontLabel: "left", depth: 1, split: 1, farVis: 0.2 }), opts);
     expect(r.status).toBe("uncertain");
+  });
+
+  it("rides through a briefly hidden back leg on the locked front leg, then gives up", () => {
+    const t = new LegRoleTracker();
+    const frames = lungeRep(1, "left", { nearLabel: "left" });
+    const bottom = frames.findIndex((p) => p.depth >= 1.2);
+    let r = t.update(pose(frames[0]!), opts);
+    for (let i = 1; i < bottom; i++) r = t.update(pose(frames[i]!), opts);
+    // Back (right) leg hidden for 10 frames: still split, front only.
+    for (let i = 0; i < 10; i++) r = t.update(pose({ ...frames[bottom]!, farVis: 0.1 }), opts);
+    expect(r.status).toBe("split");
+    if (r.status === "split") {
+      expect(r.front.label).toBe("left");
+      expect(r.back).toBeNull();
+    }
+    // Beyond the limit: uncertain.
+    for (let i = 0; i < 10; i++) r = t.update(pose({ ...frames[bottom]!, farVis: 0.1 }), opts);
+    expect(r.status).toBe("uncertain");
+  });
+
+  it("is uncertain at once if the hidden leg is the front one", () => {
+    const t = new LegRoleTracker();
+    const frames = lungeRep(1, "right", { nearLabel: "left" });
+    const bottom = frames.findIndex((p) => p.depth >= 1.2);
+    for (let i = 0; i < bottom; i++) t.update(pose(frames[i]!), opts);
+    // Front leg is "right" (the far one); hide it.
+    expect(t.update(pose({ ...frames[bottom]!, farVis: 0.1 }), opts).status).toBe("uncertain");
   });
 
   it("is uncertain when it can't tell which way the user faces", () => {
@@ -110,6 +137,24 @@ describe("lunge reader", () => {
     expect(lunge.read(pose({ facing: 1, frontLabel: "left", depth: 0, split: 0 }), { ...ro, view: "front" }).positionHint).toMatch(
       /side on/,
     );
+  });
+
+  it("keeps counting when the back leg is hidden for a few frames at the bottom", () => {
+    const read = lunge.createReader!();
+    const counter = new RepCounter(lunge.counter);
+    const drop = new BaselineDropMeter();
+    let reps = 0;
+    const frames = lungeRep(1, "left").map((p) => (p.depth > 1.0 ? { ...p, farVis: 0.1 } : p));
+    expect(frames.filter((p) => p.farVis === 0.1).length).toBeLessThan(15);
+    frames.forEach((p, i) => {
+      const r = read(pose(p), ro);
+      const prog =
+        r.progress?.kind === "drop"
+          ? drop.update(r.progress.y, r.progress.refLength, counter.phase === "start" && counter.atStart(r.primaryAngle))
+          : null;
+      if (counter.update(i * 33, r.primaryAngle, prog)?.type === "rep") reps += 1;
+    });
+    expect(reps).toBe(1);
   });
 
   it("counts every rep of alternating lunges facing either way", () => {

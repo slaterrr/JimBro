@@ -39,7 +39,14 @@ export interface LegChain {
 
 export type LegRoles =
   | { status: "together"; legs: [LegChain, LegChain]; split: number }
-  | { status: "split"; front: LegChain; back: LegChain; split: number; facing: 1 | -1 }
+  | {
+      status: "split";
+      front: LegChain;
+      /** null while the back leg is briefly hidden (see `maxHiddenFrames`). */
+      back: LegChain | null;
+      split: number;
+      facing: 1 | -1;
+    }
   | { status: "uncertain"; reason: string };
 
 export interface LegRoleOptions {
@@ -49,11 +56,18 @@ export interface LegRoleOptions {
   minSplit: number;
   /** Facing votes must agree at least this much (0–1, smoothed) to be trusted. */
   minFacingConfidence: number;
+  /**
+   * While roles are locked, the back leg may be hidden for up to this many
+   * frames (e.g. behind the front leg) if the visible leg is clearly the
+   * locked front leg. Longer, or if the front leg is the one hidden: uncertain.
+   */
+  maxHiddenFrames: number;
 }
 
 export const DEFAULT_LEG_ROLE_OPTIONS: Readonly<Omit<LegRoleOptions, "minVisibility" | "aspectRatio">> = Object.freeze({
   minSplit: 0.3,
   minFacingConfidence: 0.4,
+  maxHiddenFrames: 15,
 });
 
 const IDX = {
@@ -71,6 +85,9 @@ export class LegRoleTracker {
   /** Ankle position (x, aspect-corrected) of the locked front leg, while split. */
   private lockedFrontX: number | null = null;
   private lockedFacing: 1 | -1 | null = null;
+  private lastLegLen: number | null = null;
+  private lastSplit = 0;
+  private hiddenFrames = 0;
 
   update(landmarks: readonly LandmarkLike[] | undefined, opts: Partial<LegRoleOptions> & Pick<LegRoleOptions, "minVisibility" | "aspectRatio">): LegRoles {
     const o = { ...DEFAULT_LEG_ROLE_OPTIONS, ...opts };
@@ -78,12 +95,15 @@ export class LegRoleTracker {
     const ar = o.aspectRatio;
     const minVis = o.minVisibility * FAR_LEG_VIS_FACTOR;
 
-    for (const side of ["left", "right"] as const) {
+    const hidden = (["left", "right"] as const).filter((side) => {
       const i = IDX[side];
-      if ([i.hip, i.knee, i.ankle].some((k) => vis(landmarks[k]) < minVis)) {
-        return this.uncertain("Both legs need to be in view to tell which one is in front.");
-      }
+      return [i.hip, i.knee, i.ankle].some((k) => vis(landmarks[k]) < minVis);
+    });
+    if (hidden.length > 0) {
+      const partial = hidden.length === 1 ? this.frontOnly(landmarks, hidden[0] === "left" ? "right" : "left", o, ar) : null;
+      return partial ?? this.uncertain("Both legs need to be in view to tell which one is in front.");
     }
+    this.hiddenFrames = 0;
 
     const legs = this.pairLegs(landmarks, ar);
     if (!legs) return this.uncertain("Couldn't read the knee angles.");
@@ -120,10 +140,14 @@ export class LegRoleTracker {
       this.lockedFacing = facing;
     }
     this.lockedFrontX = ax(front);
+    this.lastLegLen = legLen;
+    this.lastSplit = split;
     return { status: "split", front, back, split, facing };
   }
 
   reset(): void {
+    this.hiddenFrames = 0;
+    this.lastLegLen = null;
     this.facingScore = 0;
     this.facingSeen = false;
     this.bones = { left: null, right: null };
@@ -131,10 +155,32 @@ export class LegRoleTracker {
     this.lockedFacing = null;
   }
 
+  /**
+   * One leg hidden while roles are locked: keep going on the visible leg only
+   * if it is the locked front leg (its ankle is where the front ankle was),
+   * for a limited number of frames.
+   */
+  private frontOnly(lm: readonly LandmarkLike[], visible: BodySide, o: LegRoleOptions, ar: number): LegRoles | null {
+    if (this.lockedFrontX === null || this.lockedFacing === null || this.lastLegLen === null) return null;
+    if (this.hiddenFrames >= o.maxHiddenFrames) return null;
+    const i = IDX[visible];
+    const hip = lm[i.hip]!;
+    const knee = lm[i.knee]!;
+    const ankle = lm[i.ankle]!;
+    if (Math.abs(ankle.x * ar - this.lockedFrontX) > 0.15 * this.lastLegLen) return null; // that's the back leg
+    const kneeAngle = calculateAngle(hip, knee, ankle, ar);
+    if (kneeAngle === null) return null;
+    this.hiddenFrames += 1;
+    this.lockedFrontX = ankle.x * ar;
+    const front: LegChain = { label: visible, hip, knee, ankle, kneeAngle, indices: [i.hip, i.knee, i.ankle] };
+    return { status: "split", front, back: null, split: this.lastSplit, facing: this.lockedFacing };
+  }
+
   private uncertain(reason: string): LegRoles {
     // Losing sight of a leg also loses track of which one was in front.
     this.lockedFrontX = null;
     this.lockedFacing = null;
+    this.hiddenFrames = 0;
     return { status: "uncertain", reason };
   }
 

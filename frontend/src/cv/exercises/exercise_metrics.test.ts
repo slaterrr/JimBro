@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RepEvent } from "../../../../shared/types";
 import { POSE_LANDMARKS as L, type LandmarkLike, type WorldLandmarkLike } from "../pose_detection";
-import { ARM_ACTIVE_DEG, armsUsed, bicepCurl, curlStyle } from "./bicep_curl";
+import { RepCounter } from "../rep_counter";
+import { SignalFilter } from "../signal_filter";
+import { ARM_ACTIVE_DEG, ActiveArm, armsUsed, bicepCurl, curlStyle } from "./bicep_curl";
 import { deadlift, extensionTiming } from "./deadlift";
 import { shoulderPress } from "./shoulder_press";
 import type { FormSeries } from "./types";
@@ -132,5 +134,64 @@ describe("curl style", () => {
   it("reports the style as a session insight", () => {
     const out = bicepCurl.sessionInsights!([L_, R_, L_, R_]);
     expect(out).toEqual([{ code: "CURL_STYLE_ALTERNATING", message: "Alternating curls: 2 left, 2 right.", source: "measured" }]);
+  });
+});
+
+describe("alternating curls, front view: no merged reps", () => {
+  /** World landmarks with each arm's elbow at the given angle (forearm swinging toward the camera). */
+  function arms(leftDeg: number, rightDeg: number): WorldLandmarkLike[] {
+    const w: WorldLandmarkLike[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0 }));
+    for (const [sx, s, e, wr, h, deg] of [
+      [0.2, L.LEFT_SHOULDER, L.LEFT_ELBOW, L.LEFT_WRIST, L.LEFT_HIP, leftDeg],
+      [-0.2, L.RIGHT_SHOULDER, L.RIGHT_ELBOW, L.RIGHT_WRIST, L.RIGHT_HIP, rightDeg],
+    ] as const) {
+      const a = (deg * Math.PI) / 180;
+      w[s] = { x: sx, y: -0.4, z: 0 };
+      w[e] = { x: sx, y: -0.1, z: 0 };
+      w[wr] = { x: sx, y: -0.1 - 0.25 * Math.cos(a), z: -0.25 * Math.sin(a) };
+      w[h] = { x: sx / 2, y: 0.1, z: 0 };
+    }
+    return w;
+  }
+  const image: LandmarkLike[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 0.95 }));
+
+  /** Six alternating curls, each 2 s, the next arm starting 1.2 s after the previous (overlapping). */
+  function curlAngle(t: number, starts: number[]): number {
+    for (const s of starts) {
+      const ph = (t - s) / 2000;
+      if (ph >= 0 && ph <= 1) return 180 - 130 * ((1 - Math.cos(2 * Math.PI * ph)) / 2);
+    }
+    return 180;
+  }
+  const leftStarts = [500, 2900, 5300];
+  const rightStarts = [1700, 4100, 6500];
+
+  function count(read: (lm: LandmarkLike[], o: object) => { primaryAngle: number | null }) {
+    const f = new SignalFilter();
+    const c = new RepCounter(bicepCurl.counter);
+    let reps = 0;
+    for (let t = 0; t <= 9500; t += 33) {
+      const r = read(image, { ...ro, view: "front", world: arms(curlAngle(t, leftStarts), curlAngle(t, rightStarts)), t });
+      if (c.update(t, f.next(r.primaryAngle, t), null)?.type === "rep") reps += 1;
+    }
+    return reps;
+  }
+
+  it("the old more-bent-arm rule merges overlapping reps (the reported bug)", () => {
+    expect(count((lm, o) => bicepCurl.read(lm, o as never))).toBeLessThan(6);
+  });
+
+  it("holding one counting arm until it's straight counts all six", () => {
+    const read = bicepCurl.createReader!();
+    expect(count((lm, o) => read(lm, o as never))).toBe(6);
+  });
+
+  it("ActiveArm switches only after the arm has been straight for a moment", () => {
+    const a = new ActiveArm(150, 200, 20);
+    expect(a.pick(100, 175, 0)).toBe("left");
+    expect(a.pick(160, 120, 33)).toBe("left"); // straight, but not long enough
+    expect(a.pick(165, 110, 250)).toBe("right");
+    expect(a.pick(null, 100, 300)).toBe("right");
+    expect(a.pick(120, null, 333)).toBe("left"); // counting arm lost: use the other
   });
 });
