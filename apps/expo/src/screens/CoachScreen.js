@@ -11,6 +11,7 @@ import { liveCue } from '../lib/cues.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
 import { poseHtml } from '../lib/poseHtml.js';
+import { switchPlan } from '../lib/switchExercise.js';
 import { R, T, type } from '../theme.js';
 
 // Neutral, plain-word reasons for a movement the counter did not count.
@@ -40,6 +41,8 @@ export function CoachScreen({ openLog }) {
   const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
   const [caught, setCaught] = useState(null);
   const caughtTimer = useRef(null);
+  const [suggestion, setSuggestion] = useState(null);
+  const seenSuggestion = useRef(null);
   useEffect(() => () => clearTimeout(caughtTimer.current), []);
   const session = useRef(new LiveSession(movement));
   const speakGuide = useRef(guidanceThrottle(8000));
@@ -54,6 +57,8 @@ export function CoachScreen({ openLog }) {
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
     setView({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
+    setSuggestion(null);
+    seenSuggestion.current = null;
   };
   useEffect(() => {
     const p = plannedFor(active, movement);
@@ -84,6 +89,13 @@ export function CoachScreen({ openLog }) {
     if (out.issue && voice && speakGuide.current(`${out.issue}:${out.hint ?? ''}`, m.t)) {
       jim.say(cameraGuidance(out.issue, out.hint, movement), { force: true });
     }
+    const suggested = out.suggested ?? session.current.suggested ?? null;
+    if (suggested && suggested !== movement && suggested !== seenSuggestion.current) {
+      // Show (and speak) each new suggestion once; dismissing hides it until a different one.
+      seenSuggestion.current = suggested;
+      setSuggestion(suggested);
+      if (voice) jim.say(switchPlan({ current: movement, suggested, counted: out.count }).label, { force: true });
+    }
     if (out.blocked) {
       const words = BLOCKED_WORDS[out.blocked.reason] ?? 'lost tracking';
       setCaught({ reason: out.blocked.reason, words });
@@ -98,6 +110,18 @@ export function CoachScreen({ openLog }) {
     const reps = session.current.repsDetail();
     openLog({ exercise: movement, reps: reps.length, source: 'camera' }, reps.length ? { movement, reps, quality: session.current.quality(), target, clips: session.current.clips } : null);
     resetSet();
+  };
+  const plan = switchPlan({ current: movement, suggested: suggestion, counted: view.count });
+  const onSwitch = (id) => {
+    const next = suggestion;
+    setSuggestion(null);
+    if (id === 'keep' || !next) return;
+    if (id === 'log') {
+      openLog({ exercise: next });
+      return;
+    }
+    if (plan?.logFirst) stop(); // log the reps already counted for the current lift, as Stop does
+    setMovement(next); // the movement effect resets the session for the new exercise
   };
   const flip = () => {
     const f = facing === 'user' ? 'environment' : 'user';
@@ -159,6 +183,23 @@ export function CoachScreen({ openLog }) {
             </Text>
           </View>
         ) : null}
+        {plan ? (
+          <View style={[st.glass, st.suggest]} accessibilityLiveRegion="polite">
+            <Text style={{ color: T.text, fontSize: 16, fontWeight: '700', marginBottom: 8 }}>{plan.label}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {plan.actions.map((a, i) => (
+                <TouchableOpacity
+                  key={a.id}
+                  onPress={() => onSwitch(a.id)}
+                  accessibilityRole="button"
+                  style={[st.suggestBtn, i === 0 ? { backgroundColor: T.accent, borderColor: T.accent } : { borderColor: T.border }]}
+                >
+                  <Text style={{ color: i === 0 ? T.bg : T.text, fontWeight: '700', fontSize: 14 }}>{a.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
         <View style={[st.glass, st.cue]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <JimBars height={16} />
@@ -216,6 +257,8 @@ const st = StyleSheet.create({
   repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 110 },
   cue: { left: 12, right: 12, bottom: 12 },
   caught: { position: 'absolute', top: 110, alignSelf: 'center', backgroundColor: 'rgba(16,13,22,0.88)', borderWidth: 2, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 8 },
+  suggest: { top: 160, left: 12, right: 12 },
+  suggestBtn: { borderWidth: 1, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 8 },
   controls: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 18 },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.purple, backgroundColor: T.purpleSoft, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },
 });
