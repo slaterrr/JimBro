@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import (
     APIRouter,
@@ -17,13 +17,25 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
+from .coach import (
+    CoachReply,
+    CoachRequest,
+    Suggestion,
+    TextModel,
+    build_facts,
+    coach_reply,
+    default_model,
+    suggest_next,
+)
 from .db import Conflict, Database, NotFound
 from .live import LiveSession
+from .plans import Plan, PlanRequest, build_plan
 from .reps import MOVEMENTS
 from .schemas import (
     ATHLETE_PATTERN,
     EXERCISES,
     Exercise,
+    ExerciseId,
     SessionIn,
     SessionOut,
     SessionSummary,
@@ -97,11 +109,43 @@ def complete_set(set_id: str, body: SetIn, db: DB, who: Athlete, response: Respo
     return record
 
 
+def get_model(request: Request) -> TextModel | None:
+    model: TextModel | None = request.app.state.model
+    return model
+
+
+@router.post("/coach")
+def coach(
+    body: CoachRequest,
+    db: DB,
+    who: Athlete,
+    model: Annotated[TextModel | None, Depends(get_model)],
+) -> CoachReply:
+    sets = db.sets_for_athlete(who)
+    facts = build_facts(sets)
+    focus = body.exercise or (sets[-1].exercise if sets else None)
+    suggestion = suggest_next([s for s in sets if s.exercise == focus]) if focus else None
+    return coach_reply(facts, body.message, body.tone, model, suggestion)
+
+
+@router.post("/plans")
+def plan(body: PlanRequest) -> Plan:
+    return build_plan(body)
+
+
+@router.get("/suggestions/{exercise}")
+def suggestion(exercise: ExerciseId, db: DB, who: Athlete) -> Suggestion | None:
+    return suggest_next(db.sets_for_athlete(who, exercise))
+
+
 def create_app(
-    db_path: Path | str = DEFAULT_DB, static_dir: Path | None = DEFAULT_STATIC
+    db_path: Path | str = DEFAULT_DB,
+    static_dir: Path | None = DEFAULT_STATIC,
+    model: TextModel | None | Literal["auto"] = "auto",
 ) -> FastAPI:
-    app = FastAPI(title="JimBro", version="0.2.0")
+    app = FastAPI(title="JimBro", version="0.3.0")
     app.state.db = Database(db_path)
+    app.state.model = default_model() if model == "auto" else model
 
     @app.get("/health")
     def health() -> dict[str, str]:

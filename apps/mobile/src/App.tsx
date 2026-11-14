@@ -1,12 +1,16 @@
 import { useCallback, useState } from "react";
-import type { ExerciseId, RepDetail } from "./api/client";
+import type { ExerciseId, RepDetail, Unit } from "./api/client";
+import { CoachScreen } from "./components/CoachScreen";
+import { PlanBuilder } from "./components/PlanBuilder";
 import { LiveWorkout, type RepEvent } from "./components/LiveWorkout";
 import { SessionSummaryCard } from "./components/SessionSummaryCard";
 import { SetForm } from "./components/SetForm";
 import type { Movement } from "./pose/angles";
 import { useWorkout } from "./state/useWorkout";
 
-type Tab = "train" | "log";
+type Tab = "train" | "log" | "jim";
+type Prefill = { exercise: ExerciseId; weight: number; unit: Unit; reps: number };
+const TAB_LABEL: Record<Tab, string> = { train: "Train", log: "Log", jim: "Jim" };
 
 const toDetail = (r: RepEvent): RepDetail => ({
   index: r.index,
@@ -19,6 +23,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("train");
   const workout = useWorkout();
   const [camera, setCamera] = useState<{ movement: Movement; reps: RepDetail[] }>({ movement: "curl", reps: [] });
+  const [prefill, setPrefill] = useState<Prefill | null>(null);
   const onReps = useCallback(
     (reps: RepEvent[], movement: Movement) => setCamera({ movement, reps: reps.map(toDetail) }),
     [],
@@ -53,8 +58,27 @@ export function App() {
       {tab === "log" && (
         <>
           <h2>Log a set manually</h2>
-          <SetForm sessionId={workout.sessionId ?? ""} onSubmit={workout.logSet} />
+          <SetForm
+            key={prefill ? JSON.stringify(prefill) : "blank"}
+            sessionId={workout.sessionId ?? ""}
+            exercise={prefill?.exercise}
+            initial={prefill ?? undefined}
+            onSubmit={workout.logSet}
+          />
           <SessionSummaryCard summary={workout.summary} />
+        </>
+      )}
+
+      {tab === "jim" && (
+        <>
+          <CoachScreen
+            onLogSet={workout.logSet}
+            onUseSuggestion={(s) => {
+              setPrefill({ exercise: s.exercise, weight: s.weight, unit: s.unit, reps: s.reps });
+              setTab("log");
+            }}
+          />
+          <PlanBuilder />
         </>
       )}
 
@@ -63,9 +87,9 @@ export function App() {
         movement-phase timing, not measured muscle tension. Not a clinical assessment.
       </p>
       <nav className="tabs">
-        {(["train", "log"] as Tab[]).map((t) => (
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <button key={t} aria-current={tab === t ? "page" : undefined} onClick={() => setTab(t)}>
-            {t === "train" ? "Train" : "Log"}
+            {TAB_LABEL[t]}
           </button>
         ))}
       </nav>
