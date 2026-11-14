@@ -1,0 +1,16 @@
+[Unit]
+Description=JimBro station GPIO button (optional)
+After=jimbro.service
+Wants=jimbro.service
+
+[Service]
+User=jimbro
+SupplementaryGroups=gpio
+EnvironmentFile=/etc/jimbro/jimbro.env
+Environment=JIMBRO_API=https://127.0.0.1:${JIMBRO_PORT}
+ExecStart=/usr/bin/python3 /opt/jimbro/app/gpio_button.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

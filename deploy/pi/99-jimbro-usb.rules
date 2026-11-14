@@ -1,0 +1,2 @@
+# When a USB stick with a filesystem appears, let JimBro update/back up/report.
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", TAG+="systemd", ENV{SYSTEMD_WANTS}+="jimbro-usb@%k.service"

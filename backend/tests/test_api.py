@@ -1,0 +1,11 @@
+"""Basic API contract smoke test."""
+
+from fastapi.testclient import TestClient
+
+from jimbro.api import app
+
+
+def test_health_endpoint() -> None:
+    response = TestClient(app).get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}

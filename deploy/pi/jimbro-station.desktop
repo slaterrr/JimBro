@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=JimBro Station
+Comment=Full-screen rep display
+Exec=/opt/jimbro/app/station.sh @PORT@
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jimbro"
+version = "0.1.0"
+description = "JimBro training API and deterministic exercise metrics"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.30,<1", "anthropic>=0.70"]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27,<1",
+  "pytest>=8.3,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.12,<1",
+  "mypy>=1.15,<2",
+  "mutmut>=3.7,<4",
+]
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+# Repo root on sys.path so tests can import backend.jimbro (as mutmut needs) under bare `pytest`.
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "backend"
+
+[tool.mutmut]
+source_paths = ["backend/jimbro/motion.py", "backend/jimbro/reps.py"]
+pytest_add_cli_args_test_selection = [
+  "backend/tests/test_motion.py",
+  "backend/tests/test_reps.py",
+  "backend/tests/test_reps_boundaries.py",
+]
+also_copy = ["backend/tests", "backend/jimbro/__init__.py"]
+debug = true
