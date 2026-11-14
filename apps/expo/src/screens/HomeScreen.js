@@ -1,29 +1,25 @@
-import React, { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import React from 'react';
+import { Alert, Share, Text, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
-import { normalizeServer } from '../lib/config.js';
+import { exerciseName } from '../lib/exercises.js';
+import { streak, weeklyProgress } from '../lib/progress.js';
 import { Button, C, Card, Choice, Kicker, Metric, s } from '../ui.js';
 
 const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
 
 export function HomeScreen({ go }) {
-  const { settings, update, online, pending, sync, workout } = useApp();
-  const [server, setServer] = useState(settings.server.replace(/^http:\/\//, ''));
-  const [athlete, setAthlete] = useState(settings.athlete);
-  const [error, setError] = useState(null);
+  const { settings, update, history, active, allSets, exportJSON, eraseAll } = useApp();
+  const week = weeklyProgress(history, settings.weeklyGoal);
+  const weeks = streak(history);
+  const volume = allSets.reduce((t, x) => t + x.weight * x.reps, 0);
+  const recentPRs = allSets.filter((x) => x.pr).slice(-3).reverse();
 
-  const sets = [...workout.history, ...(workout.active ? [workout.active] : [])].flatMap((w) => w.sets);
-  const volume = sets.reduce((t, x) => t + x.weight * x.reps, 0);
-
-  const connect = () => {
-    const base = normalizeServer(server);
-    if (!base) return setError('Enter the Pi address, e.g. jimbro.local or 192.168.1.20');
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(athlete)) return setError('Name: letters, numbers, - or _ only');
-    setError(null);
-    update({ server: base, athlete });
-    setTimeout(sync, 0);
-  };
+  const confirmErase = () =>
+    Alert.alert('Erase all workouts?', 'This deletes every workout and plan on this phone. Export first if you want a copy.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Erase', style: 'destructive', onPress: eraseAll },
+    ]);
 
   return (
     <>
@@ -32,39 +28,46 @@ export function HomeScreen({ go }) {
         Show up.{'\n'}
         <Text style={s.green}>Get stronger.</Text>
       </Text>
-      <Text style={s.body}>Jim tracks the work and helps you make the next set count.</Text>
-      <Button onPress={() => go('Workout')}>{workout.active ? 'Continue workout  ↗' : 'Start a workout  ↗'}</Button>
+      <Text style={s.body}>Jim tracks the work and helps you make the next set count. Everything stays on this phone.</Text>
+      <Button onPress={() => go('Workout')}>{active ? 'Continue workout  ↗' : 'Start a workout  ↗'}</Button>
       <View style={s.metrics}>
-        <Metric title="WORKOUTS" value={workout.history.length} />
-        <Metric title="SETS" value={sets.length} />
-        <Metric title="VOLUME" value={`${Math.round(volume)}`} />
+        <Metric title="THIS WEEK" value={`${week.done}/${week.goal}`} />
+        <Metric title="STREAK" value={`${weeks} wk`} />
+        <Metric title="VOLUME" value={Math.round(volume)} />
       </View>
 
       <Card>
-        <Kicker>YOUR PI</Kicker>
+        <Kicker>WEEKLY GOAL</Kicker>
         <Text style={s.cardTitle}>
-          {online === null ? 'Checking…' : online ? 'Connected' : 'Offline'}
-          {pending ? <Text style={{ color: C.warn }}>{`  · ${pending} to sync`}</Text> : null}
+          {week.done >= week.goal ? 'Goal hit. 💪' : `${week.goal - week.done} workout${week.goal - week.done === 1 ? '' : 's'} to go`}
         </Text>
-        <Text style={s.body}>
-          {online
-            ? 'Workouts, Jim and rankings come from your JimBro Pi.'
-            : 'Sets are kept on this phone and sync automatically when the Pi is reachable on the same Wi-Fi.'}
-        </Text>
-        <Text style={s.label}>Pi address</Text>
-        <TextInput style={s.input} value={server} onChangeText={setServer} autoCapitalize="none" autoCorrect={false} placeholder="jimbro.local" placeholderTextColor={C.muted} />
-        <Text style={s.label}>Your name on this Pi</Text>
-        <TextInput style={s.input} value={athlete} onChangeText={setAthlete} autoCapitalize="none" autoCorrect={false} />
-        <Button onPress={connect} secondary>Save & connect</Button>
-        {error ? <Text style={s.error}>{error}</Text> : null}
-        <Text style={s.fine}>If jimbro.local does not resolve on your phone, use the IP shown in jimbro-status.txt on your USB stick.</Text>
+        <Choice title="Workouts per week" options={[1, 2, 3, 4, 5, 6].map((n) => [n, String(n)])} value={settings.weeklyGoal} onChange={(weeklyGoal) => update({ weeklyGoal })} />
+        <Text style={s.fine}>Your streak counts consecutive weeks with at least one workout.</Text>
       </Card>
+
+      {recentPRs.length ? (
+        <Card>
+          <Kicker>RECENT RECORDS</Kicker>
+          {recentPRs.map((x) => (
+            <Text key={x.id} style={s.rowText}>🏆 {exerciseName(x.exercise)} · {x.weight} {x.unit} × {x.reps}</Text>
+          ))}
+        </Card>
+      ) : null}
 
       <Card>
         <Kicker>COACH JIM</Kicker>
         <Text style={s.cardTitle}>In your corner.</Text>
         <Choice title="Coaching tone" options={TONES} value={settings.tone} onChange={(tone) => update({ tone })} />
         <Choice title="Units" options={[['lb', 'lb'], ['kg', 'kg']]} value={settings.unit} onChange={(unit) => update({ unit })} />
+        <Choice title="Rest timer" options={[[60, '1:00'], [90, '1:30'], [120, '2:00'], [180, '3:00']]} value={settings.restSeconds} onChange={(restSeconds) => update({ restSeconds })} />
+      </Card>
+
+      <Card>
+        <Kicker>YOUR DATA</Kicker>
+        <Text style={s.body}>{history.length} workouts saved on this phone. Nothing is uploaded.</Text>
+        <Button secondary onPress={() => Share.share({ message: exportJSON(), title: 'JimBro workouts' })}>Export workouts</Button>
+        <Button secondary onPress={confirmErase}>Erase all workouts</Button>
+        <Text style={[s.fine, { color: C.muted }]}>Not a medical device. TUT is estimated movement timing, not muscle tension.</Text>
       </Card>
     </>
   );
