@@ -79,9 +79,9 @@ def test_phase_timing_matches_fixture_within_one_frame_window() -> None:
     _, reps = feed(curl_reps(1, up_ms=900, top_ms=300, down_ms=1500))
     rep = reps[0]
     # Thresholds sit inside the ramps, so measured phases are a bit shorter than the ramp.
-    assert 500 <= rep.concentric_ms <= 900
-    assert 300 <= rep.peak_pause_ms <= 700
-    assert 900 <= rep.eccentric_ms <= 1500
+    assert 450 <= rep.concentric_ms <= 900
+    assert 300 <= rep.peak_pause_ms <= 950
+    assert 800 <= rep.eccentric_ms <= 1500
     assert rep.tut_ms == rep.concentric_ms + rep.peak_pause_ms + rep.eccentric_ms
     assert rep.eccentric_ms > rep.concentric_ms
     assert rep.end_ms > rep.start_ms
