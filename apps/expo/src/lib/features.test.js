@@ -17,6 +17,9 @@ const WIRING = {
     [/speakGuide/, 'spoken, throttled camera corrections'],
     [/\bvoice\.cue\(|\bcue\(/, 'rep counts spoken through the voice module'],
   ],
+  'lib/guidance.js': [
+    [/exercise_change/, 'exercise-change guidance'],
+  ],
   'components/Sheets.js': [
     [/spokenReport\(/, 'Jim speaks the set report'],
     [/Hear report/, 'Hear report button'],
@@ -53,6 +56,7 @@ const WIRING = {
     [/clips/, 'form clips per rep'],
     [/frontalKneeAngle/, 'front-facing squat counting'],
     [/missingHint/, 'which body part is out of view'],
+    [/lowerBodyShape/, 'exercise-change detection (lunge in squat mode)'],
   ],
 };
 

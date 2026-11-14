@@ -16,6 +16,9 @@ export function cameraGuidance(issue, hint, movement) {
       ? 'Step back — your shoulders, hips and feet need to be in frame to count reps.'
       : 'Step back — your shoulders and hips need to be in frame to count reps.';
     case 'implausible_motion': return 'Tracking jumped — rep paused. Hold steady with only you in frame.';
+    case 'exercise_change': return hint === 'lunge'
+      ? "Looks like lunges, so squat counting is paused. Lunges aren't camera-counted yet; log them with +, or go back to squats."
+      : `Looks like a different exercise, so ${movement} counting is paused.`;
     case 'arm_swing': return 'Upper arm moved too far — rep not counted. Keep your elbow near your side.';
     default: return null;
   }

@@ -1,6 +1,6 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, missingHint } from './angles.js';
+import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint } from './angles.js';
 import { analyzeRep } from './form.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
@@ -9,6 +9,12 @@ const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on re
 // that jumps faster than this was re-placed by the model, not moved by the body.
 const MAX_JOINT_SPEED_TORSO_PER_S = 6;
 const MAX_SPEED_GAP_MS = 300;
+// Exercise-change detection: sustained other-exercise shape pauses counting (~0.3 s at 20 fps),
+// and enough of it suggests switching (~1 s).
+const CHANGE_FRAMES = 6;
+const SUGGEST_FRAMES = 20;
+// Once a rep looks like a lunge, the rest of that rep stays blocked until the user stands up.
+const STANDING_DEG = 150;
 // Hypothesis under test: MediaPipe extrapolates hips that are off-screen with passing
 // visibility (waist-up framing). Torso anchors must lie inside the frame, with a margin.
 const FRAME_MARGIN = 0.05;
@@ -139,6 +145,18 @@ export class LiveSession {
     if (speed > MAX_JOINT_SPEED_TORSO_PER_S) {
       this.counter.interrupt();
       return this.result(null, tracking, m.angle, 'implausible_motion');
+    }
+    if (this.movement === 'squat') {
+      const shape = lowerBodyShape(pose, m.angle);
+      this._other = shape === 'lunge' ? (this._other ?? 0) + 1 : 0;
+      if (shape === 'lunge') this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = 'lunge';
+      if (shape === 'lunge' && (this._other >= CHANGE_FRAMES || this.counter.state !== 'rest')) this._latched = true;
+      if (this._latched && m.angle >= STANDING_DEG && shape !== 'lunge') this._latched = false;
+      if (this._latched) {
+        this.counter.interrupt();
+        return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: 'lunge', suggested: this.suggested ?? null };
+      }
     }
     if (this.movement === 'curl') {
       const swing = curlUpperArmSwing(pose, this.side);

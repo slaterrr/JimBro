@@ -46,9 +46,8 @@ const HALF_WIDTH = { 11: 0.09, 13: 0.11, 15: 0.11, 23: 0.06, 25: 0.065, 27: 0.06
 export function frontView(pose, cx = 0.5) {
   const out = pose.map((p) => ({ ...p }));
   for (const [i, w] of Object.entries(HALF_WIDTH)) {
-    const y = pose[+i].y;
-    out[+i] = { x: cx + w, y, visibility: 0.98 }; // subject's left appears on image right
-    out[+i + 1] = { x: cx - w, y, visibility: 0.98 };
+    out[+i] = { x: cx + w, y: pose[+i].y, visibility: 0.98 }; // subject's left appears on image right
+    out[+i + 1] = { x: cx - w, y: pose[+i + 1].y, visibility: 0.98 }; // each side keeps its own height
   }
   return out;
 }
@@ -141,11 +140,10 @@ export function simulateHallucination({ glitches = 8, glitchMs = 900, everyMs = 
 
 /** One lunge pose. p: 0 standing in split stance → 1 bottom. Front leg = near (left) side. */
 export function lungeBody(p, cx = 0.5) {
-  const kF = 175 - 85 * p;
-  const a = (180 - kF) / 2;
+  // Real lunge: front shin stays near vertical, front thigh goes toward horizontal (knee ~90°).
   const ankleF = { x: cx + 0.12, y: 0.92 };
-  const kneeF = add(ankleF, BONE.shank, 180 - a);
-  const hip = add(kneeF, BONE.thigh, 180 + a);
+  const kneeF = add(ankleF, BONE.shank, 180 - 12 * p);
+  const hip = add(kneeF, BONE.thigh, 180 + 5 + 75 * p);
   const shoulder = add(hip, BONE.torso, 180);
   const kneeB = add(hip, BONE.thigh, -(25 - 20 * p));
   const ankleB = add(kneeB, BONE.shank, -(40 + 45 * p));

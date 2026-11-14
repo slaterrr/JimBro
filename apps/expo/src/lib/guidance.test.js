@@ -23,3 +23,10 @@ test('spoken guidance repeats at most once per 8 s for the same problem', () => 
   assert.equal(g('framing:body', 3500), true);
   assert.equal(g('tracking:feet', 9000), true);
 });
+
+test('a detected exercise change is explained and tells the user what to do', () => {
+  const g = cameraGuidance('exercise_change', 'lunge', 'squat');
+  assert.match(g, /lunge/i);
+  assert.match(g, /squat/i);
+  assert.match(g, /\+|log/i);
+});

@@ -103,3 +103,25 @@ export function missingHint(pose, movement) {
   }
   return 'body';
 }
+
+// Squat vs lunge from leg symmetry. Hypotheses under test, in torso lengths (the torso barely
+// foreshortens in either lift, unlike the thigh, which shrinks at depth and inflated ratios on a
+// real rear-view squat): side view, a lunge keeps the feet split front-to-back even when
+// standing; facing the camera, the back knee drops well below the front knee.
+const LUNGE_STANCE = 0.8;
+const LUNGE_KNEE_DROP = 0.35;
+const STANDING_KNEE_DEG = 150;
+
+export function lowerBodyShape(pose, kneeAngle = null) {
+  const need = [11, 12, 23, 24, 25, 26, 27, 28];
+  if (need.some((i) => (pose[i]?.visibility ?? 0) < 0.5)) return null;
+  const m1 = mid(pose[11], pose[12]);
+  const m2 = mid(pose[23], pose[24]);
+  const torso = Math.hypot(m1.x - m2.x, m1.y - m2.y);
+  if (!(torso > 0.01)) return null;
+  const standing = kneeAngle !== null && kneeAngle >= STANDING_KNEE_DEG;
+  const stance = Math.abs(pose[27].x - pose[28].x) / torso;
+  const kneeDrop = Math.abs(pose[25].y - pose[26].y) / torso;
+  if ((standing && !isFrontal(pose) && stance > LUNGE_STANCE) || kneeDrop > LUNGE_KNEE_DROP) return 'lunge';
+  return 'squat';
+}
