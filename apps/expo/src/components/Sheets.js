@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
+import { Alert, Keyboard, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
 import { suggestNext } from '../lib/coach.js';
@@ -137,6 +137,7 @@ export function ActivitySheet({ visible, onClose }) {
   const prs = allSets.filter((s) => s.pr).slice(-3).reverse();
 
   const restore = () => {
+    Keyboard.dismiss();
     try {
       const n = importData(pasted);
       setMsg(n ? `Restored ${n} workout${n === 1 ? '' : 's'}.` : 'Nothing new to restore.');
@@ -175,7 +176,7 @@ export function ActivitySheet({ visible, onClose }) {
       <Text style={type.body}>{history.length} workouts on this phone. Nothing is uploaded.</Text>
       <PrimaryButton secondary onPress={() => Share.share({ message: exportJSON(), title: 'JimBro workouts' })}>Export workouts</PrimaryButton>
       <View style={{ marginTop: 12 }}>
-        <Field value={pasted} onChangeText={setPasted} multiline placeholder="Paste an export here to restore" style={{ minHeight: 70, textAlignVertical: 'top' }} />
+        <Field value={pasted} onChangeText={setPasted} multiline autoCorrect={false} autoCapitalize="none" placeholder="Paste an export here to restore" style={{ height: 100, textAlignVertical: 'top' }} />
       </View>
       <PrimaryButton secondary disabled={!pasted.trim()} onPress={restore}>Restore</PrimaryButton>
       {msg ? <Text style={[type.small, { marginTop: 8 }]}>{msg}</Text> : null}

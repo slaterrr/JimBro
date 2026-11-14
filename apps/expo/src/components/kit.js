@@ -1,7 +1,7 @@
 // Shared building blocks for the JimBro UI.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 
 import { R, T, type } from '../theme.js';
@@ -103,17 +103,20 @@ export function Chips({ options, value, onChange, multi = false }) {
 export function Sheet({ visible, onClose, title, children }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={st.backdrop} onPress={onClose} />
-      <View style={st.sheet}>
-        <View style={st.grabber} />
-        <View style={st.sheetHeader}>
-          <Text style={type.h2}>{title}</Text>
-          <TouchableOpacity accessibilityLabel="Close" onPress={onClose}>
-            <Icon name="close" color={T.textDim} />
-          </TouchableOpacity>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <Pressable style={st.backdrop} onPress={onClose} />
+        <View style={st.sheet}>
+          <View style={st.grabber} />
+          <View style={st.sheetHeader}>
+            <Text style={type.h2}>{title}</Text>
+            <TouchableOpacity accessibilityLabel="Hide keyboard" onPress={Keyboard.dismiss} style={{ padding: 8 }}><Icon name="keyboard-close" color={T.textDim} /></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel="Close" onPress={onClose}>
+              <Icon name="close" color={T.textDim} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={{ flexShrink: 1 }} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>{children}</ScrollView>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>{children}</ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
