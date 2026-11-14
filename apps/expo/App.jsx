@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 
 import { AppProvider, useApp } from './src/AppState.js';
+import { CameraCounter } from './src/screens/CameraCounter.js';
 import { HomeScreen } from './src/screens/HomeScreen.js';
 import { JimScreen } from './src/screens/JimScreen.js';
 import { PlanScreen } from './src/screens/PlanScreen.js';
@@ -17,6 +18,9 @@ function Shell() {
   const [prefill, setPrefill] = useState(null);
   const clearPrefill = useCallback(() => setPrefill(null), []);
   const applySuggestion = (sug) => { setPrefill(sug); setTab('Workout'); };
+  const [camera, setCamera] = useState(null); // movement being counted, or null
+  const [cameraReps, setCameraReps] = useState(null);
+  const clearCameraReps = useCallback(() => setCameraReps(null), []);
 
   return (
     <View style={s.screen}>
@@ -30,15 +34,22 @@ function Shell() {
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
         {!ready ? <Text style={s.body}>Loading…</Text> : null}
         {notice ? <Text style={s.error}>{notice}</Text> : null}
-        {ready && tab === 'Home' ? <HomeScreen go={setTab} /> : null}
-        {ready && tab === 'Workout' ? <WorkoutScreen prefill={prefill} clearPrefill={clearPrefill} /> : null}
-        {ready && tab === 'Jim' ? <JimScreen applySuggestion={applySuggestion} /> : null}
-        {ready && tab === 'Plan' ? <PlanScreen go={setTab} /> : null}
-        {ready && tab === 'Progress' ? <ProgressScreen /> : null}
+        {ready && camera ? (
+          <CameraCounter
+            movement={camera}
+            onCancel={() => setCamera(null)}
+            onDone={(result) => { setCameraReps(result); setCamera(null); setTab('Workout'); }}
+          />
+        ) : null}
+        {ready && !camera && tab === 'Home' ? <HomeScreen go={setTab} /> : null}
+        {ready && !camera && tab === 'Workout' ? <WorkoutScreen prefill={prefill} clearPrefill={clearPrefill} cameraReps={cameraReps} clearCameraReps={clearCameraReps} openCamera={setCamera} /> : null}
+        {ready && !camera && tab === 'Jim' ? <JimScreen applySuggestion={applySuggestion} /> : null}
+        {ready && !camera && tab === 'Plan' ? <PlanScreen go={setTab} /> : null}
+        {ready && !camera && tab === 'Progress' ? <ProgressScreen /> : null}
       </ScrollView>
       <View style={s.tabs}>
         {TABS.map(([label, icon]) => (
-          <TouchableOpacity key={label} accessibilityRole="tab" accessibilityState={{ selected: tab === label }} onPress={() => setTab(label)} style={s.tab}>
+          <TouchableOpacity key={label} accessibilityRole="tab" accessibilityState={{ selected: tab === label }} onPress={() => { setCamera(null); setTab(label); }} style={s.tab}>
             <Text style={[s.tabIcon, tab === label && s.selectedTab]}>{icon}</Text>
             <Text style={[s.tabLabel, tab === label && s.selectedTab]}>{label}</Text>
           </TouchableOpacity>

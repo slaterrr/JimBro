@@ -81,3 +81,13 @@ describe('LiveSession', () => {
     assert.throws(() => new LiveSession('bench'), /camera counting/);
   });
 });
+
+describe('pose page', () => {
+  it('pins MediaPipe and only ever posts landmarks, never images', async () => {
+    const { poseHtml, MEDIAPIPE_VERSION } = await import('./poseHtml.js');
+    const html = poseHtml();
+    assert.match(html, new RegExp(`tasks-vision@${MEDIAPIPE_VERSION}/`));
+    assert.doesNotMatch(html, /toDataURL|toBlob|fetch\(|XMLHttpRequest|MediaRecorder/);
+    assert.match(html, /type: 'frame', t: Math\.round\(now\), pose/);
+  });
+});
