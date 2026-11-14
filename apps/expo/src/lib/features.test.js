@@ -13,7 +13,7 @@ const WIRING = {
     [/\.blocked\b/, '"caught it" badge for blocked reps'],
     [/\.quality\(\)/, 'set quality passed to the set report'],
     [/How to do it/, 'proper-form demo button'],
-    [/cameraGuidance(/, 'specific camera guidance (never silent)'],
+    [/cameraGuidance\(/,'specific camera guidance (never silent)'],
     [/speakGuide/, 'spoken, throttled camera corrections'],
     [/\bvoice\.cue\(|\bcue\(/, 'rep counts spoken through the voice module'],
   ],
