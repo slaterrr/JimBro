@@ -73,5 +73,11 @@ jobs:
       - run: npm ci
       - name: Engine + helper tests
         run: npm test
+      - name: Vision regression (simulator sweeps + real-clip landmarks)
+        working-directory: tools/vision-lab
+        run: npm ci && npm test
+      - name: AI proxy tests (SDK mocked)
+        working-directory: server/jim-proxy
+        run: npm ci && npm test
       - name: Bundle for Android and iOS
         run: npx expo export --platform android --platform ios --output-dir /tmp/expo-dist

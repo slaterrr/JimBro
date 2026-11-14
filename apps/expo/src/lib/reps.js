@@ -24,7 +24,9 @@ export function movementConfig({
 export const CURL = movementConfig({ name: 'curl', rest_deg: 165, peak_deg: 50 });
 export const SQUAT = movementConfig({ name: 'squat', rest_deg: 165, peak_deg: 95, hysteresis_deg: 10 });
 export const SHOULDER_PRESS = movementConfig({ name: 'shoulder_press', rest_deg: 85, peak_deg: 160 });
-export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS };
+// Push-up: elbow angle, arms straight at the top (rest) to ~90° at the bottom (peak).
+export const PUSH_UP = movementConfig({ name: 'push_up', rest_deg: 165, peak_deg: 95, hysteresis_deg: 10 });
+export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS, push_up: PUSH_UP };
 
 export class RepCounter {
   constructor(config) {
@@ -47,6 +49,12 @@ export class RepCounter {
     this._smoothed = null;
     this._marks = {};
     this._reachedPeak = false;
+  }
+
+  /** Abort an uncertain in-progress rep without erasing previously counted reps. */
+  interrupt() {
+    this._abort();
+    this._lastGoodT = null;
   }
 
   /** Feed one {t_ms, angle_deg, confidence}; returns a rep summary when a rep completes. */

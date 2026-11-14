@@ -10,8 +10,8 @@ export const Icon = ({ name, size = 22, color = T.text, style }) => (
   <MaterialCommunityIcons name={name} size={size} color={color} style={style} />
 );
 
-/** Jim's mark: five rounded voice bars in purple. */
-export function JimBars({ height = 22, color = T.purple }) {
+/** Jim's mark: five rounded voice bars in seafoam. */
+export function JimBars({ height = 22, color = T.accent }) {
   const bars = [0.45, 0.75, 1, 0.75, 0.45];
   const w = height * 0.16;
   const gap = height * 0.12;
@@ -45,7 +45,7 @@ export function Segmented({ options, value, onChange }) {
         const on = v === value;
         return (
           <TouchableOpacity key={v} onPress={() => onChange(v)} style={[st.segmentItem, on && st.segmentOn]}>
-            <Text style={[st.segmentText, on && { color: T.text }]}>{label}</Text>
+            <Text style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -74,7 +74,7 @@ export function PrimaryButton({ children, onPress, disabled, secondary = false, 
       onPress={onPress}
       style={[st.button, secondary && st.buttonSecondary, disabled && { opacity: 0.4 }, style]}
     >
-      <Text style={[st.buttonText, secondary && { color: T.violetText }]}>{children}</Text>
+      <Text style={[st.buttonText, secondary && { color: T.accentText }]}>{children}</Text>
     </TouchableOpacity>
   );
 }
@@ -124,17 +124,17 @@ export function Sheet({ visible, onClose, title, children }) {
 export const st = StyleSheet.create({
   card: { backgroundColor: T.card, borderColor: T.border, borderWidth: 1, borderRadius: R.lg, padding: 16 },
   pill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: R.pill, borderWidth: 1, borderColor: T.border, backgroundColor: 'rgba(255,255,255,0.03)' },
-  pillActive: { backgroundColor: T.purpleSoft, borderColor: T.purple },
+  pillActive: { backgroundColor: T.accentSoft, borderColor: T.accent },
   pillText: { color: T.textDim, fontSize: 13, fontWeight: '600' },
   pillTextActive: { color: T.text },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   segment: { flexDirection: 'row', backgroundColor: T.surface, borderRadius: R.pill, borderWidth: 1, borderColor: T.border, padding: 4 },
   segmentItem: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: R.pill, overflow: 'hidden' },
-  segmentOn: { backgroundColor: T.purple, shadowColor: T.purple, shadowOpacity: 0.6, shadowRadius: 10, elevation: 4 },
+  segmentOn: { backgroundColor: T.accent, shadowColor: T.accent, shadowOpacity: 0.6, shadowRadius: 10, elevation: 4 },
   segmentText: { color: T.textDim, fontSize: 14, fontWeight: '600' },
-  button: { backgroundColor: T.purple, borderRadius: R.md, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
+  button: { backgroundColor: T.accent, borderRadius: R.md, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
   buttonSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: T.borderStrong },
-  buttonText: { color: T.text, fontSize: 15, fontWeight: '700' },
+  buttonText: { color: T.onAccent, fontSize: 15, fontWeight: '700' },
   input: { backgroundColor: T.surface, color: T.text, borderWidth: 1, borderColor: T.border, borderRadius: R.sm, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
   sheet: { maxHeight: '88%', backgroundColor: T.cardSolid, borderTopLeftRadius: R.xl, borderTopRightRadius: R.xl, borderWidth: 1, borderColor: T.border, paddingHorizontal: 20 },

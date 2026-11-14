@@ -1,20 +1,22 @@
-import React, { useRef, useState } from 'react';
+import Constants from 'expo-constants';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp } from '../AppState.js';
+import { ImportSheet } from '../components/ImportSheet.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
-import { coachReply } from '../lib/coach.js';
 import { exerciseName } from '../lib/exercises.js';
-import { parseSetUtterance } from '../lib/parse.js';
+import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
+import { personaFor } from '../lib/personas.js';
+import { healthSummary } from '../lib/healthSummary.js';
+import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
-const GOALS = [
-  { id: 'hypertrophy', icon: 'arm-flex-outline', label: 'Build\nMuscle', ask: 'I want to build muscle.' },
-  { id: 'general', icon: 'heart-pulse', label: 'Improve\nEndurance', ask: 'I want to improve my endurance.' },
-  { id: 'strength', icon: 'target', label: 'Get\nStronger', ask: 'I want to get stronger.' },
-];
+const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
+const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
+const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
 function Glow() {
@@ -22,18 +24,19 @@ function Glow() {
     <Svg width="100%" height={110} viewBox="0 0 400 110" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
       <Defs>
         <LinearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={T.purple} stopOpacity="0.55" />
-          <Stop offset="1" stopColor={T.purple} stopOpacity="0" />
+          <Stop offset="0" stopColor={T.accent} stopOpacity="0.55" />
+          <Stop offset="1" stopColor={T.accent} stopOpacity="0" />
         </LinearGradient>
       </Defs>
       <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34 L400 110 L0 110 Z" fill="url(#glow)" />
-      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke="#b6efdf" strokeWidth="2" fill="none" />
+      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke={T.accent} strokeWidth="2" fill="none" />
     </Svg>
   );
 }
 
-function PlanCard({ goal }) {
+function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
   const { savePlan, startWorkout, active, plan: saved } = useApp();
+  const [goal, setGoal] = useState(initialGoal);
   const [days, setDays] = useState(3);
   const [minutes, setMinutes] = useState(45);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
@@ -43,6 +46,8 @@ function PlanCard({ goal }) {
   return (
     <Card style={{ marginTop: 10 }}>
       <Text style={type.title}>Your weekly plan</Text>
+      <Text style={[type.label, { marginVertical: 8 }]}>Goal</Text>
+      <Chips options={GOALS} value={goal} onChange={setGoal} />
       <Text style={[type.label, { marginVertical: 8 }]}>Days per week</Text>
       <Chips options={[2, 3, 4, 5].map((d) => [d, String(d)])} value={days} onChange={setDays} />
       <Text style={[type.label, { marginVertical: 8 }]}>Minutes</Text>
@@ -64,94 +69,156 @@ function PlanCard({ goal }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, allSets, logSet, active, startWorkout, history } = useApp();
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
+  const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
+  const [thinking, setThinking] = useState(false);
+  const [talk, setTalk] = useState(false);
   const scroll = useRef(null);
   const input = useRef(null);
+  const talkRef = useRef(false);
+  talkRef.current = talk;
+  const persona = personaFor(settings.persona ?? settings.tone);
+  const health = healthSummary({ history, active, goals, plan });
 
   const push = (...m) => {
     setMessages((cur) => [...cur, ...m]);
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   };
 
-  const send = (raw, goal) => {
-    const message = raw.trim();
-    if (!message) return;
-    setText('');
-    const parsed = goal ? null : parseSetUtterance(message);
-    if (parsed) {
-      push({ me: true, text: message }, { kind: 'confirm', set: { unit: settings.unit, ...parsed } });
-      return;
-    }
-    if (goal) {
-      const intro = {
-        hypertrophy: "Let's build muscle. Here's a plan with 8–12 rep work; adjust it and save it.",
-        general: "Endurance it is. I'll keep sessions moving with short rests. Real cardio still matters, so add it on off days.",
-        strength: "Let's get stronger. Heavy 3–5 rep sets with long rests. Here's your week.",
-      }[goal];
-      push({ me: true, text: message }, { me: false, text: intro }, { kind: 'plan', goal });
-      say(intro);
-      return;
-    }
-    const r = coachReply(message, settings.tone, allSets);
-    push({ me: true, text: message }, { me: false, text: r.text, safety: r.source === 'safety', suggestion: r.suggestion });
-    say(r.text);
+  // Talk mode always speaks (in the persona's voice) and reopens dictation when Jim is done.
+  const speak = (line) => {
+    if (!line) return;
+    if (!talkRef.current) return say(line);
+    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
   };
 
-  const confirmSet = (i, s) => {
-    logSet({ ...s, rpe: s.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim');
-    setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: `Logged ${s.reps} × ${exerciseName(s.exercise)} at ${s.weight} ${s.unit}.` } : m)));
+  const send = async (raw) => {
+    const message = raw.trim();
+    if (!message || thinking) return;
+    setText('');
+    const prior = historyFor(messages);
+    push({ me: true, text: message });
+    setThinking(true);
+    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+    setThinking(false);
+    if (r.source !== 'safety') setSource(r.source);
+    // Never change data here: proposals become confirm cards and wait for the user.
+    const out = [];
+    if (r.reply) out.push({ me: false, text: r.reply, safety: r.safety, suggestion: r.suggestion });
+    r.proposals.forEach((intent) => out.push({ kind: 'confirm', intent }));
+    push(...out);
+    speak(r.reply || r.proposals[0]?.summary);
+  };
+
+  // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
+  const choose = (id) => {
+    if (id === 'start') {
+      if (!active) {
+        const next = nextWorkout(plan, history);
+        startWorkout(next.name, next.planned);
+      }
+      go?.('Coach');
+    } else if (id === 'plan') {
+      const intro = "Let's build your plan. Pick a goal and save it, or import past workouts and use a reference photo.";
+      push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' }, { kind: 'import' });
+      speak(intro);
+    } else {
+      go?.('Progress');
+    }
+  };
+
+  // Talk mode: keyboard dictation fills the box; once it settles, send it hands-free.
+  useEffect(() => {
+    if (!talk || !text.trim()) return undefined;
+    const t = setTimeout(() => send(text), TALK_SEND_MS);
+    return () => clearTimeout(t);
+  }, [talk, text]);
+
+  const toggleTalk = () => {
+    const next = !talk;
+    setTalk(next);
+    talkRef.current = next;
+    if (next) {
+      speak("I'm listening. Tap the mic on your keyboard and talk.");
+      input.current?.focus();
+    } else {
+      voice.stop();
+    }
+  };
+
+  const confirmIntent = (i, intent) => {
+    let reply;
+    if (intent.type === 'log') {
+      intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
+      const x = intent.sets[0];
+      const n = intent.sets.length > 1 ? `${intent.sets.length} sets of ` : '';
+      reply = `Logged ${n}${x.reps} × ${exerciseName(x.exercise)} at ${x.weight} ${x.unit}.`;
+    } else if (intent.type === 'correct') {
+      updateSet(intent.target.setId, intent.changes);
+      reply = 'Done, I fixed that set.';
+    } else {
+      deleteSet(intent.target.setId);
+      reply = 'Done, that set is gone.';
+    }
+    setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: reply } : m)));
+    speak(reply);
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Icon name="arm-flex" size={30} color={T.purple} />
-          <Text style={type.h2}>Jim</Text>
+          <Icon name="arm-flex" size={30} color={T.accent} />
+          <Text style={type.h2}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
+          <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
+            <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
+          </View>
         </View>
+        <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
+          <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
+          <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
+        </TouchableOpacity>
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />
         </TouchableOpacity>
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, paddingBottom: 30, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}>
+          <Icon name="heart-pulse" size={22} color={T.accent} />
+          <Text style={st.healthText}>{health.text}</Text>
+          <Icon name="chevron-right" size={20} color={T.textMute} />
+        </TouchableOpacity>
         {!messages.length ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
             <JimBars height={64} />
             <Text style={[type.h1, { marginTop: 28, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
-              Your AI gym bro. Tell me what you want to work on today.
+              {HOME_SUBTITLE}
             </Text>
             <View style={st.goals}>
-              {[
-                ['play', 'Start a Workout', () => { if (!active) startWorkout('Strength session'); openLog(); }],
-                ['calendar-plus', 'Create a New Plan', () => push({ kind: 'choose-plan' })],
-                ['chart-line', 'Review My Progress', () => {
-                  push({ me: false, text: history.length ? `You've completed ${history.length} workouts. Compare your strength and volume across sessions, months, and years.` : 'Finish your first workout to begin reviewing your progress.' }, { kind: 'review' });
-                }],
-              ].map(([icon, label, action]) => (
-                <TouchableOpacity key={label} style={st.goal} onPress={action}>
-                  <Icon name={icon} size={30} color={T.purple} />
-                  <Text style={st.goalText}>{label}</Text>
+              {HOME_OPTIONS.map((g) => (
+                <TouchableOpacity key={g.id} accessibilityRole="button" accessibilityLabel={g.label.replace('\n', ' ')} style={st.goal} onPress={() => choose(g.id)}>
+                  <Icon name={g.icon} size={30} color={T.accent} />
+                  <Text style={st.goalText}>{g.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         ) : (
           messages.map((m, i) => {
-            if (m.kind === 'review') return <PrimaryButton key={i} onPress={() => go('Progress')}>View comparisons</PrimaryButton>;
-            if (m.kind === 'choose-plan') return <Card key={i}><Text style={type.title}>Choose your goal</Text>{GOALS.filter(g => g.id !== 'general').map(g => <PrimaryButton key={g.id} onPress={() => send(g.ask, g.id)}>{g.label.replace('\n', ' ')}</PrimaryButton>)}</Card>;
-            if (m.kind === 'plan') return <PlanCard key={i} goal={m.goal} />;
+            if (m.kind === 'plan') return <PlanCard key={i} />;
+            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} onDone={speak} />;
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>
-                  <Text style={type.title}>Log this set?</Text>
-                  <Text style={type.body}>{m.set.reps} × {exerciseName(m.set.exercise)} at {m.set.weight} {m.set.unit}{m.set.rpe ? ` · RPE ${m.set.rpe}` : ''}</Text>
+                  <Text style={type.title}>{{ log: 'Log this?', correct: 'Fix this set?', delete: 'Delete this set?' }[m.intent.type]}</Text>
+                  <Text style={type.body}>{m.intent.summary}</Text>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmSet(i, m.set)}>Confirm</PrimaryButton>
-                    <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Discard</PrimaryButton>
+                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
+                    <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Cancel</PrimaryButton>
                   </View>
                 </Card>
               );
@@ -161,19 +228,20 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 {!m.me ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                     <JimBars height={14} />
-                    <Text style={{ color: T.violetText, fontWeight: '700' }}>Jim</Text>
+                    <Text style={{ color: T.accentText, fontWeight: '700' }}>Jim</Text>
                   </View>
                 ) : null}
                 <Text style={{ color: T.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
                 {m.suggestion ? (
                   <TouchableOpacity onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8 }}>
-                    <Text style={{ color: T.purple, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
+                    <Text style={{ color: T.accent, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
             );
           })
         )}
+        {thinking ? <Text style={[type.small, { marginTop: 10 }]}>Jim is thinking…</Text> : null}
       </ScrollView>
 
       <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
@@ -187,13 +255,13 @@ export function HomeScreen({ openLog, openActivity, go }) {
             value={text}
             onChangeText={setText}
             onSubmitEditing={() => send(text)}
-            placeholder="Message Jim..."
+            placeholder={talk ? 'Tap the keyboard mic and talk…' : 'Message Jim...'}
             placeholderTextColor={T.textMute}
             returnKeyType="send"
             style={{ flex: 1, color: T.text, fontSize: 16, paddingHorizontal: 10 }}
           />
           {text.trim() ? (
-            <IconButton icon="arrow-up" size={34} ring={T.purple} fill={T.purple} label="Send" onPress={() => send(text)} />
+            <IconButton icon="arrow-up" size={34} ring={T.accent} fill={T.accent} color={T.onAccent} label="Send" onPress={() => send(text)} />
           ) : (
             <TouchableOpacity accessibilityLabel="Dictate (use the keyboard microphone)" onPress={() => input.current?.focus()}>
               <Icon name="microphone-outline" size={24} color={T.textDim} />
@@ -206,12 +274,19 @@ export function HomeScreen({ openLog, openActivity, go }) {
 }
 
 const st = StyleSheet.create({
+  health: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: R.md, borderWidth: 1, borderColor: T.border, backgroundColor: T.card },
+  healthText: { flex: 1, color: T.textDim, fontSize: 14, lineHeight: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   goals: { flexDirection: 'row', gap: 12, marginTop: 40, alignSelf: 'stretch' },
   goal: { flex: 1, alignItems: 'center', paddingVertical: 18, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8 },
   goalText: { color: T.text, fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(10,8,14,0.9)' },
+  composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(6,10,9,0.9)' },
   bubble: { borderRadius: R.md, padding: 12, marginTop: 10, maxWidth: '88%', borderWidth: 1 },
-  me: { alignSelf: 'flex-end', backgroundColor: T.purpleSoft, borderColor: T.purple },
+  me: { alignSelf: 'flex-end', backgroundColor: T.accentSoft, borderColor: T.accent },
+  badge: { borderWidth: 1, borderColor: T.border, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeAI: { borderColor: T.accent, backgroundColor: T.accentSoft },
+  badgeText: { color: T.textMute, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14 },
+  talkOn: { backgroundColor: T.accent, borderColor: T.accent },
   jim: { alignSelf: 'flex-start', backgroundColor: T.card, borderColor: T.border },
 });
