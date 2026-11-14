@@ -8,7 +8,7 @@ Preliminary Expo Go frontend for JimBro, an adaptive training companion.
 2. Run `npm install` in this directory.
 3. Run `npx expo start` and scan the QR code with Expo Go. Keep the phone and computer on the same Wi-Fi. If local networking fails, try `npx expo start --tunnel`.
 
-This project targets Expo SDK 57, the SDK recommended for Expo Go during the SDK 58 transition. On a physical iPhone, sign in to the same Expo account in Expo CLI and Expo Go if prompted.
+This project targets Expo SDK 58. On a physical iPhone, sign in to the same Expo account in Expo CLI and Expo Go if prompted.
 
 The native app includes a dashboard, workout and set logging, four Jim tones, spoken preset replies, a camera preview, starter plans, progress comparisons between completed workouts, and a private leaderboard placeholder. Workout data is stored on the device with AsyncStorage. The earlier browser prototype remains in `index.html`, `app.js`, and `styles.css` for reference; Expo Go launches `App.jsx`.
 
