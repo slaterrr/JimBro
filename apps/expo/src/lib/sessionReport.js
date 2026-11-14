@@ -24,6 +24,9 @@ export function setReport({ movement, reps = [], quality = null, rpe = null, tar
   if (trackingPct !== null && trackingPct < LOW_TRACKING_PCT) {
     suggestions.push({ id: 'camera', text: 'Move the phone back so your whole working side is in frame, side-on, in good light.', evidence: `Tracking was reliable for ${trackingPct}% of the set.` });
   }
+  if ((issues.framing ?? 0) >= 2) {
+    suggestions.push({ id: 'framing', text: 'Step back until your shoulders and hips are both on screen.', evidence: `Counting paused ${issues.framing} times because your torso left the frame.` });
+  }
   if ((issues.implausible_motion ?? 0) >= 3) {
     suggestions.push({ id: 'steady', text: 'Keep the phone still and only you in frame; tracking jumps pause counting.', evidence: `Tracking jumped ${issues.implausible_motion} times.` });
   }

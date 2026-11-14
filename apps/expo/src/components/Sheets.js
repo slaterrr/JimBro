@@ -42,7 +42,7 @@ export function RestTimer({ seconds, onDone }) {
  * Log one set. `initial` can prefill exercise/reps/weight; `camera` attaches counted reps
  * ({ movement, reps: reps_detail[] }) when the rep count is left unchanged.
  */
-const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', implausible_motion: 'tracking jump' };
+const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', implausible_motion: 'tracking jump', framing: 'out of frame' };
 
 /** Evidence-backed post-set camera report. */
 export function SetReportCard({ report }) {

@@ -41,6 +41,8 @@ export function CoachScreen({ openLog }) {
   const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking });
   const cameraGuidance = view.issue === 'arm_swing'
     ? 'Upper arm moved too far — rep not counted. Keep your elbow near your side.'
+    : view.issue === 'framing'
+      ? 'Step back — your shoulders and hips need to be in frame to count reps.'
     : view.issue === 'implausible_motion'
       ? 'Tracking jumped — rep paused. Hold steady with only you in frame.'
     : view.issue === 'tracking'

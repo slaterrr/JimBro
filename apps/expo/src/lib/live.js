@@ -8,6 +8,17 @@ const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on re
 // that jumps faster than this was re-placed by the model, not moved by the body.
 const MAX_JOINT_SPEED_TORSO_PER_S = 6;
 const MAX_SPEED_GAP_MS = 300;
+// Hypothesis under test: MediaPipe extrapolates hips that are off-screen with passing
+// visibility (waist-up framing). Torso anchors must lie inside the frame, with a margin.
+const FRAME_MARGIN = 0.05;
+
+/** True when the locked side's shoulder and hip are inside the image (normalized coords). */
+export function torsoInFrame(pose, side) {
+  return [side === 'left' ? 11 : 12, side === 'left' ? 23 : 24].every((i) => {
+    const p = pose[i];
+    return p.x >= FRAME_MARGIN && p.x <= 1 - FRAME_MARGIN && p.y >= FRAME_MARGIN && p.y <= 1 - FRAME_MARGIN;
+  });
+}
 
 /** Fastest tracked joint between two frames, in torso lengths per second. */
 export function jointSpeed(prev, pose, t, movement, side) {
@@ -59,6 +70,11 @@ export class LiveSession {
     if (!m) {
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
+    }
+    if (!torsoInFrame(pose, this.side)) {
+      this._prev = null;
+      this.counter.interrupt();
+      return this.result(null, tracking, m.angle, 'framing');
     }
     const speed = jointSpeed(this._prev, pose, t, this.movement, this.side);
     this._prev = { t, pose };
