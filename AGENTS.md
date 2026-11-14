@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 night (demo branch `feat/integration-v5` = #35–#38 on top of v4).
+Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`.
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
@@ -25,7 +25,7 @@ Last updated: 2026-11-14 night (demo branch `feat/integration-v5` = #35–#38 on
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents
-- **Never push to `main` or merge PRs without human approval.** Work on a branch off `feat/integration-v2`, open a draft PR.
+- **Never push to `main` or merge PRs without human approval.** Work on a branch off `main`, open a draft PR. Full audit: `docs/AUDIT.md`; Devpost draft: `docs/DEVPOST.md`.
 - Strict TDD: `test(...)` commit that fails for the expected reason → `feat/fix(...)` → refactor. Atomic commits.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - No fabricated benchmarks. Real-video results and simulated results are reported separately. Never edit labels or weaken tests to improve a score; never tune on `split: heldout` clips.
