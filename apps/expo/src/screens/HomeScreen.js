@@ -7,6 +7,7 @@ import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { coachReply } from '../lib/coach.js';
 import { exerciseName } from '../lib/exercises.js';
 import { parseIntent } from '../lib/intents.js';
+import { personaFor } from '../lib/personas.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
@@ -128,7 +129,7 @@ export function HomeScreen({ openLog, openActivity }) {
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Icon name="arm-flex" size={30} color={T.purple} />
-          <Text style={type.h2}>Jim</Text>
+          <Text style={type.h2}>Jim · {personaFor(settings.persona).name.replace(/\s*Jim\s*/, '')}</Text>
         </View>
         <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
           <Icon name="bell" size={24} color={T.textDim} />

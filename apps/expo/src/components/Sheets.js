@@ -7,15 +7,19 @@ import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
 import { setReport } from '../lib/sessionReport.js';
 import { spokenReport } from '../lib/speech.js';
+import { loggedText, restText } from '../lib/voice.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
+import { PersonaPicker } from './PersonaPicker.js';
 
 const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
 const RPE = [['', '–'], ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['10', '10']];
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export function RestTimer({ seconds, onDone }) {
+  const { settings, allSets } = useApp();
+  const [line] = useState(() => restText(settings.persona, seconds, allSets.length));
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
     const t = setInterval(() => setLeft((l) => l - 1), 1000);
@@ -30,6 +34,7 @@ export function RestTimer({ seconds, onDone }) {
   return (
     <Card style={{ alignItems: 'center', marginTop: 14 }}>
       <Text style={type.label}>REST</Text>
+      <Text style={[type.small, { textAlign: 'center', marginTop: 2 }]}>{line}</Text>
       <Text style={{ color: T.text, fontSize: 44, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(Math.max(0, left))}</Text>
       <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'stretch' }}>
         <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setLeft((l) => l + 30)}>+30s</PrimaryButton>
@@ -116,8 +121,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
       : null;
     say(report
-      ? `${isPR ? 'New record! ' : ''}${spokenReport(report)}`
-      : isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
+      ? `${isPR ? 'New record! ' : ''}${spokenReport(report, settings.persona)}`
+      : loggedText(settings.persona, { exercise, reps: r, weight: w, unit, isPR }, allSets.length));
     setSaved({ isPR, report, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
@@ -167,8 +172,6 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
   );
 }
 
-const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
-
 /** The bell: what happened lately, plus settings and data controls. */
 export function ActivitySheet({ visible, onClose }) {
   const { settings, update, history, allSets, exportJSON, eraseAll, importData } = useApp();
@@ -201,8 +204,8 @@ export function ActivitySheet({ visible, onClose }) {
       ))}
 
       <Text style={[type.h2, { marginTop: 24, marginBottom: 6 }]}>Settings</Text>
-      <Text style={[type.label, { marginVertical: 8 }]}>Jim's tone</Text>
-      <Chips options={TONES} value={settings.tone} onChange={(tone) => update({ tone })} />
+      <Text style={[type.label, { marginVertical: 8 }]}>Jim's persona</Text>
+      <PersonaPicker />
       <Text style={[type.label, { marginVertical: 8 }]}>Spoken replies</Text>
       <Chips options={[[true, 'On'], [false, 'Off']]} value={settings.speak} onChange={(speak) => update({ speak })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Units</Text>
