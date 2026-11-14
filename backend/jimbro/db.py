@@ -294,3 +294,16 @@ class Database:
                 (start.isoformat(), end.isoformat()),
             ).fetchall()
         return [(r["name"], bool(r["demo"]), r["reps"], r["sessions"]) for r in rows]
+
+    # diagnostics ----------------------------------------------------------------
+
+    def counts(self) -> dict[str, int]:
+        with self.tx() as conn:
+            return {
+                t: int(conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
+                for t in ("athletes", "sessions", "sets")
+            }
+
+    def size_bytes(self) -> int:
+        files = [self.path, self.path.with_name(self.path.name + "-wal")]
+        return sum(f.stat().st_size for f in files if f.exists())

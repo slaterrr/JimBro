@@ -66,5 +66,6 @@ PIP_CONFIG_FILE=/dev/null "$PY" -m pip download --quiet --disable-pip-version-ch
 [ "$(ls -A "$OUT/wheels")" ] || echo "warning: no wheels downloaded; install.sh will use the internet" >&2
 
 git -C "$ROOT" rev-parse --short HEAD > "$OUT/VERSION" 2>/dev/null || echo dev > "$OUT/VERSION"
+cp "$OUT/VERSION" "$OUT/app/VERSION"
 say "Done: $(du -sh "$OUT" | cut -f1) in $OUT"
 echo "Copy that folder to a USB stick, then on the Pi run: sudo bash <stick>/jimbro-usb/install.sh"

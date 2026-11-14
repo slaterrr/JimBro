@@ -2,6 +2,8 @@
 
 import os
 import re
+import shutil
+import time
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -19,6 +21,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
+from . import __version__
 from .coach import (
     CoachReply,
     CoachRequest,
@@ -50,6 +53,16 @@ from .schemas import (
     SetIn,
     SetOut,
 )
+
+LOW_DISK_BYTES = 200 * 1024 * 1024
+VERSION_FILE = Path(__file__).resolve().parents[2] / "VERSION"
+
+
+def app_version() -> str:
+    """Package version plus the bundle's git revision when installed from the USB build."""
+    rev = VERSION_FILE.read_text().strip() if VERSION_FILE.is_file() else ""
+    return f"{__version__}+{rev}" if rev else __version__
+
 
 DEFAULT_DB = Path(os.environ.get("JIMBRO_DB", "data/jimbro.db"))
 DEFAULT_STATIC = Path(os.environ.get("JIMBRO_STATIC", "apps/mobile/dist"))
@@ -224,6 +237,25 @@ def station_button(bus: Bus) -> dict[str, int]:
     return {"seq": bus.publish({"type": "button"})["seq"]}
 
 
+@router.get("/status")
+def status(request: Request, db: DB) -> dict[str, object]:
+    """Headless health check: open https://<pi>/v1/status from any device."""
+    free = shutil.disk_usage(db.path.parent).free
+    warnings = []
+    if free < LOW_DISK_BYTES:
+        warnings.append(f"low disk space: {free // (1024 * 1024)} MB free")
+    return {
+        "ok": not warnings,
+        "version": app_version(),
+        "uptime_s": round(time.monotonic() - request.app.state.started, 1),
+        "coach": "ai" if request.app.state.model is not None else "offline",
+        "counts": db.counts(),
+        "db_bytes": db.size_bytes(),
+        "disk_free_bytes": free,
+        "warnings": warnings,
+    }
+
+
 @router.get("/suggestions/{exercise}")
 def suggestion(exercise: ExerciseId, db: DB, who: Athlete) -> Suggestion | None:
     return suggest_next(db.sets_for_athlete(who, exercise))
@@ -238,6 +270,7 @@ def create_app(
     app.state.db = Database(db_path)
     app.state.model = default_model() if model == "auto" else model
     app.state.bus = bus = EventBus()
+    app.state.started = time.monotonic()
 
     @app.get("/health")
     def health() -> dict[str, str]:
