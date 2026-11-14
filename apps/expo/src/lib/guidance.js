@@ -30,7 +30,7 @@ export function cameraGuidance(issue, hint, movement) {
         return `Looks like ${NAME[hint]}, so ${SINGULAR[NAME[movement]]} counting is paused. Switch to ${NAME[hint]} to count them.`;
       }
       if (hint === 'push_up') return `Looks like push-ups, so ${SINGULAR[NAME[movement]] ?? 'rep'} counting is paused. Switch to push-ups to count them.`;
-      if (hint === 'lunge') return "Looks like lunges, so squat counting is paused. Lunges aren't camera-counted yet; log them with +, or go back to squats.";
+      if (hint === 'lunge') return 'Looks like lunges, so squat counting is paused. Switch to lunges (experimental) to count them, or go back to squats.';
       if (hint === 'shoulder_press') return 'Looks like shoulder presses, so curl counting is paused. Switch to shoulder press to count them.';
       if (hint === 'curl') return 'Looks like curls, so shoulder press counting is paused. Switch to curls to count them.';
       return `Looks like a different exercise, so ${SINGULAR[NAME[movement]] ?? 'rep'} counting is paused.`;

@@ -32,7 +32,9 @@ export const PULL_UP = movementConfig({ name: 'pull_up', rest_deg: 160, peak_deg
 // Deadlift: hip angle (shoulder–hip–knee) from the side. The bottom (bar near the floor) is rest
 // so a set that starts from the floor arms immediately; lockout (~165°) is the peak.
 export const DEADLIFT = movementConfig({ name: 'deadlift', rest_deg: 110, peak_deg: 165, hysteresis_deg: 10 });
-export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS, push_up: PUSH_UP, pull_up: PULL_UP, deadlift: DEADLIFT };
+// EXPERIMENTAL lunge: the more-bent knee (front or back), side view; standing ~165°, bottom ~100°.
+export const LUNGE = movementConfig({ name: 'lunge', rest_deg: 165, peak_deg: 100, hysteresis_deg: 10 });
+export const MOVEMENTS = { curl: CURL, squat: SQUAT, shoulder_press: SHOULDER_PRESS, push_up: PUSH_UP, pull_up: PULL_UP, deadlift: DEADLIFT, lunge: LUNGE };
 
 export class RepCounter {
   constructor(config) {

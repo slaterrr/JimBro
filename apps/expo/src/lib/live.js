@@ -46,6 +46,14 @@ const PULLUP_WRIST_DRIFT_TORSO = 0.35;
 // Deadlift: a knee bent below this at any point looks like a squat, not a hinge. Heuristic: real
 // deep deadlift starts and quarter squats overlap; validate on real clips.
 const DEADLIFT_SQUAT_KNEE_DEG = 100;
+// EXPERIMENTAL lunge mode: a deep knee bend with both legs level (no split) is a squat.
+const LUNGE_DEEP_DEG = 130; // lead-leg sampling
+// The split only shows near the bottom (mid-descent both knees look level), so judge squat vs lunge there.
+const LUNGE_JUDGE_DEG = 110;
+// A split stance (feet apart front-to-back, side view) is lunge evidence; one borderline frame must not
+// abort a rep, so a squat needs a few consecutive frames even mid-rep.
+const LUNGE_SPLIT_TORSO = 0.8;
+const LUNGE_SQUAT_FRAMES = 3;
 
 /** Evenly pick at most n items, keeping the first and last. */
 export function downsample(items, n) {
@@ -155,6 +163,7 @@ export class LiveSession {
       const knee = frontalKneeAngle(pose, this.side, (this._cal ??= {}));
       m = knee === null ? null : { ...m, angle: knee };
     }
+    if (this.movement === 'lunge' && m) m = this._lungeAngle(pose, t) ?? m;
     if (!m) {
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
@@ -172,6 +181,7 @@ export class LiveSession {
     }
     const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle)
       : this.movement === 'pull_up' ? this._pullupGate(pose, m.angle)
+      : this.movement === 'lunge' ? (this._lungeGate(pose, m.angle) || this._pushupElsewhere(pose))
         : (this.movement === 'deadlift' && this._deadliftGate(pose)) || this._pushupElsewhere(pose);
     if (changed) {
       this.counter.interrupt();
@@ -285,6 +295,36 @@ export class LiveSession {
     return this._latched ? (this.suggested ?? 'hang') : null;
   }
 
+  /**
+   * Lunge mode: depth is the more-bent knee of the two (both must be visible); the lead leg at depth
+   * is the one whose knee is higher (the back knee drops toward the floor).
+   */
+  _lungeAngle(pose, t) {
+    const L = movementAngle(pose, 'squat', 'left');
+    const R = movementAngle(pose, 'squat', 'right');
+    if (!L || !R || L.confidence < 0.5 || R.confidence < 0.5) return null;
+    const angle = Math.min(L.angle, R.angle);
+    if (angle < LUNGE_DEEP_DEG) (this._leads ??= []).push({ t, lead: pose[25].y < pose[26].y ? 'left' : 'right' });
+    return { angle, confidence: Math.min(L.confidence, R.confidence) };
+  }
+
+  /** Lunge mode: a deep bend with level knees and no split stance is a squat (latched until standing). */
+  _lungeGate(pose, knee) {
+    const sh = { x: (pose[11].x + pose[12].x) / 2, y: (pose[11].y + pose[12].y) / 2 };
+    const hp = { x: (pose[23].x + pose[24].x) / 2, y: (pose[23].y + pose[24].y) / 2 };
+    const torso = Math.hypot(sh.x - hp.x, sh.y - hp.y);
+    const split = torso > 0.01 && !isFrontal(pose) && Math.abs(pose[27].x - pose[28].x) / torso > LUNGE_SPLIT_TORSO;
+    const squatLike = knee < LUNGE_JUDGE_DEG && !split && lowerBodyShape(pose, knee) === 'squat';
+    this._other = squatLike ? (this._other ?? 0) + 1 : 0;
+    if (squatLike) {
+      this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = 'squat';
+    }
+    if (this._other >= (this.counter.state !== 'rest' ? LUNGE_SQUAT_FRAMES : CHANGE_FRAMES)) this._latched = true;
+    if (this._latched && knee >= STANDING_DEG) this._latched = false;
+    return this._latched ? 'squat' : null;
+  }
+
   /** Deadlift mode: a deep knee bend is a squat, not a hip hinge (until standing again). */
   _deadliftGate(pose) {
     const knee = movementAngle(pose, 'squat', this.side)?.angle;
@@ -341,6 +381,12 @@ export class LiveSession {
     const angles = this._buf.filter((f) => f.t >= rep.start_ms - CLIP_PRE_MS && f.t <= rep.end_ms).map((f) => f.angle);
     rep.rom_deg = angles.length ? Math.round(Math.max(...angles) - Math.min(...angles)) : null;
     this._velocity(rep);
+    if (this.movement === 'lunge') {
+      const tally = {};
+      for (const { t, lead } of this._leads ?? []) if (t >= rep.start_ms && t <= rep.end_ms) tally[lead] = (tally[lead] ?? 0) + 1;
+      rep.lead = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      this._leads = (this._leads ?? []).filter((x) => x.t > rep.end_ms);
+    }
     if (this.movement !== 'push_up') return;
     const tally = {};
     for (const { t, v } of this._variants ?? []) if (v && t >= rep.start_ms && t <= rep.end_ms) tally[v] = (tally[v] ?? 0) + 1;
@@ -383,11 +429,12 @@ export class LiveSession {
 
   /** Reps in the shape a logged set stores. */
   repsDetail() {
-    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant, peak_dps, mean_dps }) => ({
+    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant, peak_dps, mean_dps, lead }) => ({
       index, concentric_ms, peak_pause_ms, eccentric_ms,
       ...(rom_deg != null ? { rom_deg } : {}),
       ...(peak_dps != null ? { peak_dps } : {}),
       ...(mean_dps != null ? { mean_dps } : {}),
+      ...(lead !== undefined ? { lead } : {}),
       ...(variant !== undefined ? { variant } : {}),
     }));
   }

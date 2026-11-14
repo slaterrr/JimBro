@@ -7,7 +7,7 @@
 // To add an exercise: give it a joint triple (landmarks), an anchor that must also be visible,
 // a rep config in reps.js, which phase is the lifting effort, and honest limits.
 import { ARM, HIP, LEG } from './angles.js';
-import { CURL, DEADLIFT, PULL_UP, PUSH_UP, SHOULDER_PRESS, SQUAT } from './reps.js';
+import { CURL, DEADLIFT, LUNGE, PULL_UP, PUSH_UP, SHOULDER_PRESS, SQUAT } from './reps.js';
 
 export const CAMERA_STATUS = ['tested_real', 'tested_sim', 'experimental', 'manual'];
 
@@ -58,8 +58,10 @@ export const ANALYZERS = {
     reason: 'Lying on a bench, a phone camera usually cannot see the bar and both arms reliably, so bench press is not counted by the camera yet.',
   },
   lunge: {
-    id: 'lunge', status: 'manual', kind: 'reps',
-    reason: 'Lunges are detected (so they are not counted as squats) but are not counted by the camera yet.',
+    id: 'lunge', status: 'experimental', kind: 'reps', views: ['side'],
+    landmarks: LEG, anchor: SHOULDER, config: LUNGE, liftPhase: 'eccentric_ms',
+    measures: ['reps', 'rep_time', 'rom_deg', 'angular_speed', 'lead_leg'],
+    limits: 'Experimental: side view, whole body in frame. Depth from the more-bent knee; front view is not supported. Simulation-tested only.',
   },
 };
 

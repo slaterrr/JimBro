@@ -71,7 +71,7 @@ describe('aggregate', () => {
 });
 
 describe('real clips in every other camera mode', () => {
-  it('produce zero false reps (20 wrong-mode replays of real landmarks)', async () => {
+  it('produce zero false reps (every real clip in every other camera mode)', async () => {
     const { ANALYZERS, countsWithCamera } = await import('../../../apps/expo/src/lib/analyzers.js');
     let runs = 0;
     for (const n of ['fs_squat_rear', 'fs_press_rear', 'ez_talk_a', 'ez_talk_b']) {
@@ -81,6 +81,7 @@ describe('real clips in every other camera mode', () => {
       runs += r.wrongMode.length;
       for (const w of r.wrongMode) assert.equal(w.falseCounts, 0, `${n} in ${w.mode} mode`);
     }
-    assert.equal(runs, 20);
+    const modes = Object.keys(ANALYZERS).filter(countsWithCamera).length;
+    assert.equal(runs, 4 * (modes - 1)); // 4 clips x every other camera mode (24 with lunge)
   });
 });

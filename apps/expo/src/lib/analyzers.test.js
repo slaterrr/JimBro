@@ -41,7 +41,7 @@ describe('analyzer registry', () => {
   });
 
   it('manual exercises give a reason and the camera refuses them', () => {
-    for (const id of ['bench', 'lunge']) {
+    for (const id of ['bench', 'dumbbell_bench', 'lat_pulldown']) {
       assert.equal(ANALYZERS[id].status, 'manual');
       assert.ok(ANALYZERS[id].reason.length > 10);
       assert.equal(countsWithCamera(id), false);

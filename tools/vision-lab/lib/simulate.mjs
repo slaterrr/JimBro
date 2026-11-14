@@ -408,16 +408,23 @@ export function simulateLungeSet({ reps = 8, repMs = 2200, restMs = 400, view = 
     if (rom >= 0.9) trueEnds.push(Math.round(1000 + i * cycle + repMs));
     leads.push(alternate && i % 2 ? 'right' : 'left');
   }
+  // Mirror the leg roles: the right leg leads (swap left/right hip, knee, ankle).
+  const mirror = (pose) => {
+    const m = pose.map((q) => ({ ...q }));
+    for (const [a, b] of [[23, 24], [25, 26], [27, 28]]) [m[a], m[b]] = [{ ...pose[b] }, { ...pose[a] }];
+    return m;
+  };
+  const stance = (lead, p) => (lead === 'right' ? mirror(lungeBody(p)) : lungeBody(p));
+  const lerp = (A, B, f) => A.map((q, i) => ({ x: q.x + (B[i].x - q.x) * f, y: q.y + (B[i].y - q.y) * f, visibility: Math.min(q.visibility, B[i].visibility) }));
   for (let t = 0; t <= end; t += 1000 / fps) {
     const u = t - 1000;
-    const k = Math.floor(Math.max(0, u) / cycle);
-    const inRep = u > 0 && k < reps && u % cycle < repMs;
+    const k = Math.min(reps - 1, Math.floor(Math.max(0, u) / cycle));
+    const inRep = u > 0 && u < reps * cycle && u % cycle < repMs;
     const p = inRep ? rom * Math.sin((Math.PI * (u % cycle)) / repMs) ** 2 : 0;
-    let pose = lungeBody(p);
-    if (leads[Math.min(k, reps - 1)] === 'right') {
-      // Mirror the leg roles: the right leg leads (swap left/right hip, knee, ankle).
-      pose = pose.map((q) => ({ ...q }));
-      for (const [a, b] of [[23, 24], [25, 26], [27, 28]]) [pose[a], pose[b]] = [{ ...pose[b], x: pose[a].x }, { ...pose[a], x: pose[b].x }];
+    let pose = stance(leads[k], p);
+    // Between reps the feet step over smoothly when the lead leg changes (a person can't teleport).
+    if (!inRep && u > 0 && k + 1 < reps && leads[k + 1] !== leads[k] && u % cycle >= repMs) {
+      pose = lerp(stance(leads[k], 0), stance(leads[k + 1], 0), ((u % cycle) - repMs) / restMs);
     }
     frames.push({ t: Math.round(t), pose: jitter(view === 'front' ? frontView(pose) : pose, r, noise, 0) });
   }

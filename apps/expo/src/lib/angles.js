@@ -22,8 +22,8 @@ const weakest = (pose, idx) => Math.min(...idx.map((i) => pose[i]?.visibility ??
 // Arm lifts (curl, press, push-up, pull-up) track shoulder/elbow/wrist with the hip as anchor;
 // squat tracks hip/knee/ankle with the shoulder; deadlift tracks the hip hinge with the ankle.
 // Keep in step with lib/analyzers.js (a test checks they match).
-const JOINTS = { squat: LEG, deadlift: HIP };
-const ANCHORS = { squat: { left: 11, right: 12 }, deadlift: { left: 27, right: 28 } };
+const JOINTS = { squat: LEG, deadlift: HIP, lunge: LEG };
+const ANCHORS = { squat: { left: 11, right: 12 }, deadlift: { left: 27, right: 28 }, lunge: { left: 11, right: 12 } };
 export const jointsFor = (movement) => JOINTS[movement] ?? ARM;
 export const anchorFor = (movement) => ANCHORS[movement] ?? { left: 23, right: 24 };
 const sidesFor = jointsFor;
@@ -100,7 +100,7 @@ export function missingHint(pose, movement) {
   if (!pose || pose.length < POSE_LANDMARKS) return 'body';
   const vis = (i) => pose[i]?.visibility ?? 0;
   const worst = (pairs) => Math.min(...pairs.map(([l, r]) => Math.max(vis(l), vis(r))));
-  if (movement === 'squat' || movement === 'deadlift') {
+  if (movement === 'squat' || movement === 'deadlift' || movement === 'lunge') {
     if (worst([[27, 28]]) < 0.5) return 'feet';
     if (worst([[25, 26]]) < 0.5) return 'knees';
     if (worst([[23, 24]]) < 0.5) return 'hips';
