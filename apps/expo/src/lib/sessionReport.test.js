@@ -31,6 +31,30 @@ test('suggestions are tied to measured evidence and never invent effort', () => 
   assert.deepEqual(clean.suggestions, []);
 });
 
+test('push-up sets report the rep types (knee vs standard) and say so in plain words', () => {
+  const reps = [1, 2, 3, 4, 5].map((i) => ({ ...rep(i, 2000), variant: i <= 3 ? 'knee' : 'standard', rom_deg: 85 }));
+  const r = setReport({ movement: 'push_up', reps, quality: null });
+  assert.deepEqual(r.variants, { knee: 3, standard: 2 });
+  const v = r.suggestions.find((s) => s.id === 'variant');
+  assert.match(v.text, /3 knee push-ups/);
+  assert.match(v.text, /2 standard/);
+});
+
+test('set report includes an effort estimate, labelled as an estimate', () => {
+  const reps = [2000, 2000, 2000, 2200, 2500, 2500].map((d, i) => ({ ...rep(i + 1, d), rom_deg: 120 }));
+  const r = setReport({ movement: 'curl', reps, quality: null });
+  assert.equal(r.effort.estimate, true);
+  assert.ok(r.effort.rpe >= 6);
+  const e = r.suggestions.find((s) => s.id === 'effort');
+  assert.match(e.text, /estimate/i);
+  assert.match(e.evidence, /\d/);
+});
+
+test('no effort line from a single rep', () => {
+  const r = setReport({ movement: 'curl', reps: [rep(1, 2000)], quality: null });
+  assert.ok(!r.suggestions.some((s) => s.id === 'effort'));
+});
+
 test('load suggestion appears only when the user entered RPE and hit the target', () => {
   const base = { movement: 'squat', reps: Array.from({ length: 10 }, (_, i) => rep(i + 1, 2500)), quality: null, target: 10 };
   assert.ok(!setReport(base).suggestions.some((s) => s.id === 'load'));

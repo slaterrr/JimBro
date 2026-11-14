@@ -200,3 +200,97 @@ export function simulateSwitch(from, to, { fromReps = 5, toReps = 6, view = 'sid
 export function simulateOtherLift(lift, o = {}) {
   return { frames: simulateSet(lift, o).frames, trueEnds: [] };
 }
+
+// ---- Push-ups (side view). Hands on the floor at the left, feet (or knees) to the right. ----
+const FLOOR = 0.86;
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const toward = (a, b, len) => {
+  const d = dist(a, b);
+  return { x: a.x + ((b.x - a.x) * len) / d, y: a.y + ((b.y - a.y) * len) / d };
+};
+
+/**
+ * One push-up pose. elbow: interior elbow angle (170 = top, ~80 = bottom).
+ * variant 'standard': knees straight, only hands and feet touch the floor.
+ * variant 'knee': knees on the floor, shins raised `shinDeg` above horizontal (0 = shins flat).
+ * variant 'incline': hands raised `inclineH` above the floor (bench), legs straight.
+ */
+export function pushupBody({ elbow = 170, variant = 'standard', shinDeg = 35, inclineH = 0.18, cx = 0.3 } = {}) {
+  const handY = variant === 'incline' ? FLOOR - inclineH : FLOOR;
+  const wrist = { x: cx, y: handY };
+  // Shoulder straight above the wrist; the elbow bends back toward the feet.
+  const d = Math.sqrt(BONE.upper ** 2 + BONE.fore ** 2 - 2 * BONE.upper * BONE.fore * Math.cos(rad(elbow)));
+  const shoulder = { x: cx, y: handY - d };
+  const alpha = Math.acos((BONE.fore ** 2 + d ** 2 - BONE.upper ** 2) / (2 * BONE.fore * d)); // at the wrist
+  const elbowP = { x: wrist.x + BONE.fore * Math.sin(alpha), y: wrist.y - BONE.fore * Math.cos(alpha) };
+  let hip;
+  let kneeP;
+  let ankle;
+  if (variant === 'knee') {
+    const L = BONE.torso + BONE.thigh;
+    kneeP = { x: shoulder.x + Math.sqrt(Math.max(0, L ** 2 - (FLOOR - shoulder.y) ** 2)), y: FLOOR };
+    hip = toward(shoulder, kneeP, BONE.torso);
+    ankle = { x: kneeP.x + BONE.shank * Math.cos(rad(shinDeg)), y: FLOOR - BONE.shank * Math.sin(rad(shinDeg)) };
+  } else {
+    const L = BONE.torso + BONE.thigh + BONE.shank;
+    ankle = { x: shoulder.x + Math.sqrt(Math.max(0, L ** 2 - (FLOOR - shoulder.y) ** 2)), y: FLOOR };
+    hip = toward(shoulder, ankle, BONE.torso);
+    kneeP = toward(shoulder, ankle, BONE.torso + BONE.thigh);
+  }
+  const pose = Array.from({ length: 33 }, () => ({ x: shoulder.x - 0.03, y: shoulder.y - 0.02, visibility: 0.99 }));
+  const near = { 11: shoulder, 13: elbowP, 15: wrist, 23: hip, 25: kneeP, 27: ankle };
+  for (const [i, p] of Object.entries(near)) {
+    pose[+i] = { ...p, visibility: 0.98 };
+    pose[+i + 1] = { x: p.x + 0.01, y: p.y - 0.005, visibility: 0.55 }; // far side, partly hidden
+  }
+  return pose;
+}
+
+/** A push-up set (true reps when rom >= 0.9). rom 1 = elbow 170° → 80°. */
+export function simulatePushups({ reps = 10, variant = 'standard', repMs = 2000, slowdown = 0, rom = 1, restMs = 400, shinDeg = 35, noise = 0.003, fps = 20, seed = 71, leadMs = 1000 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const trueEnds = [];
+  const durs = [];
+  for (let i = 0; i < reps; i++) durs.push(repMs * (1 + (slowdown * i) / Math.max(1, reps - 1)) * (0.9 + 0.2 * r.next()));
+  const starts = [];
+  let t = leadMs;
+  for (const d of durs) {
+    starts.push(t);
+    t += d;
+    if (rom >= 0.9) trueEnds.push(Math.round(t));
+    t += restMs;
+  }
+  const end = t + leadMs;
+  for (let tt = 0; tt <= end; tt += 1000 / fps) {
+    let p = 0;
+    for (let i = 0; i < reps; i++) if (tt >= starts[i] && tt < starts[i] + durs[i]) p = rom * Math.sin((Math.PI * (tt - starts[i])) / durs[i]) ** 2;
+    frames.push({ t: Math.round(tt), pose: jitter(pushupBody({ elbow: 170 - 90 * p, variant, shinDeg }), r, noise, 0) });
+  }
+  return { frames, trueEnds };
+}
+
+/**
+ * Adversarial: elbows bend and straighten through a push-up's range while the body is upright
+ * (standing, or kneeling tall), arms forward at shoulder height. Zero true push-ups.
+ */
+export function simulateUprightElbowBends({ reps = 8, kneeling = false, repMs = 1600, restMs = 400, fps = 20, seed = 81, noise = 0.003 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const cycle = repMs + restMs;
+  const end = 1000 + reps * cycle + 1000;
+  for (let t = 0; t <= end; t += 1000 / fps) {
+    const u = t - 1000;
+    const inRep = u > 0 && u < reps * cycle && u % cycle < repMs;
+    const p = inRep ? Math.sin((Math.PI * (u % cycle)) / repMs) ** 2 : 0;
+    let pose = body({ upperArm: 90, elbow: 170 - 90 * p, knee: 175 });
+    if (kneeling) {
+      // Kneeling tall: knees on the floor (body drops one shank length), shins flat behind.
+      pose = pose.map((q, i) => ([27, 28].includes(i) ? q : { ...q, y: q.y + BONE.shank }));
+      pose[27] = { ...pose[27], x: pose[25].x + BONE.shank, y: pose[25].y };
+      pose[28] = { ...pose[28], x: pose[26].x + BONE.shank, y: pose[26].y };
+    }
+    frames.push({ t: Math.round(t), pose: jitter(pose, r, noise, 0) });
+  }
+  return { frames, trueEnds: [] };
+}
