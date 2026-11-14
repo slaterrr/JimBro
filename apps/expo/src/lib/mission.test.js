@@ -178,3 +178,14 @@ describe('missionSummary', () => {
     assert.ok(r.nextTime.some((t) => /bench/i.test(t)));
   });
 });
+
+describe('cameraSwap', () => {
+  it('offers a camera-counted lift for the same muscles when the camera cannot track the plan', async () => {
+    const { cameraSwap } = await import('./mission.js');
+    assert.equal(cameraSwap('bench'), 'push_up');
+    assert.equal(cameraSwap('deadlift'), 'squat');
+    assert.equal(cameraSwap('pull_up'), 'curl');
+    assert.equal(cameraSwap('lunge'), 'squat');
+    assert.equal(cameraSwap('curl'), null); // already camera-counted
+  });
+});
