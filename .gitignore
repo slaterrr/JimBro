@@ -27,3 +27,4 @@ npm-debug.log*
 
 # Small trained CV models shipped with the app (JSON weights)
 !frontend/src/cv/ml/models/
+*.egg-info/
