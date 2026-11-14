@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SetForm } from "./SetForm";
 
@@ -6,7 +6,7 @@ describe("SetForm", () => {
   it("logs a manual set for any of the six lifts with explicit units and RPE", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<SetForm sessionId="s1" onSubmit={onSubmit} />);
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+    expect(within(screen.getByLabelText(/exercise/i)).getAllByRole("option").map((o) => o.textContent)).toEqual([
       "Bicep curl", "Squat", "Bench press", "Deadlift", "Shoulder press", "Pull-up",
     ]);
     fireEvent.change(screen.getByLabelText(/exercise/i), { target: { value: "bench" } });
