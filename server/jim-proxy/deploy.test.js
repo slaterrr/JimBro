@@ -12,6 +12,6 @@ it('render.yaml runs the proxy from server/jim-proxy with a health check', () =>
 });
 
 it('secrets are entered in the dashboard, never committed', () => {
-  for (const k of ['ANTHROPIC_API_KEY', 'JIM_PROXY_KEY']) assert.match(blueprint, new RegExp(`key: ${k}\s+sync: false`));
+  for (const k of ['ANTHROPIC_API_KEY', 'JIM_PROXY_KEY']) assert.match(blueprint, new RegExp(`key: ${k}\\s+sync: false`));
   assert.doesNotMatch(blueprint, /sk-ant-/);
 });

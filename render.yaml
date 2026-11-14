@@ -1,0 +1,18 @@
+# One-click hosting for AI Jim's proxy (Render free tier): New > Blueprint > this repo.
+# Enter ANTHROPIC_API_KEY and JIM_PROXY_KEY in the dashboard when prompted; they are never in git.
+# Then set EXPO_PUBLIC_JIM_PROXY_URL (the service URL) and EXPO_PUBLIC_JIM_PROXY_KEY in the Expo
+# "preview" environment so phones on any network get real AI Jim.
+services:
+  - type: web
+    name: jim-proxy
+    runtime: node
+    rootDir: server/jim-proxy
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: JIM_PROXY_KEY
+        sync: false
