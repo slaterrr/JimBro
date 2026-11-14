@@ -1,7 +1,14 @@
 # JimBro for Expo Go
 
-The JimBro phone app (Expo SDK 58). It runs **entirely on your phone**: no server, no
-account, no Raspberry Pi. Workouts are stored with AsyncStorage and never uploaded.
+The JimBro phone app (Expo SDK 58), built to the four-screen design (Home · Muscles · Coach ·
+Progress). It runs **entirely on your phone**: no server, no account. Workouts are stored with
+AsyncStorage and never uploaded.
+
+| Home | Muscles | Progress | Coach |
+|---|---|---|---|
+| ![Home](../../docs/design/expo-Home.png) | ![Muscles](../../docs/design/expo-Muscles.png) | ![Progress](../../docs/design/expo-Progress.png) | ![Coach](../../docs/design/expo-Coach.png) |
+
+(Web-preview screenshots with sample data; the Coach camera only runs on a phone.)
 
 ## Run it
 ```bash
@@ -9,29 +16,37 @@ cd apps/expo
 npm install
 npx expo start          # scan the QR code with Expo Go (same Wi-Fi as your computer)
 ```
-If local networking fails, try `npx expo start --tunnel`. On a physical iPhone, sign in to
-the same Expo account in Expo CLI and Expo Go if prompted.
+If local networking fails, try `npx expo start --tunnel`.
 
-## Tabs
-| Tab | What it does |
-|---|---|
-| Home | weekly goal and week streak, recent personal records, tone/units/rest timer, export, restore (paste an export) or erase your data |
-| Workout | **camera rep counting** for curl, squat and shoulder press (fills reps and per-rep timing); log the six lifts (kg/lb, RPE); Jim's next-set hint; rest timer with vibration; 🏆 record detection; plan-day checklist; plate calculator for barbell lifts; delete a set |
-| Jim | coaching in four tones from your history, next-set suggestion you can apply, spoken replies; type or dictate "10 curls at 20 pounds" to log a set (confirmed first); pain gets a fixed safety reply |
-| Plan | weekly plan for goal, days, minutes and equipment; *Start this day* opens a workout with the checklist |
-| Progress | per-exercise trends (units never mixed), estimated TUT for camera sets, personal records with estimated 1RM, workout history (repeat or delete a workout) |
+## Screens
+- **Home (Jim):** "Hey, I'm Jim" with three goals. *Build Muscle*, *Improve Endurance* and *Get
+  Stronger* each produce a real weekly plan you can tune (days, minutes, equipment), save and
+  start. Chat with Jim in four tones (set in the 🔔 sheet): he answers from your history with a
+  bounded next-set suggestion. Type or dictate "10 curls at 20 pounds" to log a set (confirmed
+  first). **+** opens *Log a set* (Jim's hint, plate calculator, RPE, 🏆 record detection, rest
+  timer). Pain or dizziness always gets the same safety reply.
+- **Muscles:** front and back body map coloured by when each group was last trained (≤3 days,
+  4–7 days, ≥8 days). Tap a group to see its recent work and log a lift that trains it. The
+  calendar opens your history.
+- **Coach (live):** the camera counts reps on the phone (MediaPipe in a WebView, video never
+  leaves the device) for curl, squat and shoulder press. It shows *Set x of y* and *Reps n / target*,
+  and Jim's live cue (pace from measured rep timing, plus a form tip). Buttons: voice cues on/off,
+  end set (logs it with per-rep timing) and flip camera. Bench, deadlift and pull-ups are logged
+  with **+**. The camera can't judge form, so the cues don't pretend to.
+- **Progress:** *Overview* has Total Strength (sum of each lift's best estimated 1RM, vs. last 4
+  weeks) with a chart, plus tiles for top-lift Est. 1RM, volume change, consistency and PRs, and
+  workout history (repeat or delete). *Strength* shows top weight per exercise, *Volume* weekly
+  bars, *PRs* records with estimated 1RM.
 
-## Camera rep counting
-*Count reps with camera* opens a counter that runs MediaPipe pose detection inside a WebView on the
-phone (the model downloads once, so the first run needs internet). Only landmark positions leave
-the WebView, and the app counts reps with the same tested state machine as before. Video is never
-saved or uploaded. Stand side-on with the whole arm (or leg) in frame.
+The 🔔 sheet holds your weekly goal and streak, recent records, settings (tone, voice, units,
+weekly goal, rest timer) and your data (export, restore by pasting an export, erase).
 
 ## How it works
-`src/lib` holds the logic, ported from the tested Python backend so behaviour matches it
-exactly: rep counting (`reps.js`), Jim's bounded progression and tones (`coach.js`), plans
-(`plans.js`), progress, records and streaks (`progress.js`), and the spoken-set parser. Run
-`npm test` (Node's built-in test runner, no extra dependencies).
+`src/lib` holds the tested logic: rep counting (`reps.js`, ported from the backend), Jim
+(`coach.js`), plans (`plans.js`), progress and records (`progress.js`), progression stats
+(`stats.js`), the muscle map (`muscles.js`), live cues (`cues.js`), lifter tools (`tools.js`) and
+the camera pipeline (`angles.js`, `live.js`, `poseHtml.js`). UI is in `src/screens` and
+`src/components` (design tokens in `src/theme.js`). Run `npm test`.
 
-Not a medical device. TUT is estimated movement timing, not muscle tension. The first
-browser prototype is kept in `legacy-web/` for reference.
+Not a medical device. 1RM is an estimate (Epley); TUT is estimated movement timing, not muscle
+tension. The first browser prototype is kept in `legacy-web/` for reference.
