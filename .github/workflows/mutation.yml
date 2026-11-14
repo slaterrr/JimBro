@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - "backend/jimbro/motion.py"
+      - "backend/jimbro/reps.py"
+      - "backend/tests/test_reps.py"
       - "backend/tests/test_motion.py"
       - "pyproject.toml"
       - ".github/workflows/mutation.yml"
@@ -25,7 +27,7 @@ jobs:
       - name: Install tools
         run: python -m pip install -e ".[dev]"
       - name: Run deterministic unit suite first
-        run: pytest -q backend/tests/test_motion.py
+        run: pytest -q backend/tests/test_motion.py backend/tests/test_reps.py
       - name: Generate mutations
         run: mutmut run
       - name: Enforce zero surviving and suspicious mutants
