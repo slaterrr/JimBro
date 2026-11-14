@@ -17,6 +17,46 @@ Per-exercise coverage, dataset gaps and the data-collection plan are in
 code review and verified dataset compatibility are in
 [docs/cv/codebase-and-dataset-review.md](../../../docs/cv/codebase-and-dataset-review.md).
 
+## The app: live first, video second
+
+`npm run dev` in `frontend/`, then open **http://localhost:5173/**:
+
+- **Live workout** (default): pick an exercise, press Start. The camera is
+  analysed frame by frame while you train: skeleton overlay, live joint
+  angles, rep count, active-time timer, form feedback per rep (repeats merged,
+  "not counted" notes cleared when a rep counts), voice coaching. Pause and Stop
+  keep your results on screen (and downloadable) until the next session.
+- **Analyze video** (secondary tab): upload a recording, pick the exercise
+  (or try automatic detection), and get reps with timestamps, per-rep
+  measurements and a time-coded list of observations. Click a time to jump
+  there. Switching to this tab pauses any live session.
+
+One engine for both:
+
+```
+Live camera    → PoseLoop (worker detector) → ExerciseTracker → live feedback
+Uploaded video → extractRecording (same detector) → replay into ExerciseTracker → VideoReport
+```
+
+`ExerciseTracker` holds everything that judges movement (confidence filtering,
+angles, smoothing, rep counting, lunge leg roles, exercise measurements,
+learned scores when validated, feedback). Nothing is duplicated between the
+two paths. Other pages: `/cv-demo.html` (threshold calibration bench),
+`/cv-lab.html` (validation lab, internal).
+
+### Real-time performance
+
+- Pose detection runs in a **Web Worker** (`pose_worker.ts`, GPU delegate,
+  falling back to CPU, then to the main thread if a worker can't start), so the
+  camera picture and skeleton never wait for the model. Measured on a Mac in
+  Chrome: ~8–9 ms per frame either way; the worker's gain is that those ms no
+  longer block the page. Not yet measured on phones.
+- Frames are taken with `requestVideoFrameCallback` (exactly once per new
+  camera frame) where available, else `requestAnimationFrame`.
+- **Latest frame wins**: one frame in detection at a time, later frames are
+  skipped, never queued, so feedback can't lag behind you.
+- The live screen shows fps, detection time, worker/main thread and GPU/CPU.
+
 ## Quick start (frontend)
 
 ```tsx
@@ -246,7 +286,10 @@ are shown, not spoken.
 | `rep_counter.ts` | Generic `RepCounter` state machine, `BaselineDropMeter` |
 | `form_analyzer.ts` | Generic rep flags, personal-baseline checks, evidence filter, session summary and insights, camera-view check |
 | `body_metrics.ts` | Torso lean, facing direction, knee-to-ankle ratio |
-| `pose_detection.ts` | Camera, model loading (GPU → CPU fallback), detection loop, side picking, overlay drawing |
+| `pose_detection.ts` | Camera, model loading (GPU → CPU fallback), detection loop (frame callbacks, latest frame wins), side picking, overlay drawing |
+| `detector.ts`, `pose_worker.ts` | Pose detection in a Web Worker with main-thread fallback |
+| `video_analysis.ts` | Analyze-video mode: frame extraction and the per-rep report, through the shared engine |
+| `../app/` + `/index.html` | The app page (live workout + analyze video) and its feedback feed and session clock |
 | `angle_calculator.ts` | `calculateAngle`, `calculateAngle3D`, `AngleSmoother` (legacy EMA) |
 | `signal_filter.ts` | `SignalFilter`: One Euro smoothing, gap bridging, glitch rejection |
 | `validation/*.ts` | Recording/annotation format, headless replay, accuracy metrics, reliability verdicts, dataset export, experimental exercise recognition |

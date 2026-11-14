@@ -9,7 +9,8 @@
  * Framework-agnostic; see useExerciseTracker.ts for the React hook.
  */
 
-import type { Landmark, NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
+import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
+import { createDetector } from "./detector";
 import type { ExerciseId, FormFlag, Metric, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
 import { repFeatures, type RepFrame } from "./ml/rep_features";
 import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
@@ -31,7 +32,6 @@ import {
   CameraError,
   ModelLoadError,
   PoseLoop,
-  createPoseLandmarker,
   drawSkeleton,
   mapCameraError,
   startCamera,
@@ -42,6 +42,7 @@ import {
   type WorldLandmarkLike,
   type CameraOptions,
   type DetectorOptions,
+  type PoseDetector,
   type SkeletonStyle,
 } from "./pose_detection";
 import { BaselineDropMeter, RepCounter, type CompletedRep, type RepCounterConfig } from "./rep_counter";
@@ -101,6 +102,10 @@ export interface TrackerState {
    * counting joints visible, readings rejected as glitches, short gaps bridged.
    */
   trackingQuality: { visible: number; glitches: number; bridged: number };
+  /** Latest smoothed form signals of the current exercise (degrees or fractions), for live display. */
+  liveForm: Record<string, number | null>;
+  /** Live performance: pose results per second, detection latency, skipped frames, where it runs. */
+  performance: { fps: number; detectMs: number; skipped: number; threading: "main" | "worker"; delegate: "GPU" | "CPU" } | null;
 }
 
 export interface ExerciseTrackerOptions {
@@ -119,6 +124,11 @@ export interface ExerciseTrackerOptions {
   counter?: Partial<Record<ExerciseId, Partial<RepCounterConfig>>>;
   analyzer?: Partial<FormAnalyzerConfig>;
   detector?: Partial<DetectorOptions>;
+  /**
+   * Run pose detection in a Web Worker so the camera view stays smooth
+   * (default true). Falls back to the main thread if a worker can't start.
+   */
+  useWorker?: boolean;
   camera?: Omit<CameraOptions, "onEnded">;
   skeleton?: Partial<Omit<SkeletonStyle, "highlight" | "minVisibility">>;
 }
@@ -150,6 +160,8 @@ export function initialTrackerState(exercise: ExerciseId = "squat"): TrackerStat
     viewWarning: null,
     measuredView: getExercise(exercise).cameraView,
     trackingQuality: { visible: 0, glitches: 0, bridged: 0 },
+    liveForm: {},
+    performance: null,
   };
 }
 
@@ -182,7 +194,7 @@ export class ExerciseTracker {
   private fileUrl: string | null = null;
   private fileEpoch = 0;
   private fileCleanup: (() => void) | null = null;
-  private landmarker: PoseLandmarker | null = null;
+  private detector: PoseDetector | null = null;
   private loop: PoseLoop | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -317,9 +329,9 @@ export class ExerciseTracker {
         this.setState({ status: "starting-camera", error: null }, true);
         this.stream = await startCamera(this.video, { ...this.opts.camera, onEnded: (err) => this.fail(err) });
       }
-      if (!this.landmarker) {
+      if (!this.detector) {
         this.setState({ status: "loading-model" }, true);
-        this.landmarker = await createPoseLandmarker(this.opts.detector);
+        this.detector = await createDetector({ ...this.opts.detector, useWorker: this.opts.useWorker ?? true });
       }
     } catch (err) {
       this.fail(err);
@@ -375,9 +387,9 @@ export class ExerciseTracker {
         v.addEventListener("loadeddata", ok);
         v.addEventListener("error", bad);
       });
-      if (!this.landmarker) {
+      if (!this.detector) {
         this.setState({ status: "loading-model" }, true);
-        this.landmarker = await createPoseLandmarker(this.opts.detector);
+        this.detector = await createDetector({ ...this.opts.detector, useWorker: this.opts.useWorker ?? true });
       }
     } catch (err) {
       this.fail(err);
@@ -468,8 +480,8 @@ export class ExerciseTracker {
     this.loop?.stop();
     this.loop = null;
     this.releaseSource();
-    this.landmarker?.close();
-    this.landmarker = null;
+    this.detector?.close();
+    this.detector = null;
     this.stateListeners.clear();
     this.repListeners.clear();
     this.rejectionListeners.clear();
@@ -480,10 +492,10 @@ export class ExerciseTracker {
   // ---- internals -------------------------------------------------------
 
   private makeLoop(clock: "wall" | "media"): PoseLoop {
-    const landmarker = this.landmarker!;
+    const detector = this.detector!;
     return new PoseLoop(
       this.video,
-      landmarker,
+      detector,
       (result, ts) => this.processFrame(result.landmarks[0], result.worldLandmarks[0], ts),
       clock,
     );
@@ -634,6 +646,8 @@ export class ExerciseTracker {
       viewWarning: cameraViewFlag(cameraView, ex.cameraView, ex.otherViews),
       measuredView: reading.view,
       trackingQuality: this.trackingQuality(),
+      liveForm: Object.fromEntries(Object.entries(this.lastForm).map(([k, v]) => [k, v === null ? null : Math.round(v * 100) / 100])),
+      performance: this.performanceStats(),
       videoProgress:
         this.source === "file" && Number.isFinite(this.video.duration)
           ? { current: this.video.currentTime, duration: this.video.duration }
@@ -771,6 +785,18 @@ export class ExerciseTracker {
       out[key] = { ...s, coverage: frames > 0 ? Math.min(1, (this.formSeen[key] ?? 0) / frames) : 0 };
     }
     return out;
+  }
+
+  private performanceStats(): TrackerState["performance"] {
+    if (!this.loop || !this.detector) return null;
+    const st = this.loop.getStats();
+    return {
+      fps: Math.round(st.fps * 10) / 10,
+      detectMs: Math.round(st.detectMs * 10) / 10,
+      skipped: st.skipped,
+      threading: this.detector.threading,
+      delegate: this.detector.delegate,
+    };
   }
 
   private trackingQuality(): TrackerState["trackingQuality"] {

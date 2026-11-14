@@ -6,12 +6,12 @@
 
 import type { ExerciseId } from "../../../../shared/types";
 import { EXERCISE_IDS, getExercise } from "../exercises";
-import { DEFAULT_DETECTOR_OPTIONS, createPoseLandmarker, drawSkeleton } from "../pose_detection";
+import { DEFAULT_DETECTOR_OPTIONS, drawSkeleton } from "../pose_detection";
+import { extractRecording } from "../video_analysis";
 import { exportDataset, toJsonl } from "../validation/dataset";
 import { evaluate, type Evaluation } from "../validation/evaluate";
 import {
   ANGLE_JOINTS,
-  RECORDING_SCHEMA,
   assertRecording,
   toLandmarks,
   type Annotation,
@@ -58,16 +58,6 @@ function download(name: string, text: string, type = "application/json") {
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 const sec = (ms: number) => (ms / 1000).toFixed(2);
 
-function seek(t: number): Promise<void> {
-  return new Promise((resolve) => {
-    const done = () => {
-      video.removeEventListener("seeked", done);
-      resolve();
-    };
-    video.addEventListener("seeked", done);
-    video.currentTime = t;
-  });
-}
 
 // ---- 1. recording -----------------------------------------------------------
 
@@ -94,51 +84,14 @@ $("extract").addEventListener("click", async () => {
   $<HTMLButtonElement>("extract").disabled = true;
   try {
     status("Loading pose model…");
-    const landmarker = await createPoseLandmarker({ modelAssetPath: MODEL_URLS[variant] });
-    const frames: Recording["frames"] = [];
-    const dur = video.duration * 1000;
-    let mpTs = 0;
-    video.pause();
-    for (let t = 0; t <= dur; t += sampleMs) {
-      await seek(t / 1000);
-      mpTs = Math.max(mpTs + 1, performance.now());
-      const t0 = performance.now();
-      const res = landmarker.detectForVideo(video, mpTs);
-      const detectMs = performance.now() - t0;
-      const lm = res.landmarks[0];
-      const w = res.worldLandmarks[0];
-      frames.push({
-        t: Math.round(t),
-        lm: lm ? lm.map((p) => [r5(p.x), r5(p.y), r5(p.z), r3(p.visibility ?? 0)]) : null,
-        world: w ? w.map((p) => [r5(p.x), r5(p.y), r5(p.z)]) : null,
-        detectMs: Math.round(detectMs * 10) / 10,
-      });
-      if (frames.length % 15 === 0) status(`Extracting… ${Math.round((t / dur) * 100)}%`);
-    }
-    landmarker.close();
-    const rec: Recording = {
-      schema: RECORDING_SCHEMA,
-      id: uid(),
-      createdAt: new Date().toISOString(),
+    const rec = await extractRecording(video, videoFile, {
+      sampleMs,
       subjectId,
-      source: {
-        fileName: videoFile.name,
-        sha256: videoSha,
-        bytes: videoFile.size,
-        durationSec: video.duration,
-        width: video.videoWidth,
-        height: video.videoHeight,
-        mirrored: $<HTMLInputElement>("mirrored").checked,
-      },
-      extraction: {
-        model: `pose_landmarker_${variant}`,
-        mediapipe: "@mediapipe/tasks-vision 1.1.1",
-        sampleMs,
-        extractedAt: new Date().toISOString(),
-      },
-      frames,
-      annotations: [],
-    };
+      mirrored: $<HTMLInputElement>("mirrored").checked,
+      detector: { modelAssetPath: MODEL_URLS[variant] },
+      onProgress: (f) => status(`Extracting… ${Math.round(f * 100)}%`),
+    });
+    const frames = rec.frames;
     assertRecording(rec);
     recordings.push(rec);
     setActive(rec);
@@ -151,8 +104,6 @@ $("extract").addEventListener("click", async () => {
   }
 });
 
-const r5 = (x: number) => Math.round(x * 1e5) / 1e5;
-const r3 = (x: number) => Math.round(x * 1e3) / 1e3;
 
 $<HTMLInputElement>("load").addEventListener("change", async (e) => {
   for (const file of (e.target as HTMLInputElement).files ?? []) {
