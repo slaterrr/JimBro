@@ -69,3 +69,18 @@ describe('aggregate', () => {
     assert.equal(c.source, 'unknown');
   });
 });
+
+describe('real clips in every other camera mode', () => {
+  it('produce zero false reps (20 wrong-mode replays of real landmarks)', async () => {
+    const { ANALYZERS, countsWithCamera } = await import('../../../apps/expo/src/lib/analyzers.js');
+    let runs = 0;
+    for (const n of ['fs_squat_rear', 'fs_press_rear', 'ez_talk_a', 'ez_talk_b']) {
+      const clip = fixture(n);
+      clip.wrongModes = Object.keys(ANALYZERS).filter((m) => countsWithCamera(m) && m !== clip.movement);
+      const r = validateClip(clip);
+      runs += r.wrongMode.length;
+      for (const w of r.wrongMode) assert.equal(w.falseCounts, 0, `${n} in ${w.mode} mode`);
+    }
+    assert.equal(runs, 20);
+  });
+});
