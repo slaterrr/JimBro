@@ -151,6 +151,26 @@ describe("SquatRepCounter", () => {
     expect(counter.armed).toBe(false);
   });
 
+  it("a stricter depth line rejects a squat the default would count", () => {
+    const seq = () => sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 95), (t) => hold(t, 300, 175));
+    expect(run(seq()).reps.length).toBe(1);
+    const strict = new SquatRepCounter();
+    strict.configure({ depthAngle: 90 });
+    const { reps, rejected } = run(seq(), strict);
+    expect(reps).toEqual([]);
+    expect(rejected.map((r) => [r.reason, Math.round(r.minKneeAngle ?? 0)])).toEqual([["SHALLOW_DEPTH", 95]]);
+  });
+
+  it("configure keeps the count and rejects invalid thresholds", () => {
+    const counter = new SquatRepCounter();
+    run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175)), counter);
+    counter.configure({ depthAngle: 85 });
+    expect(counter.repCount).toBe(1);
+    expect(counter.config.depthAngle).toBe(85);
+    expect(() => counter.configure({ depthAngle: 145 })).toThrow(RangeError);
+    expect(counter.config.depthAngle).toBe(85);
+  });
+
   it("validates its config", () => {
     expect(() => new SquatRepCounter({ standingAngle: 140, descentStartAngle: 150 })).toThrow(RangeError);
     expect(() => new SquatRepCounter({ depthAngle: 145 })).toThrow(RangeError);

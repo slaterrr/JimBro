@@ -64,6 +64,11 @@ export interface TrackerState {
   lastRep: RepEvent | null;
   /** Why the most recent attempt didn't count (cleared when a rep counts). */
   lastRejection: FormFlag | null;
+  /**
+   * Lowest knee angle of the most recent attempt, counted or not (measured).
+   * Useful for calibrating the depth line: compare partial vs full squats.
+   */
+  lastAttempt: { counted: boolean; minKneeAngle: number | null; code: string | null } | null;
   /** Smoothed angles, degrees; null when not visible. Updated at uiUpdateHz. */
   liveAngles: { knee: number | null; hip: number | null };
   landmarksVisible: boolean;
@@ -101,6 +106,7 @@ export function initialTrackerState(): TrackerState {
     repCount: 0,
     lastRep: null,
     lastRejection: null,
+    lastAttempt: null,
     liveAngles: { knee: null, hip: null },
     landmarksVisible: false,
     activeSide: null,
@@ -175,6 +181,18 @@ export class SquatTracker {
   onFrame(listener: Listener<PoseFrame>): () => void {
     this.frameListeners.add(listener);
     return () => this.frameListeners.delete(listener);
+  }
+
+  getCounterConfig(): Readonly<RepCounterConfig> {
+    return this.counter.config;
+  }
+
+  /**
+   * Adjust counting thresholds live, e.g. `setCounterConfig({ depthAngle: 90 })`.
+   * Keeps the rep count. Throws RangeError on an invalid combination.
+   */
+  setCounterConfig(patch: Partial<RepCounterConfig>): void {
+    this.counter.configure(patch);
   }
 
   /** Start the camera (if needed), load the model (once) and begin tracking. */
@@ -262,7 +280,7 @@ export class SquatTracker {
     this.frames = 0;
     this.visibleFrames = 0;
     this.counter.reset();
-    this.setState({ repCount: 0, lastRep: null, lastRejection: null }, true);
+    this.setState({ repCount: 0, lastRep: null, lastRejection: null, lastAttempt: null }, true);
   }
 
   private processFrame(lm: NormalizedLandmark[] | undefined, perfTs: number): void {
@@ -318,13 +336,29 @@ export class SquatTracker {
       const repEvent = toRepEvent(event.rep, flags);
       this.reps.push(event.rep);
       this.repEvents.push(repEvent);
-      this.setState({ ...patch, repCount: this.reps.length, lastRep: repEvent, lastRejection: null }, true);
+      this.setState(
+        {
+          ...patch,
+          repCount: this.reps.length,
+          lastRep: repEvent,
+          lastRejection: null,
+          lastAttempt: { counted: true, minKneeAngle: round1(event.rep.minKneeAngle), code: null },
+        },
+        true,
+      );
       this.repListeners.forEach((l) => l(repEvent));
       return;
     }
     if (event?.type === "rejected") {
       const flag = describeRejection(event.rejected);
-      this.setState({ ...patch, lastRejection: flag }, true);
+      this.setState(
+        {
+          ...patch,
+          lastRejection: flag,
+          lastAttempt: { counted: false, minKneeAngle: round1(event.rejected.minKneeAngle), code: flag.code },
+        },
+        true,
+      );
       this.rejectionListeners.forEach((l) => l(flag));
       return;
     }

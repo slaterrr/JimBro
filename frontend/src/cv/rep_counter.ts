@@ -96,7 +96,7 @@ interface InProgressRep {
 }
 
 export class SquatRepCounter {
-  readonly config: Readonly<RepCounterConfig>;
+  private _config: Readonly<RepCounterConfig>;
   private _phase: SquatPhase = "standing";
   private _armed = false;
   private _repCount = 0;
@@ -105,8 +105,23 @@ export class SquatRepCounter {
   private lastStandingAt: number | null = null;
 
   constructor(config: Partial<RepCounterConfig> = {}) {
-    this.config = Object.freeze({ ...DEFAULT_REP_COUNTER_CONFIG, ...config });
-    validateConfig(this.config);
+    this._config = Object.freeze({ ...DEFAULT_REP_COUNTER_CONFIG, ...config });
+    validateConfig(this._config);
+  }
+
+  get config(): Readonly<RepCounterConfig> {
+    return this._config;
+  }
+
+  /**
+   * Change thresholds mid-session (e.g. a depth calibration slider). The rep
+   * count is kept; a rep in progress finishes against the new thresholds.
+   * Throws RangeError and leaves the old config in place if the result is invalid.
+   */
+  configure(patch: Partial<RepCounterConfig>): void {
+    const next = Object.freeze({ ...this._config, ...patch });
+    validateConfig(next);
+    this._config = next;
   }
 
   get phase(): SquatPhase {

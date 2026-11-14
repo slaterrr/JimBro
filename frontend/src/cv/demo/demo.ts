@@ -77,11 +77,63 @@ function render(s: TrackerState) {
 tracker.subscribe(render);
 tracker.onRep((r) =>
   addLog(
-    `rep ${r.repNumber}: ${(r.durationMs / 1000).toFixed(2)}s, depth ${r.minKneeAngle.value}°` +
+    `✓ rep ${r.repNumber}: lowest ${Math.round(r.minKneeAngle.value)}°, ${(r.durationMs / 1000).toFixed(2)}s` +
       (r.formFlags.length ? `  [${r.formFlags.map((f) => `${f.code}/${f.source}`).join(", ")}]` : ""),
   ),
 );
-tracker.onRejected((f) => addLog(`not counted: ${f.code}`));
+tracker.onRejected((f) => {
+  const a = tracker.getState().lastAttempt;
+  const low = a?.minKneeAngle != null ? `lowest ${Math.round(a.minKneeAngle)}°, ` : "";
+  addLog(`✗ not counted: ${low}${f.code}`);
+});
+
+// ---- depth calibration ---------------------------------------------------
+const depthInput = $<HTMLInputElement>("depth");
+const depthVal = $("depthVal");
+const curMin = $("curMin");
+const DEPTH_KEY = "jimbro.cv.depthAngle";
+
+function applyDepth(deg: number) {
+  try {
+    tracker.setCounterConfig({ depthAngle: deg });
+    depthInput.value = String(deg);
+    depthVal.textContent = `${deg}°`;
+  } catch {
+    depthInput.value = String(tracker.getCounterConfig().depthAngle);
+  }
+}
+try {
+  const saved = Number(localStorage.getItem(DEPTH_KEY));
+  if (saved >= 70 && saved <= 125) applyDepth(saved);
+} catch {
+  /* storage unavailable: keep the default */
+}
+depthInput.addEventListener("input", () => {
+  const deg = Number(depthInput.value);
+  applyDepth(deg);
+  try {
+    localStorage.setItem(DEPTH_KEY, String(deg));
+  } catch {
+    /* ignore */
+  }
+});
+
+// Lowest knee angle of the current (or last) descent, including shallow dips
+// the counter ignores. Held until the next descent starts. Written straight to
+// the DOM; no throttled state needed.
+let attemptMin: number | null = null;
+let prevPhase = "standing";
+let lastShown = 0;
+tracker.onFrame((f) => {
+  if (f.kneeAngle !== null && f.phase !== "standing") {
+    attemptMin = prevPhase === "standing" || attemptMin === null ? f.kneeAngle : Math.min(attemptMin, f.kneeAngle);
+  }
+  prevPhase = f.phase;
+  if (f.timestamp - lastShown > 100) {
+    lastShown = f.timestamp;
+    curMin.textContent = attemptMin === null ? "–" : `${Math.round(attemptMin)}°`;
+  }
+});
 
 startBtn.addEventListener("click", () => {
   // Browsers only allow speech after a click, so the coach starts here.

@@ -52,6 +52,15 @@
           <div class="reps" id="reps">0</div>
           <div id="status" class="note">idle</div>
         </div>
+        <div class="card">
+          <div class="note" style="margin:0 0 6px">Depth line: a rep counts only if your knee goes <strong>below</strong> this</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input id="depth" type="range" min="70" max="125" step="1" value="100" style="flex:1;accent-color:var(--lime)" aria-label="Depth line in degrees" />
+            <strong id="depthVal" style="min-width:3.5em;text-align:right">100°</strong>
+          </div>
+          <div class="row" style="margin-top:8px"><span>This rep, lowest<span class="tag m">measured</span></span><strong id="curMin">–</strong></div>
+          <p class="note" style="margin:8px 0 0">Do 3 half squats and 3 full squats, read the lowest angles in Events, and set the line between them.</p>
+        </div>
         <div class="card" id="metrics"></div>
         <div class="card"><div class="note">Events</div><div id="log"></div></div>
       </aside>
