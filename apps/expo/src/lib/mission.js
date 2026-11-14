@@ -289,3 +289,8 @@ export function missionSummary(mission, log, { startedAt, endedAt } = {}) {
   }
   return { setsPlanned, setsDone, repsDone, repsTarget, cameraReps, minutes, onTime, lines, nextTime: nextTime.reverse() };
 }
+
+// Camera-counted stand-ins for lifts the camera can't track yet (same main muscles).
+const CAMERA_SWAP = { bench: 'push_up', deadlift: 'squat', pull_up: 'curl', lunge: 'squat' };
+/** A camera-counted alternative for `exercise`, or null when it is already camera-counted. */
+export const cameraSwap = (exercise) => CAMERA_SWAP[exercise] ?? null;
