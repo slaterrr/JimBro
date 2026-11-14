@@ -2,7 +2,7 @@
 # Install (or update) JimBro on a Raspberry Pi from the USB bundle. Safe to re-run.
 #
 #   sudo bash install.sh [--hostname jimbro] [--port 443] [--data-dir /var/lib/jimbro]
-#                        [--headless] [--no-kiosk] [--no-button]
+#                        [--headless] [--no-kiosk] [--no-button] [--http-port 8080|0]
 #
 # Works offline on Raspberry Pi OS Lite (no python3-venv needed: pip ships in the bundle).
 # --headless skips the desktop kiosk; it is also implied when no desktop is installed.
@@ -21,6 +21,7 @@ PORT=443
 DATA_DIR=/var/lib/jimbro
 KIOSK=1
 BUTTON=1
+HTTP_PORT=8080
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --data-dir) DATA_DIR="$2"; shift 2 ;;
     --no-kiosk|--headless) KIOSK=0; shift ;;
     --no-button) BUTTON=0; shift ;;
+    --http-port) HTTP_PORT="$2"; shift 2 ;;
     -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -115,6 +117,12 @@ EOF
   chown root:jimbro "$ETC/jimbro.env"
 fi
 
+# Keep settings across upgrades, but add keys introduced by newer versions.
+setting() { grep -q "^$1=" "$ETC/jimbro.env" || echo "$1=$2" >> "$ETC/jimbro.env"; }
+setting JIMBRO_TLS_CERT "$ETC/tls.crt"
+setting JIMBRO_TLS_KEY "$ETC/tls.key"
+setting JIMBRO_HTTP_PORT "$HTTP_PORT"   # LAN HTTP for the Expo Go app; 0 disables it
+
 say "Installing services"
 cp "$HERE/systemd/jimbro.service" /etc/systemd/system/jimbro.service
 sed -i "s|@DATA_DIR@|$DATA_DIR|g" /etc/systemd/system/jimbro.service
@@ -166,6 +174,7 @@ if curl -fsk "$url" >/dev/null 2>&1; then
   echo "  Phone (same Wi-Fi): https://$HOST.local$suffix   or   https://${IP:-<pi-ip>}$suffix"
   echo "  Accept the certificate warning once (self-signed), then 'Add to Home Screen'."
   echo "  Station display:    https://localhost$suffix/station"
+  if [ "$HTTP_PORT" != 0 ]; then echo "  Expo Go app server: http://${IP:-<pi-ip>}:$HTTP_PORT"; fi
   echo "  Logs:               journalctl -u jimbro -f"
   if command -v qrencode >/dev/null && [ -n "$IP" ]; then
     qrencode -t ansiutf8 "https://$IP$suffix"

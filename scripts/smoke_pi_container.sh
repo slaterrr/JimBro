@@ -26,7 +26,8 @@ case "$*" in
   *restart*jimbro.service*|*enable*jimbro.service*)
     pkill -f "uvicorn jimbro.api" 2>/dev/null || true
     set -a; . /etc/jimbro/jimbro.env; set +a
-    cmd=$(sed -n "/^ExecStart=/,/[^\\\\]$/p" /etc/systemd/system/jimbro.service | sed "s/^ExecStart=//; s/\\\\$//" | tr "\n" " ")
+    # Join ExecStart plus any backslash-continued lines (single- or multi-line units).
+    cmd=$(awk "/^ExecStart=/{f=1} f{sub(/^ExecStart=/,\"\"); c=sub(/\\\\\$/,\"\"); printf \"%s \", \$0; if(!c) exit}" /etc/systemd/system/jimbro.service)
     cmd=$(eval echo "$cmd")
     cd /opt/jimbro/app && su -s /bin/sh jimbro -c "$cmd > /tmp/jimbro.log 2>&1 &"
     ;;
@@ -60,6 +61,18 @@ async def main():
 asyncio.run(main())
 PY
 test -s /var/lib/jimbro/jimbro.db && echo "db persisted at /var/lib/jimbro/jimbro.db"
+curl -fs http://127.0.0.1:8080/v1/exercises | grep -q curl && echo "plain-HTTP API for Expo Go on :8080"
+/opt/jimbro/venv/bin/python - <<"PY"
+import asyncio, json, ssl, urllib.request, websockets
+async def main():
+    # Expo Go listens over HTTP while the PWA posts over HTTPS: one process, one event bus.
+    async with websockets.connect("ws://127.0.0.1:8080/v1/station") as st:
+        await st.recv()
+        ctx = ssl._create_unverified_context()
+        urllib.request.urlopen(urllib.request.Request("https://127.0.0.1/v1/station/button", method="POST", data=b""), context=ctx)
+        print("cross-listener event:", json.loads(await asyncio.wait_for(st.recv(), 5))["type"])
+asyncio.run(main())
+PY
 echo "--- nightly backup + mdns"
 set -a; . /etc/jimbro/jimbro.env; set +a
 cmd=$(sed -n "s/^ExecStart=//p" /etc/systemd/system/jimbro-backup.service)
