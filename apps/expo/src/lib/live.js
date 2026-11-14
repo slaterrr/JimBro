@@ -36,6 +36,8 @@ const FORM_REVIEW = new Set(['curl', 'squat', 'shoulder_press']);
 // Push-up mode: arms straight again (elbow >= this) in a push-up position releases the latch.
 const ARMS_STRAIGHT_DEG = 150;
 const ARM_SUGGEST = { curl: 'curl', press: 'shoulder_press' };
+// Velocity window margin: the counter starts a phase at a threshold crossing, after motion began.
+const VEL_MARGIN_MS = 100;
 // EXPERIMENTAL gates (simulation-tested only). Pull-up: hands overhead (wrist above the shoulder by
 // a tenth of a torso) and fixed on the bar; if the wrist travels > 0.35 torso lengths during a rep,
 // the hands are moving, not the body (a press), so the rep is not a pull-up.
@@ -309,10 +311,36 @@ export class LiveSession {
     return this._puLatched ? 'push_up' : null;
   }
 
-  /** Adds range of motion (degrees) and, for push-ups, the majority rep type to a counted rep. */
+  /**
+   * Lifting-phase angular speed measured from the joint-angle trace (degrees/s, relative): peak of a
+   * 3-frame moving average of frame-to-frame speed, and mean = angle travelled / phase time.
+   */
+  _velocity(rep) {
+    const phase = analyzerFor(this.movement)?.liftPhase ?? 'concentric_ms';
+    const peakT = rep.start_ms + rep.concentric_ms;
+    const leaveT = peakT + rep.peak_pause_ms;
+    const [a, b] = phase === 'concentric_ms' ? [rep.start_ms, peakT] : [leaveT, rep.end_ms];
+    const fr = this._buf.filter((f) => f.t >= a - VEL_MARGIN_MS && f.t <= b + VEL_MARGIN_MS);
+    if (fr.length < 4 || b <= a) return;
+    const speed = [];
+    for (let i = 1; i < fr.length; i += 1) {
+      const dt = (fr[i].t - fr[i - 1].t) / 1000;
+      if (dt > 0) speed.push(Math.abs(fr[i].angle - fr[i - 1].angle) / dt);
+    }
+    const smooth = speed.map((_, i) => {
+      const w = speed.slice(Math.max(0, i - 1), i + 2);
+      return w.reduce((s, x) => s + x, 0) / w.length;
+    });
+    const inPhase = fr.filter((f) => f.t >= a && f.t <= b).map((f) => f.angle);
+    rep.peak_dps = Math.round(Math.max(...smooth));
+    rep.mean_dps = inPhase.length >= 2 ? Math.round((Math.max(...inPhase) - Math.min(...inPhase)) / ((b - a) / 1000)) : null;
+  }
+
+  /** Adds range of motion (degrees), measured speed and, for push-ups, the majority rep type. */
   _describeRep(rep) {
     const angles = this._buf.filter((f) => f.t >= rep.start_ms - CLIP_PRE_MS && f.t <= rep.end_ms).map((f) => f.angle);
     rep.rom_deg = angles.length ? Math.round(Math.max(...angles) - Math.min(...angles)) : null;
+    this._velocity(rep);
     if (this.movement !== 'push_up') return;
     const tally = {};
     for (const { t, v } of this._variants ?? []) if (v && t >= rep.start_ms && t <= rep.end_ms) tally[v] = (tally[v] ?? 0) + 1;
@@ -355,9 +383,11 @@ export class LiveSession {
 
   /** Reps in the shape a logged set stores. */
   repsDetail() {
-    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant }) => ({
+    return this.reps.map(({ index, concentric_ms, peak_pause_ms, eccentric_ms, rom_deg, variant, peak_dps, mean_dps }) => ({
       index, concentric_ms, peak_pause_ms, eccentric_ms,
       ...(rom_deg != null ? { rom_deg } : {}),
+      ...(peak_dps != null ? { peak_dps } : {}),
+      ...(mean_dps != null ? { mean_dps } : {}),
       ...(variant !== undefined ? { variant } : {}),
     }));
   }

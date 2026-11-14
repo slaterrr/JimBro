@@ -26,7 +26,9 @@ export type ExerciseDetected = Envelope<'ExerciseDetected', { view: 'side' | 'fr
 export type ExerciseMismatch = Envelope<'ExerciseMismatch', { expected: ExerciseId; observed: ExerciseId | 'unknown'; reason: string; guidance: string | null }>;
 export type RepStarted = Envelope<'RepStarted', { repIndex: number }>;
 export type RepCompleted = Envelope<'RepCompleted', {
-  repIndex: number; count: number; lift_ms: number; lower_ms: number; pause_ms: number; rom_deg: number | null; variant?: 'standard' | 'knee' | 'incline' | null;
+  repIndex: number; count: number; lift_ms: number; lower_ms: number; pause_ms: number; rom_deg: number | null;
+  /** lifting-phase joint angular speed from the angle trace (relative, deg/s; not bar speed) */
+  peak_dps: number | null; mean_dps: number | null; variant?: 'standard' | 'knee' | 'incline' | null;
 }>;
 export type RepRejected = Envelope<'RepRejected', { reason: 'arm_swing' | 'framing' | 'implausible_motion' | 'tracking' | string; words: string }>;
 export type TrackingStatus = Envelope<'TrackingStatus', { status: 'ok' | 'low' | 'lost'; hint: string | null; guidance: string | null }>;

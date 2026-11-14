@@ -62,7 +62,8 @@ export function createVisionSession({ exerciseId, sessionId, onEvent }) {
         emit('RepCompleted', t, {
           repIndex: d.index, count: out.count,
           lift_ms: d[phase], lower_ms: d[phase === 'concentric_ms' ? 'eccentric_ms' : 'concentric_ms'], pause_ms: d.peak_pause_ms,
-          rom_deg: d.rom_deg ?? null, ...(d.variant !== undefined ? { variant: d.variant } : {}),
+          rom_deg: d.rom_deg ?? null, peak_dps: d.peak_dps ?? null, mean_dps: d.mean_dps ?? null,
+          ...(d.variant !== undefined ? { variant: d.variant } : {}),
         }, { confidence: round2(out.tracking.confidence) });
       }
       return out;

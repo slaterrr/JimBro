@@ -34,7 +34,7 @@ const REQUIRED = {
 };
 
 const UNITS = {
-  RepCompleted: { lift_ms: 'ms', lower_ms: 'ms', pause_ms: 'ms', rom_deg: 'deg' },
+  RepCompleted: { lift_ms: 'ms', lower_ms: 'ms', pause_ms: 'ms', rom_deg: 'deg', peak_dps: 'deg/s', mean_dps: 'deg/s' },
   SetCompleted: { trackingPct: '%' },
   PerformanceMeasurement: { meanLiftMs: 'ms', velocityLossPct: '%', romLossPct: '%', consistencyCv: 'ratio', speed_dps: 'deg/s' },
   LoadRecommendation: { extraRestS: 's' },

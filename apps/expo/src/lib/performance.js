@@ -14,14 +14,22 @@ const MIN_REPS = 3;
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const round = (x, d = 0) => Math.round(x * 10 ** d) / 10 ** d;
 
+const NO_PEAK = { metric: 'peak_velocity', why: 'These reps were saved without a joint-angle trace (older data), so peak speed is unknown.' };
+// How far to trust each number: measured_relative = read from the camera trace (degrees, ms; not
+// metres); derived = arithmetic on measured values; estimate = a model guess (shown as a range).
+export const METRIC_CLASSES = Object.freeze({
+  lift_ms: 'measured_relative', lower_ms: 'measured_relative', rom_deg: 'measured_relative',
+  peak_dps: 'measured_relative', mean_dps: 'measured_relative', speed_dps: 'measured_relative',
+  velocityLossPct: 'derived', romLossPct: 'derived', consistencyCv: 'derived', effortRpe: 'estimate',
+});
+const LOW_TRACKING_PCT = 80;
 const OMITTED = [
-  { metric: 'peak_velocity', why: 'Needs each rep\'s full joint trajectory; only phase times are stored.' },
   { metric: 'acceleration', why: 'Second derivative of noisy 20 fps landmarks; not reliable enough to show.' },
   { metric: 'displacement_m', why: 'Image coordinates are not metres; needs a calibration object of known size.' },
 ];
 
-/** Relative per-rep metrics for one set; `reps` is the stored reps_detail. */
-export function repMetrics(movement, reps = []) {
+/** Relative per-rep metrics for one set; `reps` is the stored reps_detail. trackedPct: share of usable frames. */
+export function repMetrics(movement, reps = [], { trackedPct = null } = {}) {
   const phase = analyzerFor(movement)?.liftPhase ?? 'concentric_ms';
   const other = phase === 'concentric_ms' ? 'eccentric_ms' : 'concentric_ms';
   const rows = reps.map((r) => {
@@ -29,10 +37,12 @@ export function repMetrics(movement, reps = []) {
     const rom = r.rom_deg > 0 ? r.rom_deg : null;
     return {
       index: r.index, lift_ms: lift, lower_ms: r[other] ?? null, pause_ms: r.peak_pause_ms ?? null, rom_deg: rom,
-      speed_dps: lift > 0 && rom ? Math.round(rom / (lift / 1000)) : null,
+      speed_dps: r.mean_dps ?? (lift > 0 && rom ? Math.round(rom / (lift / 1000)) : null),
+      peak_dps: r.peak_dps ?? null,
     };
   });
   const omitted = [...OMITTED];
+  if (rows.length && rows.some((r) => r.peak_dps == null)) omitted.unshift(NO_PEAK);
   const lifts = rows.map((r) => r.lift_ms).filter((x) => x > 0);
   let velocityLossPct = null;
   let romLossPct = null;
@@ -58,6 +68,8 @@ export function repMetrics(movement, reps = []) {
     romLossPct,
     consistencyCv,
     omitted,
+    classes: METRIC_CLASSES,
+    confidence: trackedPct != null && trackedPct < LOW_TRACKING_PCT ? 'low' : 'normal',
   };
 }
 

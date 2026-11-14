@@ -26,6 +26,13 @@ guards, not benchmarks.
 near the bottom is counted as "pause". Use the times only for comparisons within one set, not as
 absolute tempo.
 
+**Speed from the angle trace (fix for the above):** reps now carry `peak_dps` and `mean_dps`, measured
+from the joint-angle trace over the lifting phase. On the real squat clip, rep 1 measures 242°/s
+peak and 103°/s mean. The old ROM ÷ threshold-phase-time figure was 137° / 0.25 s ≈ 548°/s, more than 5×
+too high. Speed metrics now use the trace (`speed_dps` = `mean_dps` when present). These are still
+relative joint speeds, not bar velocity. On simulated curls with known motion, the measured peak is
+within the expected ±30% of 196°/s.
+
 ## Simulated evidence (logic only; says nothing about real accuracy)
 | Check | Result |
 |---|---|
