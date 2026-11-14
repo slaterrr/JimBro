@@ -211,11 +211,13 @@ export function missionStep(s, e) {
     case 'confirm': {
       if (s.phase !== 'check') return s;
       const rpe = e.rpe ?? null;
-      const entry = { exercise: item.exercise, reps: s.pending.reps, target: s.cur.reps, weight: s.cur.weight, unit: item.unit, rpe, camera: item.camera, reps_detail: s.pending.reps_detail };
+      // A weight entered at the check (first set with no history, or a change) wins over the plan.
+      const used = Number.isFinite(e.weight) && e.weight >= 0 ? e.weight : s.cur.weight;
+      const entry = { exercise: item.exercise, reps: s.pending.reps, target: s.cur.reps, weight: used, unit: item.unit, rpe, camera: item.camera, reps_detail: s.pending.reps_detail };
       const log = [...s.log, entry];
       const done = { ...s, log, pending: null };
       if (s.setNo < item.sets) {
-        let { weight } = s.cur;
+        let weight = used;
         let note = null;
         if (weight !== null) {
           const sug = suggestNext([{ exercise: item.exercise, weight, reps: entry.reps, rpe, unit: item.unit }]);
