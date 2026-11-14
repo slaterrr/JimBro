@@ -29,7 +29,7 @@ Last updated: 2026-11-14 evening (demo branch `feat/integration-v4` = #30–#34 
 - Strict TDD: `test(...)` commit that fails for the expected reason → `feat/fix(...)` → refactor. Atomic commits.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 - No fabricated benchmarks. Real-video results and simulated results are reported separately. Never edit labels or weaken tests to improve a score; never tune on `split: heldout` clips.
-- Privacy: no video is stored or uploaded. Only landmarks stay on the phone; only text context goes to the AI proxy. Never commit participant videos or API keys.
+- Privacy: no video is stored or uploaded. Only landmarks stay on the phone; only text context goes to the AI proxy. **One exception:** a reference physique photo the user picks may go to the proxy's `/physique` route, only after an explicit consent tick, for that single request; it is never stored on the phone or server, never logged, never returned, and no workout data rides along. Photo replies must never judge weight, fat, looks or health. Never commit participant videos, photos or API keys.
 - Wording: never accuse users of cheating; uncertain tracking is the camera's fault.
 - Coordinate file ownership when running agents in parallel (see "Hot files").
 
@@ -84,6 +84,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Switch suggestion card + lunge as manual exercise | 🧪 #32 | `lib/switchExercise.js`, CoachScreen, exercises.js | unit + wiring | card position on device |
 | Beginner/comeback first-run setup (pain → safety, no plan) | 🧪 #33 | `lib/onboarding.js`, `Onboarding.js` | unit + wiring | device |
 | Weekly health card on Home | 🧪 #33 | `lib/healthSummary.js` | unit (demo fixture, hand-computed) | device with data |
+| Import past workouts from CSV / Excel (.xlsx): tolerant headers, catalog matching, skipped rows listed, preview → Confirm | 🧪 feat/import-plan | `lib/importWorkouts.js`, `components/ImportSheet.js` | 14 unit tests (messy CSV + generated xlsx fixtures) | device file picker (iOS Files / Android) |
+| Plan toward a physique photo (consent → `/physique` → muscle emphasis → plan confirm card); offline rule plan from `fitnessGoal` + `focusMuscles` + history | 🧪 feat/import-plan | `server/jim-proxy/physique.js`, `lib/jimAI.js` `askPhysique`, `lib/planFromGoal.js` | 11 proxy (SDK mocked) + 16 app unit tests | **live API smoke test with a real photo**; device image picker |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.

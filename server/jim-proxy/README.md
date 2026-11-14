@@ -40,6 +40,18 @@ Optional env: `PORT` (8787), `ALLOW_ORIGIN` (CORS, default `*`).
 - Per-IP limit: 20 requests per minute (in memory). Bodies over 64 KB, more than 20 messages or
   messages over 2000 characters are rejected.
 
+`POST /physique` with `{ consent: true, image: { media_type, data }, fitnessGoal, physiqueGoal, focusMuscles }`
+returns `{ ok: true, emphasis: [{ muscle, reason }] }` or `{ ok: false, reason }`
+(`not_physique`, `declined`, `no_proposal`, `no_valid_emphasis`).
+
+- The image is a user-chosen reference photo (jpeg/png/webp, base64, at most 3.75 MB decoded;
+  bodies up to ~5 MB on this route only, 413 otherwise). Requests without `consent: true` are rejected.
+- It is held in memory for that one Claude request: never written to disk, never logged (errors log
+  only the route and status), never returned.
+- Claude must answer through the strict `propose_training_emphasis` tool; its free text is dropped.
+  Muscles must be known ids and reasons that mention weight, fat, looks or health are removed. The
+  app builds the weekly plan itself (`lib/planFromGoal.js`) and shows a confirm card.
+
 The persona prompt, safety regex and exercise list are imported from `apps/expo/src/lib`, so the
 server must run from this repo checkout (Node 20.19+ or 22+).
 
