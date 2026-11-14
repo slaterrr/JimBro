@@ -181,3 +181,16 @@ describe('proxy key and workout context', () => {
     assert.deepEqual(ctx.workout.profile, { equipment: ['dumbbells'] });
   });
 });
+
+describe('Claude sees measured speed, labelled as relative', () => {
+  it('lastSetReport carries velocity loss and peak speeds with their trust class', () => {
+    const reps = [700, 720, 760, 820, 900, 1000].map((l, i) => ({ index: i + 1, concentric_ms: l, peak_pause_ms: 100, eccentric_ms: 900, rom_deg: 110, peak_dps: 260 - i * 25, mean_dps: 150 - i * 12 }));
+    const state = { history: [{ id: 'w1', startedAt: new Date().toISOString(), sets: [{ id: 's1', exercise: 'curl', reps: 6, weight: 30, unit: 'lb', source: 'camera', reps_detail: reps }] }], settings: {} };
+    const ctx = buildContext(state);
+    const m = ctx.lastSetReport.measured;
+    assert.ok(m.velocityLossPct > 0);
+    assert.equal(m.peakDps.length, 6);
+    assert.match(m.note, /relative/i);
+    assert.match(m.note, /not bar speed|not m\/s/i);
+  });
+});

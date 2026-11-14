@@ -13,6 +13,8 @@ const EXTRA_REST_S = 60;
 const VERY_HARD_RPE = 9.5;
 const EASY_RPE = 7;
 const BEAT_TARGET_BY = 2; // reps over target that justify an increase without an effort rating
+const MEASURED_HARD_PCT = 30; // camera slowdown that counts as 'hard'
+const MEASURED_STEADY_PCT = 15;
 
 const round2 = (x) => Math.round(x * 100) / 100;
 
@@ -38,9 +40,24 @@ function outcome(entry, next) {
  * Next-set recommendation. Returns { action, weight, reps, extraRestS, reasons[], needsApproval }.
  * setNo/sets: position in the current workout (null outside a planned workout).
  */
-export function recommendNext({ exercise, unit = 'lb', weight, target, completed, rpe = null, rir = null, fatigue = null, setNo = null, sets = null, history = [] }) {
+export function recommendNext({ exercise, unit = 'lb', weight, target, completed, rpe = null, rir = null, fatigue = null, setNo = null, sets = null, history = [], metrics = null }) {
+  // Two sources of effort: what the camera measured (rep slowdown, relative) and what the user
+  // reported (RPE / reps left). Agreement raises confidence; when they disagree the cautious one wins.
+  const vl = metrics?.velocityLossPct ?? null;
+  const ratedAny = rpe != null || rir != null;
+  const feltEasy = (rpe != null && rpe <= EASY_RPE) || (rir != null && rir >= 3);
+  const feltHard = (rpe != null && rpe >= 9) || (rir != null && rir <= 1);
+  const agreement = vl == null ? (ratedAny ? 'reported_only' : 'none')
+    : !ratedAny ? 'measured_only'
+      : vl >= MEASURED_HARD_PCT && feltEasy ? 'measured_harder'
+        : vl < MEASURED_STEADY_PCT && feltHard ? 'reported_harder'
+          : 'agree';
+  const evidence = [];
+  if (vl != null) evidence.push({ source: 'measured', text: vl < MEASURED_STEADY_PCT ? `Rep speed held steady (${vl}% slower at the end, camera, relative).` : `Rep speed fell ${vl}% from first to last reps (camera, relative).` });
+  if (ratedAny) evidence.push({ source: 'reported', text: rir != null ? `You said ${rir >= 4 ? '4 or more' : rir} rep${rir === 1 ? '' : 's'} left.` : `You rated it RPE ${rpe}.` });
+  const confidence = agreement === 'agree' ? 'higher' : 'lower';
   const out = (action, extra = {}, reasons = []) => ({
-    action, weight, reps: target, extraRestS: 0, needsApproval: true, reasons, ...extra,
+    action, weight, reps: target, extraRestS: 0, needsApproval: true, reasons, agreement, confidence, evidence, ...extra,
   });
   if (completed === 0) return out('none', {}, ['No reps were logged for this set, so there is nothing to base a change on.']);
   if (weight == null || completed == null) {
@@ -80,6 +97,11 @@ export function recommendNext({ exercise, unit = 'lb', weight, target, completed
     ]);
   }
   if (veryHard) return out('same', {}, [`All ${target} reps, but ${rpe != null ? `RPE ${rpe}` : 'no reps left'}. Hold ${weight} ${unit}.`]);
+  if (agreement === 'measured_harder') {
+    return out('same', {}, [
+      `Your reps slowed ${vl}% by the end even though you felt you had more left, so keep ${weight} ${unit} for one more set to check before adding weight.`,
+    ]);
+  }
   if (lastIncreaseTooHard(history, exercise)) {
     return out('same', {}, ['Your last increase on this lift turned out too hard last time, so hold this weight a little longer.']);
   }
