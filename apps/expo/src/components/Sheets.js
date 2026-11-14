@@ -9,6 +9,7 @@ import { setReport } from '../lib/sessionReport.js';
 import { spokenReport } from '../lib/speech.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
+import { FormReviewSheet } from './FormReview.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
 
 const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
@@ -46,8 +47,10 @@ export function RestTimer({ seconds, onDone }) {
 const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', implausible_motion: 'tracking jump', framing: 'out of frame' };
 
 /** Evidence-backed post-set camera report. */
-export function SetReportCard({ report }) {
+export function SetReportCard({ report, clips = [], movement }) {
   const { say } = useApp();
+  const [review, setReview] = useState(false);
+  const flagged = (clips ?? []).reduce((n, c) => n + (c.analysis?.faults?.length ?? 0), 0);
   const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
   return (
     <Card style={{ marginTop: 12 }}>
@@ -71,6 +74,12 @@ export function SetReportCard({ report }) {
       {report.suggestions.map((x) => (
         <Text key={x.id} style={[type.small, { color: T.violetText, marginTop: 6 }]}>• {x.text} ({x.evidence})</Text>
       ))}
+      {flagged > 0 && movement ? (
+        <>
+          <PrimaryButton secondary onPress={() => setReview(true)}>Review form ({flagged})</PrimaryButton>
+          <FormReviewSheet visible={review} onClose={() => setReview(false)} movement={movement} clips={clips} />
+        </>
+      ) : null}
     </Card>
   );
 }
@@ -129,7 +138,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={type.title}>{saved.isPR ? '🏆 New personal record' : 'Set saved'}</Text>
             <Text style={type.body}>{saved.text}</Text>
           </Card>
-          {saved.report ? <SetReportCard report={saved.report} /> : null}
+          {saved.report ? <SetReportCard report={saved.report} clips={camera?.clips} movement={camera?.movement} /> : null}
           <RestTimer seconds={settings.restSeconds} onDone={onClose} />
         </>
       ) : (

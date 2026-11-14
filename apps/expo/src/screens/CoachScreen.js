@@ -5,6 +5,7 @@ import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'r
 import { WebView } from 'react-native-webview';
 
 import { useApp } from '../AppState.js';
+import { HowToSheet } from '../components/FormReview.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { liveCue } from '../lib/cues.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
@@ -31,6 +32,7 @@ export function CoachScreen({ openLog }) {
   const [target, setTarget] = useState(planned?.reps_high ?? 12);
   const [sets, setSets] = useState(planned?.sets ?? 4);
   const [setup, setSetup] = useState(false);
+  const [howTo, setHowTo] = useState(false);
   const [voice, setVoice] = useState(true);
   const [facing, setFacing] = useState('user');
   const [ready, setReady] = useState(false);
@@ -104,7 +106,7 @@ export function CoachScreen({ openLog }) {
 
   const stop = () => {
     const reps = session.current.repsDetail();
-    openLog({ exercise: movement, reps: reps.length, source: 'camera' }, reps.length ? { movement, reps, quality: session.current.quality(), target } : null);
+    openLog({ exercise: movement, reps: reps.length, source: 'camera' }, reps.length ? { movement, reps, quality: session.current.quality(), target, clips: session.current.clips } : null);
     resetSet();
   };
   const flip = () => {
@@ -194,8 +196,10 @@ export function CoachScreen({ openLog }) {
         <Chips options={[5, 8, 10, 12, 15].map((n) => [n, String(n)])} value={target} onChange={setTarget} />
         <Text style={[type.label, { marginVertical: 8 }]}>Sets</Text>
         <Chips options={[1, 2, 3, 4, 5].map((n) => [n, String(n)])} value={sets} onChange={setSets} />
+        <PrimaryButton secondary onPress={() => { setSetup(false); setHowTo(true); }}>How to do it</PrimaryButton>
         <PrimaryButton onPress={() => setSetup(false)}>Done</PrimaryButton>
       </Sheet>
+      <HowToSheet visible={howTo} onClose={() => setHowTo(false)} movement={movement} />
     </ScrollView>
   );
 }
