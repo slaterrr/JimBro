@@ -1,0 +1,8 @@
+[Unit]
+Description=JimBro USB stick: update, backup and status (%I)
+After=jimbro.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/jimbro/app/usb-hook.sh /dev/%I
+TimeoutStartSec=600

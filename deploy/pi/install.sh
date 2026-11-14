@@ -68,11 +68,11 @@ chmod 750 "$DATA_DIR"
 say "Copying application ($(cat "$HERE/VERSION" 2>/dev/null || echo dev))"
 rm -rf "$PREFIX/app.new"
 cp -R "$HERE/app" "$PREFIX/app.new"
-cp "$HERE/gpio_button.py" "$HERE/station.sh" "$PREFIX/app.new/"
+cp "$HERE/gpio_button.py" "$HERE/station.sh" "$HERE/usb-hook.sh" "$PREFIX/app.new/"
 rm -rf "$PREFIX/app.old"
 [ -d "$PREFIX/app" ] && mv "$PREFIX/app" "$PREFIX/app.old"
 mv "$PREFIX/app.new" "$PREFIX/app"
-chmod 755 "$PREFIX/app/station.sh"
+chmod 755 "$PREFIX/app/station.sh" "$PREFIX/app/usb-hook.sh"
 
 say "Installing Python dependencies"
 export PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -119,6 +119,9 @@ say "Installing services"
 cp "$HERE/systemd/jimbro.service" /etc/systemd/system/jimbro.service
 sed -i "s|@DATA_DIR@|$DATA_DIR|g" /etc/systemd/system/jimbro.service
 cp "$HERE/systemd/jimbro-button.service" /etc/systemd/system/jimbro-button.service
+cp "$HERE/systemd/jimbro-usb@.service" /etc/systemd/system/jimbro-usb@.service
+cp "$HERE/99-jimbro-usb.rules" /etc/udev/rules.d/99-jimbro-usb.rules 2>/dev/null || true
+udevadm control --reload-rules 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable --now jimbro.service
 systemctl restart jimbro.service
