@@ -84,6 +84,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Switch suggestion card + lunge as manual exercise | 🧪 #32 | `lib/switchExercise.js`, CoachScreen, exercises.js | unit + wiring | card position on device |
 | Beginner/comeback first-run setup (pain → safety, no plan) | 🧪 #33 | `lib/onboarding.js`, `Onboarding.js` | unit + wiring | device |
 | Weekly health card on Home | 🧪 #33 | `lib/healthSummary.js` | unit (demo fixture, hand-computed) | device with data |
+| Setup asks main fitness goal (strength/muscle/endurance/fat_loss/general) + "what do you want to look like" (optional text + focus muscles); saved to settings, old saves → 'general' | 🧪 feat/goal-rest | `lib/fitnessGoal.js`, `lib/onboarding.js`, `Onboarding.js`, `AppState.js` | unit (every goal, migration, onboarding results) + wiring | device tap-through; look/focus muscles not yet used by plans or AI Jim |
+| Rest personalized by goal (strength 3:00 heavy, muscle 60–120 s, endurance 30–60 s, fat loss short, general = per-exercise rules) + RPE, beginner/sedentary +15 s, reason shown | 🧪 feat/goal-rest | `lib/rest.js`, `Sheets.js` | unit per goal | device check |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. Android + iOS bundles build.
