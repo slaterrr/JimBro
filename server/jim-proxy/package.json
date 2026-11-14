@@ -8,6 +8,8 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node server.js",
+    "start:env": "node --env-file=.env server.js",
+    "smoke:env": "node --env-file=.env smoke.js",
     "test": "node --test",
     "smoke": "node smoke.js"
   },
