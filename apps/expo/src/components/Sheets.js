@@ -53,7 +53,7 @@ const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', im
 
 /** Evidence-backed post-set camera report. */
 export function SetReportCard({ report, clips = [], movement }) {
-  const { say } = useApp();
+  const { say, settings } = useApp();
   const [review, setReview] = useState(false);
   const flagged = (clips ?? []).reduce((n, c) => n + (c.analysis?.faults?.length ?? 0), 0);
   const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
@@ -61,7 +61,7 @@ export function SetReportCard({ report, clips = [], movement }) {
     <Card style={{ marginTop: 12 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={type.title}>Set report</Text>
-        <TouchableOpacity onPress={() => say(spokenReport(report))} accessibilityRole="button" accessibilityLabel="Hear report" hitSlop={8}>
+        <TouchableOpacity onPress={() => say(spokenReport(report, settings.persona))} accessibilityRole="button" accessibilityLabel="Hear report" hitSlop={8}>
           <Text style={[type.small, { color: T.violetText, fontWeight: '700' }]}>🔊 Hear report</Text>
         </TouchableOpacity>
       </View>

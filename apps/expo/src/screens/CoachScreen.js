@@ -24,7 +24,7 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active } = useApp();
+  const { active, settings } = useApp();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -47,7 +47,7 @@ export function CoachScreen({ openLog }) {
 
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
-  const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking });
+  const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking, persona: settings.persona });
   const cameraGuidance = view.issue === 'arm_swing'
     ? 'Upper arm moved too far — rep not counted. Keep your elbow near your side.'
     : view.issue === 'framing'
