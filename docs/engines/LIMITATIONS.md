@@ -12,6 +12,6 @@
 | Load advice | Rule-based (≤5% up, ~7.5% down, plate steps). Equipment increments are fixed (2.5 lb / 0.5 kg). No learned personal model | Real accepted-outcome history; per-user increments |
 | Performance | No phone measurements yet; MediaPipe runs at 20 fps in a WebView or iframe | Measure with the built-in readout; tune fps, model and delegate per device |
 | Voice | Expo Go has no speech-to-text: Talk mode uses keyboard dictation. No barge-in (interrupting Jim mid-sentence) | A dev build with native speech recognition |
-| AI | One live call verified (plain reply + read tool); write proposals and `/physique` not yet run live. The proxy key is a shared secret, not user auth | Run the full `npm run smoke` once; put the proxy behind backend user auth |
+| AI | Live-verified: plain reply, history lookup, confirm-first proposals (Actions runs 43642717579, 43646764489); `/physique` not yet run live. The proxy key is a shared secret, not user auth | Put the proxy behind backend user auth |
 | Research basis | Coaching principles come from one qualitative study (12 male trainers, Serbia). It guides behaviour; it is not evidence that AI coaching works | User studies |
 | Data | 4 real clips. No dataset licences checked yet (see PERFORMANCE_ROADMAP) | Consented recordings; licence review before any dataset is used |

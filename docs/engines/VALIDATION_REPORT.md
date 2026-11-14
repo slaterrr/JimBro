@@ -50,8 +50,13 @@ absolute tempo.
 - **Claude: one live call verified** (GitHub Actions run 43642717579 (2026-11-14), workflow `claude-smoke.yml`, key from the
   `CLAUD_TOKEN` repository secret). `claude-sonnet-5-5`, fallbacks on: **PASS** in 2.4 s. Jim called
   `get_workout_context`, then answered from it: "Today is plan day 2, which is deadlift for 3 sets
-  of 5…". That was 2 API calls and 78 output tokens. **Not yet run live:** the read-tool history
-  check and the write-proposal check (`npm run smoke` without `--one`), and `/physique`.
+  of 5…". That was 2 API calls and 78 output tokens.
+- **Claude: history lookup and proposals verified live** (run 43646764489). Both PASS:
+  - **Read tool:** `get_recent_sets` was called and the reply cited the exact sets (225 × 5 at RPE 8,
+    then 235 × 5 at RPE 8.5, a new PR). 3.3 s.
+  - **Write tool:** "Log 3 sets of 10 curls at 25 pounds" came back as one confirm-first proposal
+    ("Log 3 sets of 10 × bicep curl at 25 lb?"); nothing was applied. 3.0 s.
+  - **Not yet run live:** `/physique`.
 - **Equipment detection, calibrated velocity, force and power:** not built.
 
 ## Next data to collect (consented participants; half to `heldout`)

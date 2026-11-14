@@ -51,7 +51,7 @@ talking and gesturing clips; deterministic replay of real video.
 ## System B: coaching (Jim)
 | Area | State | Where | Evidence |
 |---|---|---|---|
-| Claude proxy | `POST /chat` and `/physique`; model `claude-sonnet-5-5`; tool loop (4 rounds); read tools from an app snapshot; write tools become **proposals** the user confirms; validation; 20 req/min per IP; 30 s timeout, 1 retry; never logs bodies | `server/jim-proxy` | 26 tests, **SDK mocked**. **One live call verified** (GitHub Actions run 43642717579 (2026-11-14)); write-proposal and photo routes not yet run live |
+| Claude proxy | `POST /chat` and `/physique`; model `claude-sonnet-5-5`; tool loop (4 rounds); read tools from an app snapshot; write tools become **proposals** the user confirms; validation; 20 req/min per IP; 30 s timeout, 1 retry; never logs bodies | `server/jim-proxy` | 26 tests, **SDK mocked**. **One live call verified** (GitHub Actions run 43642717579 (2026-11-14)); history lookup and proposals verified live too (run 43646764489); photo route not yet run live |
 | App to proxy | Privacy-minimal snapshot; re-validates proposals; 12 s timeout; offline fallback to rules | `lib/jimAI.js` | Unit tests |
 | Offline coach | Next-set suggestion, five personas, safety short-circuit, set logging by text | `coach.js`, `intents.js`, `personas.js` | Unit tests |
 | Plans | Weekly plan by goal, days, minutes and equipment; plan from goal or photo; Workout Mission (time-boxed, explained) | `plans.js`, `planFromGoal.js`, `mission.js` | Unit tests |
