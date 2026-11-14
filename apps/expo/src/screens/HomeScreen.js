@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
-import { useApp } from '../AppState.js';
+import { useApp, useLiveCamera } from '../AppState.js';
 import { ImportSheet } from '../components/ImportSheet.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
@@ -70,6 +70,7 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 
 export function HomeScreen({ openLog, openActivity, go }) {
   const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
+  const { snapshot: liveCamera } = useLiveCamera();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
@@ -101,7 +102,12 @@ export function HomeScreen({ openLog, openActivity, go }) {
     const prior = historyFor(messages);
     push({ me: true, text: message });
     setThinking(true);
-    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+    // The shared camera context is ephemeral and keyed to the active on-device workout.
+    // Overlay it only for this request; buildContext whitelists its fields and strips IDs.
+    const activeForJim = active && liveCamera?.sessionId === active.id
+      ? { ...active, cameraSnapshot: liveCamera }
+      : active;
+    const r = await askJim({ message, history: prior, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL });
     setThinking(false);
     if (r.source !== 'safety') setSource(r.source);
     // Never change data here: proposals become confirm cards and wait for the user.
