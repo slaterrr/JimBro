@@ -28,7 +28,7 @@ describe("LiveWorkout", () => {
     expect(screen.getByTestId("rep-count")).toHaveTextContent("1");
     expect(screen.getByText(/1 partial/i)).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveTextContent("2.0s");
-    expect(onRepsChange).toHaveBeenLastCalledWith([expect.objectContaining({ index: 1 })]);
+    expect(onRepsChange).toHaveBeenLastCalledWith([expect.objectContaining({ index: 1 })], "curl");
   });
 
   it("reconnects for a new movement and resets the set", () => {

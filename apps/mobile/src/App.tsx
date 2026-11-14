@@ -1,4 +1,4 @@
-import { CameraView } from "./components/CameraView";
+import { LiveWorkout } from "./components/LiveWorkout";
 
 export function App() {
   return (
@@ -6,9 +6,10 @@ export function App() {
       <header className="top">
         <h1>JimBro</h1>
       </header>
-      <CameraView />
+      <LiveWorkout />
       <p className="muted small">
-        Video stays on your phone. Camera analysis is not a clinical assessment.
+        Video stays on your phone; only joint angles go to the Pi. TUT is estimated
+        movement-phase timing, not measured muscle tension. Not a clinical assessment.
       </p>
     </main>
   );
