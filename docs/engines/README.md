@@ -26,6 +26,10 @@ never makes them up. Load changes always need the user's approval.
 | [EVENTS.md](EVENTS.md) | Every event type, fields, units, validation status, examples |
 | [VALIDATION_REPORT.md](VALIDATION_REPORT.md) | What was tested how; real and simulated results kept apart |
 | [LIMITATIONS.md](LIMITATIONS.md) | Known limits and what would lift them |
+| [ANALYZER_AUDIT.md](ANALYZER_AUDIT.md) | Per-analyzer risks for real-workout accuracy |
+| [EQUIPMENT_DETECTION.md](EQUIPMENT_DETECTION.md) | Detector evaluation (classes, licences, on-device fit) and plan |
+| [PHONE_VALIDATION_CHECKLIST.md](PHONE_VALIDATION_CHECKLIST.md) | Tests that need a real phone |
+| `tools/vision-lab`: `npm run record` / `validate` / `bench` | Record labeled landmark clips, score them, benchmark the engine |
 | [examples/](examples) | Real event stream (squat clip), chat request/response shapes |
 
 **Try it without a phone:**
@@ -37,5 +41,5 @@ npm run harness -- fs_squat_rear
 npm test
 ```
 
-The first command replays real-clip landmarks through both engines; `npm test` runs all 519 tests.
+The first command replays real-clip landmarks through both engines; `npm test` runs all 544 tests.
 **Live Claude check:** `cd server/jim-proxy && npm ci && npm run smoke` (needs an API key or `ant auth login`).

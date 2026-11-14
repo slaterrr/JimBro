@@ -25,12 +25,12 @@ Read from the code (`lib/analyzers.js`, `reps.js`, `live.js`, `angles.js`) on `f
 | Pull-up | **experimental**, sim only | Facing view only; hips must be in frame (camera far back); kipping may trip the joint-speed gate; the chin-over-bar peak (80°) may be too strict for some arms; chin-ups same logic | Strict, kipping and chin-up sets, facing and side-on |
 | Deadlift | **experimental**, sim only | **Sumo deadlift: knee bends below 100°, so it is flagged as a squat** (real limitation); unloaded bending is indistinguishable; RDL from standing works (rest = bottom) | Conventional, sumo and RDL sets side-on |
 | Bench | manual | Lying down: a side camera at bench height is needed; the bar often hides the far arm | Feasibility clips with a side phone on the floor |
-| Lunge | manual (detected only) | Detection exists (`lowerBodyShape`); counting needs a front/back leg role per rep | Forward, reverse and walking lunges from the side |
+| Lunge | **experimental** (sim; real squat in lunge mode counts 0) | Side view only; depth = the more-bent knee; lead leg per rep; front view unsupported; walking lunges untested | Forward, reverse and walking lunges from the side |
 
 ## Priorities for real accuracy (in order)
 1. **Collect labeled real sets** with the recorder (`tools/vision-lab/record.html`) and score them with
    `node validate.mjs`. Nothing else matters as much.
-2. Lunge counting with leg roles (detector exists; sim-testable now, real data next).
+2. ~~Lunge counting with leg roles~~: done (experimental, side view); needs real clips.
 3. Alternating-arm curls (count both arms when both are visible).
 4. Sumo stance for deadlift (stance-width check before the squat gate).
 5. Side-view pull-ups.

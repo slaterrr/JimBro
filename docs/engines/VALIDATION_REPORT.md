@@ -6,8 +6,8 @@ separately and must never be combined.
 ## Test suites (all passing)
 | Suite | Command | Count |
 |---|---|---|
-| App logic, engines, wiring | `cd apps/expo && npm test` | 519 |
-| Vision lab (simulator, scoring, real-clip regressions) | `cd tools/vision-lab && npm test` | 44 |
+| App logic, engines, wiring | `cd apps/expo && npm test` | 544 |
+| Vision lab (simulator, scoring, validation framework, real-clip regressions) | `cd tools/vision-lab && npm test` | 51 |
 | AI proxy (Claude SDK mocked) | `cd server/jim-proxy && npm test` | 33 |
 
 ## Real-world evidence (labeled real video, landmarks from the production MediaPipe config)
@@ -33,6 +33,18 @@ too high. Speed metrics now use the trace (`speed_dps` = `mean_dps` when present
 relative joint speeds, not bar velocity. On simulated curls with known motion, the measured peak is
 within the expected ±30% of 196°/s.
 
+## Real-landmark cross checks (validation framework, `npm run validate -- --cross`)
+Every real clip was replayed in every other camera mode (curl, squat, press, push-up, pull-up,
+deadlift, lunge): **24 wrong-mode runs, 0 false reps**. This includes the real squat in lunge mode.
+Landmark reliability on the real clips: tracked frames 80–100% (`ez_talk_a`: 80%, 4 dropouts),
+jitter noise floor 0.9–1.2% of torso length.
+
+## Engine CPU time (this laptop, not a phone)
+`npm run bench`: Apple M5, Node 26, 73,050 frames of real landmarks. Per-frame vision and coach
+logic: median 0.3 µs, p95 about 2 µs, rare GC spikes up to about 2 ms. The 20 fps budget is 50 ms per
+frame, so the logic is negligible. **Pose inference (MediaPipe) is the real cost and has not been
+measured on a phone:** use PHONE_VALIDATION_CHECKLIST.md.
+
 ## Simulated evidence (logic only; says nothing about real accuracy)
 | Check | Result |
 |---|---|
@@ -44,6 +56,8 @@ within the expected ±30% of 196°/s.
 | Walking across the frame in squat, deadlift, curl, press and push-up modes (3 seeds) | 0 counted |
 | Lunges in squat mode | 0/640 counted; detected and reported as `ExerciseMismatch` |
 | Live and recorded paths | Identical event streams on the same frames |
+| Lunge (experimental), side view, 4 seeds × alternating/same-leg × 2 noise levels | 8/8 exact counts and lead legs in every setting; 0 from half lunges, squats (flagged), walking, curls |
+| Angle-trace peak speed vs. known simulated motion (curl, 2 s reps) | within ±30% of 196°/s |
 
 ## Not validated (built, needs data)
 - **Phone performance:** the app now measures FPS and inference time on the device (`perf`
@@ -63,7 +77,13 @@ within the expected ±30% of 196°/s.
     then 235 × 5 at RPE 8.5, a new PR). 3.3 s.
   - **Write tool:** "Log 3 sets of 10 curls at 25 pounds" came back as one confirm-first proposal
     ("Log 3 sets of 10 × bicep curl at 25 lb?"); nothing was applied. 3.0 s.
-  - **Not yet run live:** `/physique`.
+- **Claude: real vision measurements → coaching, verified live** (run 43648254980), PASS in 3.8 s.
+  The real squat clip went through the vision engine and was logged as a camera set. Asked about it,
+  Claude cited the measured set ("2 of 2 reps at 135 lb… the last rep about 22% slower than the
+  first and depth about 6% shallower") and flagged that 2 reps are too few to trust. No m/s claims.
+- **`/physique` route verified live with a synthetic non-person image** (same run): it ran end to
+  end and was declined as `not_physique`. **Not tested:** a real physique photo; that needs a
+  consented image.
 - **Equipment detection, calibrated velocity, force and power:** not built.
 
 ## Next data to collect (consented participants; half to `heldout`)
