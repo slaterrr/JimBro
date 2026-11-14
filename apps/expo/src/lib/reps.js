@@ -49,6 +49,12 @@ export class RepCounter {
     this._reachedPeak = false;
   }
 
+  /** Abort an uncertain in-progress rep without erasing previously counted reps. */
+  interrupt() {
+    this._abort();
+    this._lastGoodT = null;
+  }
+
   /** Feed one {t_ms, angle_deg, confidence}; returns a rep summary when a rep completes. */
   update({ t_ms, angle_deg, confidence }) {
     if (!Number.isFinite(angle_deg) || !Number.isFinite(confidence)) return null;
