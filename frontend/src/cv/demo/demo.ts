@@ -3,7 +3,7 @@
  * Not part of the product UI; it exists to check tracking on a real camera.
  */
 
-import { SquatTracker, type TrackerState } from "../index";
+import { SquatTracker, VoiceCoach, type TrackerState } from "../index";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
@@ -14,7 +14,26 @@ const stopBtn = $<HTMLButtonElement>("stop");
 const msg = $("msg");
 const log = $("log");
 
+const voiceBtn = $<HTMLButtonElement>("voice");
+
 const tracker = new SquatTracker(video, canvas);
+const coach = new VoiceCoach(tracker);
+let coachAttached = false;
+
+function renderVoiceButton() {
+  if (!coach.supported) {
+    voiceBtn.disabled = true;
+    voiceBtn.textContent = "Voice not supported";
+    return;
+  }
+  voiceBtn.textContent = coach.isEnabled ? "🔊 Voice on" : "🔇 Voice off";
+  voiceBtn.setAttribute("aria-pressed", String(coach.isEnabled));
+}
+renderVoiceButton();
+voiceBtn.addEventListener("click", () => {
+  coach.setEnabled(!coach.isEnabled);
+  renderVoiceButton();
+});
 
 const fmt = (v: number | null, unit: string) => (v === null ? "–" : `${Math.round(v)}${unit}`);
 const tag = (source: "measured" | "estimated") =>
@@ -64,10 +83,18 @@ tracker.onRep((r) =>
 );
 tracker.onRejected((f) => addLog(`not counted: ${f.code}`));
 
-startBtn.addEventListener("click", () => void tracker.start());
+startBtn.addEventListener("click", () => {
+  // Browsers only allow speech after a click, so the coach starts here.
+  if (!coachAttached) {
+    coach.attach();
+    coachAttached = true;
+  }
+  void tracker.start();
+});
 pauseBtn.addEventListener("click", () => tracker.pause());
 stopBtn.addEventListener("click", () => {
   const session = tracker.stop();
+  coach.announceSession(session);
   addLog(`session ended:\n${JSON.stringify(session.summary, null, 2)}`);
   console.info("WorkoutSession", session);
 });

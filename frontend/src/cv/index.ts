@@ -8,6 +8,9 @@ export type { SquatTrackerOptions, TrackerError, TrackerState, TrackerStatus } f
 export { useSquatTracker } from "./useSquatTracker";
 export type { UseSquatTracker } from "./useSquatTracker";
 
+export { VoiceCoach, browserSpeaker, SETUP_INSTRUCTIONS } from "./voice_coach";
+export type { VoiceCoachOptions, Speaker, CoachableTracker } from "./voice_coach";
+
 export { calculateAngle, calculateAngle3D, AngleSmoother } from "./angle_calculator";
 export { SquatRepCounter, DEFAULT_REP_COUNTER_CONFIG } from "./rep_counter";
 export type { RepCounterConfig, CompletedRep, RejectedRep, RejectionReason } from "./rep_counter";

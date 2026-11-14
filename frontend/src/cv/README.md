@@ -56,6 +56,35 @@ Test bench: `npm run dev` in `frontend/`, then open http://localhost:5173/cv-dem
 State updates are throttled to 10 Hz (`uiUpdateHz`). The skeleton is drawn on the
 canvas directly, so it never triggers a React render.
 
+## Voice coaching
+
+`VoiceCoach` speaks cues using the browser's built-in speech (Web Speech API).
+It works offline and needs no API key.
+
+```ts
+const coach = new VoiceCoach(tracker);   // or { enabled, rate, lang, setupInstructions }
+startButton.onclick = () => { coach.attach(); tracker.start(); }; // must start from a click
+coach.setEnabled(false);                  // mute toggle
+coach.announceSession(tracker.stop());    // "Nice work. 8 reps."
+```
+
+| When | It says |
+|---|---|
+| Tracking starts | Setup: side-on, 2–3 m back, whole body in view, stand up tall |
+| Legs out of view > 2.5 s | "Step back so I can see your hips, knees and ankles." |
+| Visible but not standing yet | "Stand up tall to begin.", then "Ready. Start squatting." |
+| Rep counted | The rep number (interrupts any other speech) |
+| Fast descent (measured) | "Slow down on the way down." |
+| Rep not counted | "Not counted. Go a little lower." / "Too quick." / etc. |
+| Facing the camera (estimated) | "Turn side on to the camera." |
+| Camera error | The error message |
+| Pause / resume / end | "Paused." / "Resuming." / summary |
+
+Each cue has an 8 s cooldown so it doesn't nag. Consistency flags
+(`UNEVEN_TEMPO`, `DEPTH_VARIES`) are shown on screen but not spoken mid-set.
+If the browser has no speech support, `coach.supported` is `false` and every
+call does nothing.
+
 ## How counting works
 
 1. **Landmarks → angles.** The leg with higher landmark visibility is used, with
@@ -121,6 +150,7 @@ an anatomical "hip crease below knee" judgement.
 | `form_analyzer.ts` | Rep flags, session summary, camera-view check |
 | `squat_tracker.ts` | `SquatTracker`, which wires it all together (the public interface) |
 | `useSquatTracker.ts` | React hook |
+| `voice_coach.ts` | `VoiceCoach`: spoken instructions, rep counts and cues |
 | `index.ts` | Public exports. Import from here only. |
 
 ## Known limitations
