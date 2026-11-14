@@ -19,6 +19,11 @@ export class LiveSession {
   }
 
   result(rep, tracking, angle = null, issue = null) {
+    const q = (this._q ??= { frames: 0, okFrames: 0, issues: {}, last: null });
+    q.frames += 1;
+    if (!issue) q.okFrames += 1;
+    if (issue && issue !== q.last) q.issues[issue] = (q.issues[issue] ?? 0) + 1;
+    q.last = issue;
     return {
       rep, tracking, angle, issue, state: this.counter.state,
       count: this.counter.count, partials: this.counter.partials,
@@ -50,6 +55,12 @@ export class LiveSession {
     return this.result(rep, tracking, m.angle);
   }
 
+  /** Set-level evidence for the report: frames, usable frames, issue episodes, partial reps. */
+  quality() {
+    const q = this._q ?? { frames: 0, okFrames: 0, issues: {} };
+    return { frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials };
+  }
+
   /** Changing the physical camera may mirror sides; preserve completed reps. */
   reacquireTracking() {
     this.counter.interrupt();
@@ -60,6 +71,7 @@ export class LiveSession {
     this.counter.reset();
     this.reps = [];
     this.side = null;
+    this._q = null;
   }
 
   /** Reps in the shape a logged set stores. */
