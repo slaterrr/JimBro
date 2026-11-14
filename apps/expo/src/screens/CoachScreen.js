@@ -16,7 +16,7 @@ import { liveSlowdownCue } from '../lib/perfCoach.js';
 import { repMetrics } from '../lib/performance.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
-import { stageHeight } from '../lib/layout.js';
+import { stageHeight, stageOverlays } from '../lib/layout.js';
 import { analyzerFor, cameraLabel } from '../lib/analyzers.js';
 import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
@@ -37,7 +37,7 @@ export function CoachScreen({ openLog }) {
   const { active, settings, voice: jim, mission, stepMission, startWorkout } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
-  const stageH = stageHeight(useWindowDimensions().height); // fits any screen; controls stay visible
+  const stageH = stageHeight(useWindowDimensions().height, { mission: !!mission }); // fits any screen; controls (or mission panel) stay visible
   const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
@@ -182,6 +182,29 @@ export function CoachScreen({ openLog }) {
     resetSet();
   };
   const plan = switchPlan({ current: movement, suggested: suggestion, counted: view.count });
+  // Rep details in priority order; the stage keeps only as many as fit above the Jim cue card.
+  const wantLines = [lastVariant, lastLiftS, perf.velocityLossPct, effort.rpe].filter((v) => v != null).length;
+  const ov = stageOverlays(stageH, { repLines: wantLines, caught: !!caught, suggestion: !!plan });
+  // Switch suggestion: on the stage when it fits, otherwise right under it (never over the cue).
+  const suggestCard = (inStage) => (
+          <View style={inStage ? [st.glass, st.suggest, { top: ov.suggestTop }] : [st.glass, st.suggestBelow]} accessibilityLiveRegion="polite">
+            <Text style={{ color: T.text, fontSize: 16, fontWeight: '700', marginBottom: 8 }}>{plan.label}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {plan.actions.map((a, i) => (
+                <TouchableOpacity
+                  key={a.id}
+                  onPress={() => onSwitch(a.id)}
+                  accessibilityRole="button"
+                  style={[st.suggestBtn, i === 0 ? { backgroundColor: T.accent, borderColor: T.accent } : { borderColor: T.border }]}
+                >
+                  <Text style={{ color: i === 0 ? T.bg : T.text, fontWeight: '700', fontSize: 14 }}>{a.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+  );
+  let shownLines = 0;
+  const fits = (v) => v != null && shownLines++ < ov.repLines;
   const onSwitch = (id) => {
     const next = suggestion;
     setSuggestion(null);
@@ -245,22 +268,22 @@ export function CoachScreen({ openLog }) {
             <Text style={{ color: T.purple }}>{view.count}</Text>
             <Text style={{ color: T.textDim, fontWeight: '500' }}> / {target}</Text>
           </Text>
-          {lastVariant ? (
+          {fits(lastVariant) ? (
             <Text style={{ color: T.text, fontSize: 14, fontWeight: '600' }} accessibilityLabel={`Last rep: ${lastVariant} push-up`}>
               {lastVariant === 'standard' ? 'Standard' : lastVariant === 'knee' ? 'Knee' : 'Incline'} push-up
             </Text>
           ) : null}
-          {lastLiftS ? (
+          {fits(lastLiftS) ? (
             <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Last rep lifted in ${lastLiftS.toFixed(1)} seconds`}>
               Last rep {lastLiftS.toFixed(1)} s up
             </Text>
           ) : null}
-          {perf.velocityLossPct != null ? (
+          {fits(perf.velocityLossPct) ? (
             <Text style={{ color: perf.velocityLossPct >= 30 ? T.amber : T.textDim, fontSize: 13 }} accessibilityLabel={`Rep speed ${perf.velocityLossPct} percent below your first reps`}>
               Speed −{perf.velocityLossPct}% vs first reps
             </Text>
           ) : null}
-          {effort.rpe != null ? (
+          {fits(effort.rpe) ? (
             <Text style={{ color: T.textDim, fontSize: 13 }} accessibilityLabel={`Rough effort range RPE ${Math.max(6, effort.rpe - 1)} to ${Math.min(10, effort.rpe + 1)}, an estimate`}>
               Effort est. RPE {Math.max(6, effort.rpe - 1)}–{Math.min(10, effort.rpe + 1)}
             </Text>
@@ -268,7 +291,7 @@ export function CoachScreen({ openLog }) {
         </View>
         {caught ? (
           <View
-            style={[st.caught, { borderColor: caught.reason === 'arm_swing' ? T.red : T.amber }]}
+            style={[st.caught, { top: ov.caughtTop ?? 110, borderColor: caught.reason === 'arm_swing' ? T.red : T.amber }]}
             accessibilityLiveRegion="polite"
             accessibilityLabel={`Not counted, ${caught.words}`}
           >
@@ -277,23 +300,7 @@ export function CoachScreen({ openLog }) {
             </Text>
           </View>
         ) : null}
-        {plan ? (
-          <View style={[st.glass, st.suggest]} accessibilityLiveRegion="polite">
-            <Text style={{ color: T.text, fontSize: 16, fontWeight: '700', marginBottom: 8 }}>{plan.label}</Text>
-            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              {plan.actions.map((a, i) => (
-                <TouchableOpacity
-                  key={a.id}
-                  onPress={() => onSwitch(a.id)}
-                  accessibilityRole="button"
-                  style={[st.suggestBtn, i === 0 ? { backgroundColor: T.accent, borderColor: T.accent } : { borderColor: T.border }]}
-                >
-                  <Text style={{ color: i === 0 ? T.bg : T.text, fontWeight: '700', fontSize: 14 }}>{a.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ) : null}
+        {plan && ov.suggestInStage ? suggestCard(true) : null}
         <View style={[st.glass, st.cue]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <JimBars height={16} />
@@ -303,6 +310,7 @@ export function CoachScreen({ openLog }) {
         </View>
       </View>
 
+      {plan && !ov.suggestInStage ? suggestCard(false) : null}
       {mission ? (
         <MissionPanel
           count={view.count}
@@ -365,6 +373,7 @@ const st = StyleSheet.create({
   cue: { left: 12, right: 12, bottom: 12 },
   caught: { position: 'absolute', top: 110, alignSelf: 'center', backgroundColor: 'rgba(16,13,22,0.88)', borderWidth: 2, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 8 },
   suggest: { top: 160, left: 12, right: 12 },
+  suggestBelow: { position: 'relative', marginTop: 12 },
   suggestBtn: { borderWidth: 1, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 8 },
   controls: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 18 },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.purple, backgroundColor: T.purpleSoft, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6 },

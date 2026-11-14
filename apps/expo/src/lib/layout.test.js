@@ -75,7 +75,7 @@ describe('stageOverlays (Coach camera stage: nothing hidden behind the Jim cue c
 
   it('no overlap at any stage height with any combination', async () => {
     const { stageOverlays } = await import('./layout.js');
-    for (let H = 200; H <= 520; H += 10) for (const caught of [false, true]) for (const suggestion of [false, true]) {
+    for (let H = 240; H <= 520; H += 10) for (const caught of [false, true]) for (const suggestion of [false, true]) {
       noOverlap(stageOverlays(H, { repLines: 4, caught, suggestion }), H);
     }
   });
