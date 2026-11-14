@@ -119,4 +119,4 @@ Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-
 #18 camera guards → #19 vision lab → #20 report + sim + 2 fixes → #21 speech + caught-it, #22 Jim edits, #23 goals → `feat/integration` → #24 personas, #25 form review, #26 AI Jim → `feat/integration-v2`.
 
 ## Shared preview delivery
-EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after all quality jobs pass, once the repository `EXPO_TOKEN` secret exists. README has a persistent preview-page QR. First preview builds/signing and device acceptance remain required. Config: `apps/expo/eas.json`, `apps/expo/app.json`, `.github/workflows/ci.yml`.
+EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after all quality jobs pass, once the repository `expo_access_token` secret exists. README has a persistent preview-page QR. First preview builds/signing and device acceptance remain required. Config: `apps/expo/eas.json`, `apps/expo/app.json`, `.github/workflows/ci.yml`.

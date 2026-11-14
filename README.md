@@ -14,7 +14,7 @@ Install a compatible preview build on each phone once. It receives the `preview`
 
 ### One-time activation
 
-The Expo project is linked. Add an Expo access token as the GitHub Actions repository secret `EXPO_TOKEN`. Never put tokens in source code or chat. Create and install the first preview build:
+The Expo project is linked. Add an Expo access token as the GitHub Actions repository secret `expo_access_token`. Never put tokens in source code or chat. Create and install the first preview build:
 
 ```bash
 cd apps/expo
