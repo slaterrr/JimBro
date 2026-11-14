@@ -1,0 +1,11 @@
+{
+  "video": "fs_squat.webm",
+  "movement": "squat",
+  "split": "dev",
+  "adversarial": false,
+  "reps": [{ "end_ms": 3300 }, { "end_ms": 6400 }],
+  "labeling": "end_ms = return to standing. Labeled from 4 fps contact sheet before viewing predictions; single labeler (AI-assisted), needs a second human check.",
+  "conditions": "rear/oblique views with hard camera cuts mid-set; barbell; text overlay",
+  "source": "https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm",
+  "license": "CC BY 3.0, FitnessScape. Not redistributed; download locally."
+}

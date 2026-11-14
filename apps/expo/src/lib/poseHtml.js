@@ -1,8 +1,8 @@
 // Page run inside a WebView: camera + MediaPipe pose on the phone. It posts landmarks
 // (never video) to React Native, where the tested rep pipeline counts them.
 export const MEDIAPIPE_VERSION = '1.2.3';
-const CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}`;
-const MODEL =
+export const MEDIAPIPE_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}`;
+export const POSE_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
 export function poseHtml({ facing = 'user', fps = 20 } = {}) {
@@ -50,9 +50,9 @@ async function main() {
     return;
   }
   try {
-    const { FilesetResolver, PoseLandmarker } = await import('${CDN}/vision_bundle.mjs');
-    const files = await FilesetResolver.forVisionTasks('${CDN}/wasm');
-    const opts = (delegate) => ({ baseOptions: { modelAssetPath: '${MODEL}', delegate }, runningMode: 'VIDEO', numPoses: 1 });
+    const { FilesetResolver, PoseLandmarker } = await import('${MEDIAPIPE_CDN}/vision_bundle.mjs');
+    const files = await FilesetResolver.forVisionTasks('${MEDIAPIPE_CDN}/wasm');
+    const opts = (delegate) => ({ baseOptions: { modelAssetPath: '${POSE_MODEL_URL}', delegate }, runningMode: 'VIDEO', numPoses: 1 });
     try { landmarker = await PoseLandmarker.createFromOptions(files, opts('GPU')); }
     catch { landmarker = await PoseLandmarker.createFromOptions(files, opts('CPU')); }
   } catch (e) {
