@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Keyboard, Share, Text, TouchableOpacity, Vibration, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
+import { recordSetIds } from '../lib/analytics.js';
 import { restSeconds } from '../lib/rest.js';
 import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
@@ -49,6 +50,10 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
   const [unit, setUnit] = useState(settings.unit);
   const [reps, setReps] = useState('8');
   const [rpe, setRpe] = useState('');
+  const [more, setMore] = useState(false);
+  const [variation, setVariation] = useState('');
+  const [equipment, setEquipment] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
 
@@ -56,6 +61,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     if (!visible) return;
     setSaved(null);
     setError(null);
+    setNotes('');
     setUnit(initial?.unit ?? settings.unit);
     if (initial?.exercise) setExercise(initial.exercise);
     if (initial?.reps !== undefined) setReps(String(initial.reps));
@@ -77,6 +83,10 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       exercise, weight: w, unit, reps: r, rpe: rpe === '' ? null : Number(rpe),
       source: fromCamera ? 'camera' : initial?.source ?? 'manual',
       reps_detail: fromCamera ? camera.reps : [],
+      // Optional details. Different variations or equipment are tracked as different lifts.
+      variation: variation.trim() || undefined,
+      equipment: equipment || undefined,
+      notes: notes.trim() || undefined,
     });
     say(isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
     setSaved({ isPR, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
@@ -116,6 +126,22 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
           <Chips options={[['lb', 'lb'], ['kg', 'kg']]} value={unit} onChange={setUnit} />
           <Text style={[type.label, { marginVertical: 8 }]}>Effort (RPE)</Text>
           <Chips options={RPE} value={rpe} onChange={setRpe} />
+          <TouchableOpacity onPress={() => setMore((m) => !m)} style={{ marginTop: 12 }}>
+            <Text style={[type.small, { color: T.violetText }]}>{more ? '▾' : '▸'} Variation, equipment, notes (optional)</Text>
+          </TouchableOpacity>
+          {more ? (
+            <>
+              <Text style={[type.label, { marginVertical: 8 }]}>Equipment</Text>
+              <Chips options={EQUIPMENT} value={equipment} onChange={(v) => setEquipment(v === equipment ? '' : v)} />
+              <View style={{ marginTop: 10 }}>
+                <Field label="Variation (e.g. paused, incline)" value={variation} onChangeText={setVariation} />
+              </View>
+              <View style={{ marginTop: 10 }}>
+                <Field label="Notes" value={notes} onChangeText={setNotes} />
+              </View>
+              <Text style={[type.small, { marginTop: 6 }]}>A different variation or equipment is tracked as its own lift, so progress is never compared across set-ups.</Text>
+            </>
+          ) : null}
           {camera && camera.movement === exercise ? (
             <Text style={[type.small, { marginTop: 10 }]}>📷 {camera.reps.length} camera-counted reps with timing attached.</Text>
           ) : null}
@@ -127,6 +153,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
   );
 }
 
+export const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbell', 'Dumbbell'], ['machine', 'Machine'], ['cable', 'Cable'], ['bodyweight', 'Bodyweight'], ['other', 'Other']];
+
 const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
 
 /** The bell: what happened lately, plus settings and data controls. */
@@ -135,7 +163,9 @@ export function ActivitySheet({ visible, onClose }) {
   const [pasted, setPasted] = useState('');
   const [msg, setMsg] = useState(null);
   const week = weeklyProgress(history, settings.weeklyGoal);
-  const prs = allSets.filter((s) => s.pr).slice(-3).reverse();
+  // Records are recomputed from history, so they're right after edits and deletes.
+  const recordIds = recordSetIds(history);
+  const prs = allSets.filter((s) => recordIds.has(s.id)).slice(-3).reverse();
 
   const restore = () => {
     Keyboard.dismiss();

@@ -1,6 +1,7 @@
 // Progression numbers for the Progress screen, computed from on-phone history.
 // Cross-lift totals need one unit, so loads are converted to the user's display unit.
 import { percentChange } from './progress.js';
+import { recordSetIds } from './analytics.js';
 import { estimate1RM } from './tools.js';
 
 const KG_TO_LB = 2.20462;
@@ -67,7 +68,9 @@ export function overview(workouts, unit, now = new Date()) {
   const volumeChangePct = percentChange(vol(t - 56 * DAY, t - 28 * DAY) || null, vol(t - 28 * DAY, t));
 
   const active = win.filter(({ lo, hi }) => sets.some((s) => s.t > lo && s.t <= hi)).length;
-  const prSets = sets.filter((s) => s.pr && s.t > t - 28 * DAY);
+  // Records are recomputed from history (never a stored flag), so edits and deletes are reflected.
+  const recordIds = recordSetIds(workouts);
+  const prSets = sets.filter((s) => recordIds.has(s.id) && s.t > t - 28 * DAY);
 
   return {
     strength,

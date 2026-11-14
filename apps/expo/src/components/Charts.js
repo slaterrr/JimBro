@@ -44,14 +44,17 @@ export function LineChart({ points, height = 150, width = 300 }) {
       {points.map((p, i) => (
         <Circle key={i} cx={x(i)} cy={y(p.value)} r={i === points.length - 1 ? 5 : 4} fill={i === points.length - 1 ? '#e9d5ff' : '#d8b4fe'} stroke={T.purpleDeep} strokeWidth="1.5" />
       ))}
-      {points.map((p, i) => (
-        <SvgText key={`l${i}`} x={x(i)} y={height - 5} fontSize="11" fontFamily="System, Arial" fill={T.textDim} textAnchor="middle">{p.label}</SvgText>
-      ))}
+      {points.map((p, i) => {
+        // With many points, label every other one (always the latest) so dates don't overlap.
+        const every = points.length > 6 ? 2 : 1;
+        if ((points.length - 1 - i) % every !== 0) return null;
+        return <SvgText key={`l${i}`} x={x(i)} y={height - 5} fontSize="11" fontFamily="System, Arial" fill={T.textDim} textAnchor="middle">{p.label}</SvgText>;
+      })}
     </Svg>
   );
 }
 
-export function BarChart({ points, height = 150, width = 300, unit }) {
+export function BarChart({ points, height = 150, width = 300, unit, caption }) {
   const max = Math.max(1, ...points.map((p) => p.value));
   const B = 22;
   const bw = (width - 20) / points.length;
@@ -78,7 +81,7 @@ export function BarChart({ points, height = 150, width = 300, unit }) {
           );
         })}
       </Svg>
-      {unit ? <Text style={{ color: T.textMute, fontSize: 11, textAlign: 'right' }}>{unit} × reps per week</Text> : null}
+      {caption || unit ? <Text style={{ color: T.textMute, fontSize: 11, textAlign: 'right' }}>{caption ?? `${unit} × reps per week`}</Text> : null}
     </View>
   );
 }

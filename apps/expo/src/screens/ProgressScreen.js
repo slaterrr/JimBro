@@ -2,13 +2,23 @@ import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Comparisons } from '../components/Comparisons.js';
+import {
+  ConsistencyView,
+  EditWorkoutSheet,
+  Filters,
+  PerformanceView,
+  RecordsView,
+  StrengthView,
+  VolumeView,
+  rangeFrom,
+} from '../components/ProgressViews.js';
+import { durationMin, filterWorkouts, lifts, recordSetIds } from '../lib/analytics.js';
 import { useApp } from '../AppState.js';
-import { BarChart, LineChart } from '../components/Charts.js';
-import { Card, Chips, Icon, PrimaryButton, Segmented } from '../components/kit.js';
-import { EXERCISES, exerciseName } from '../lib/exercises.js';
-import { personalRecords, trend } from '../lib/progress.js';
-import { overview, weeklyVolume } from '../lib/stats.js';
-import { estimate1RM, repeatPlan } from '../lib/tools.js';
+import { LineChart } from '../components/Charts.js';
+import { Card, Chips, Icon, PrimaryButton } from '../components/kit.js';
+import { exerciseName } from '../lib/exercises.js';
+import { overview } from '../lib/stats.js';
+import { repeatPlan } from '../lib/tools.js';
 import { T, type } from '../theme.js';
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}%`);
@@ -25,27 +35,43 @@ function Tile({ icon, title, value, sub }) {
   );
 }
 
-function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
+function HistoryItem({ workout, records, canRepeat, onRepeat, onDelete, onEdit }) {
   const [open, setOpen] = useState(false);
-  const volume = workout.sets.reduce((t, x) => t + x.weight * x.reps, 0);
+  const volume = workout.sets.filter((x) => x.completed !== false).reduce((t, x) => t + x.weight * x.reps, 0);
+  const minutes = durationMin(workout);
   return (
     <Card style={{ marginTop: 10 }}>
       <TouchableOpacity onPress={() => setOpen((o) => !o)} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <View>
           <Text style={type.title}>{workout.name}</Text>
-          <Text style={type.small}>{new Date(workout.startedAt).toLocaleDateString()} · {workout.sets.length} sets · volume {Math.round(volume)}</Text>
+          <Text style={type.small}>
+            {new Date(workout.startedAt).toLocaleDateString()} · {workout.sets.length} sets · volume {Math.round(volume)}
+            {minutes !== null ? ` · ${minutes} min` : ''}{workout.program ? ` · ${workout.program}` : ''}
+          </Text>
         </View>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} color={T.textDim} />
       </TouchableOpacity>
       {open ? (
         <>
+          {workout.notes ? <Text style={[type.small, { marginTop: 6 }]}>📝 {workout.notes}</Text> : null}
           {workout.sets.map((x) => (
-            <Text key={x.id} style={[type.body, { marginTop: 6 }]}>
-              {x.pr ? '🏆 ' : ''}{exerciseName(x.exercise)} · {x.reps} × {x.weight} {x.unit}{x.rpe ? ` · RPE ${x.rpe}` : ''}{x.source === 'camera' ? ' · 📷' : ''}
-            </Text>
+            <View key={x.id} style={{ marginTop: 6 }}>
+              <Text style={type.body}>
+                {records.has(x.id) ? '🏆 ' : ''}{x.completed === false ? '✗ ' : ''}{exerciseName(x.exercise)}
+                {x.variation ? ` (${x.variation})` : ''}{x.equipment ? ` · ${x.equipment}` : ''} · {x.reps} × {x.weight} {x.unit}
+                {x.rpe ? ` · RPE ${x.rpe}` : ''}{x.restSec ? ` · rest ${x.restSec}s` : ''}{x.source === 'camera' ? ' · 📷' : ''}
+              </Text>
+              {x.source === 'camera' && x.reps_detail?.length ? (
+                <Text style={type.small}>
+                  📷 camera-counted · est. {(x.reps_detail.reduce((t, r) => t + r.concentric_ms + r.peak_pause_ms + r.eccentric_ms, 0) / x.reps_detail.length / 1000).toFixed(1)} s per rep (estimated)
+                </Text>
+              ) : null}
+              {x.notes ? <Text style={type.small}>📝 {x.notes}</Text> : null}
+            </View>
           ))}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <PrimaryButton secondary style={{ flex: 1 }} disabled={!canRepeat} onPress={onRepeat}>Repeat</PrimaryButton>
+            <PrimaryButton secondary style={{ flex: 1 }} onPress={onEdit}>Edit</PrimaryButton>
             <PrimaryButton secondary style={{ flex: 1 }} onPress={onDelete}>Delete</PrimaryButton>
           </View>
         </>
@@ -57,13 +83,21 @@ function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
 export function ProgressScreen({ go, initialTab = 'overview' }) {
   const { history, active, settings, startWorkout, deleteWorkout } = useApp();
   const [tab, setTab] = useState(initialTab);
-  const [exercise, setExercise] = useState('bench');
+  const [editing, setEditing] = useState(null);
+  const [range, setRange] = useState('12w');
+  const [program, setProgram] = useState('');
+  const [liftChoice, setLift] = useState(null);
   const unit = settings.unit;
   const workouts = useMemo(() => [...history, ...(active?.sets.length ? [active] : [])], [history, active]);
   const o = useMemo(() => overview(workouts, unit), [workouts, unit]);
-  const records = useMemo(() => personalRecords(workouts), [workouts]);
-  const vol = useMemo(() => weeklyVolume(workouts, unit), [workouts, unit]);
-  const t = useMemo(() => trend(workouts, exercise), [workouts, exercise]);
+  const recordIds = useMemo(() => recordSetIds(workouts), [workouts]);
+  // Filters: date range and program apply to every tab except Overview.
+  const from = rangeFrom(range);
+  const filtered = useMemo(() => filterWorkouts(workouts, { from: from ?? undefined, program: program || undefined }), [workouts, from, program]);
+  const liftsList = useMemo(() => lifts(workouts), [workouts]);
+  const lift = liftChoice && liftsList.some((l) => l.key === liftChoice) ? liftChoice : liftsList[0]?.key ?? null;
+  const programs = useMemo(() => [...new Set(workouts.map((w) => w.program).filter(Boolean))], [workouts]);
+  const filterProps = { liftsList, lift, setLift, range, setRange, programs, program, setProgram };
 
   const remove = (w) =>
     Alert.alert('Delete this workout?', `${w.name}, ${w.sets.length} sets. This can't be undone.`, [
@@ -74,9 +108,15 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs']]} value={tab} onChange={setTab} />
+      <Chips
+        options={[['overview', 'Overview'], ['strength', 'Strength'], ['consistency', 'Consistency'], ['volume', 'Volume'], ['performance', 'Performance'], ['prs', 'PRs']]}
+        value={tab}
+        onChange={setTab}
+      />
 
-      <Comparisons history={history} unit={unit} />
+      {tab === 'overview' ? <Comparisons history={history} unit={unit} /> : null}
+      {/* Records are all-time, so the PRs tab has no filters. */}
+      {tab !== 'overview' && tab !== 'prs' ? <Filters {...filterProps} showLift={tab === 'strength' || tab === 'performance'} /> : null}
       {tab === 'overview' ? (
         <>
           <Card style={{ marginTop: 14 }}>
@@ -99,66 +139,22 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
             <HistoryItem
               key={w.id}
               workout={w}
+              records={recordIds}
               canRepeat={!active}
               onRepeat={() => { startWorkout(`${w.name} (repeat)`, repeatPlan(w)); go('Coach'); }}
+              onEdit={() => setEditing(w.id)}
               onDelete={() => remove(w)}
             />
           ))}
         </>
       ) : null}
 
-      {tab === 'strength' ? (
-        <>
-          <Card style={{ marginTop: 14 }}>
-            <Chips options={EXERCISES.map((e) => [e.id, e.name])} value={exercise} onChange={setExercise} />
-            {!Object.keys(t).length ? <Text style={[type.body, { marginTop: 12 }]}>No {exerciseName(exercise).toLowerCase()} logged yet.</Text> : null}
-            {Object.entries(t).map(([u, tr]) => (
-              <View key={u} style={{ marginTop: 14 }}>
-                <Text style={type.title}>Top weight ({u})</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
-                  <Text style={type.bigGreen}>{pct(tr.top_weight_change_pct)}</Text>
-                  <Text style={type.body}>first → latest session</Text>
-                </View>
-                <LineChart points={tr.points.slice(-8).map((p) => ({ label: p.date.slice(5), value: p.top_weight }))} />
-                {tr.tut_change_pct !== null ? <Text style={type.small}>Est. TUT per rep {pct(tr.tut_change_pct)} (camera sets)</Text> : null}
-              </View>
-            ))}
-          </Card>
-          <Text style={type.small}>1RM is estimated (Epley) from sets of 10 reps or fewer. Never max out from an estimate.</Text>
-        </>
-      ) : null}
-
-      {tab === 'volume' ? (
-        <Card style={{ marginTop: 14 }}>
-          <Text style={type.title}>Weekly volume</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
-            <Text style={type.bigGreen}>{pct(o.volumeChangePct)}</Text>
-            <Text style={type.body}>last 4 weeks vs. prior 4</Text>
-          </View>
-          <BarChart points={vol.map((v) => ({ label: v.label, value: v.volume }))} unit={unit} />
-        </Card>
-      ) : null}
-
-      {tab === 'prs' ? (
-        <>
-          {!records.length ? <Card style={{ marginTop: 14 }}><Text style={type.body}>Your personal records will show up here.</Text></Card> : null}
-          {records.map((r) => {
-            const e1rm = Math.max(0, ...workouts.flatMap((w) => w.sets).filter((x) => x.exercise === r.exercise && x.unit === r.unit).map((x) => estimate1RM(x) ?? 0));
-            return (
-              <Card key={`${r.exercise}${r.unit}`} style={{ marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Icon name="trophy" color={T.purple} />
-                  <Text style={type.title}>{exerciseName(r.exercise)} ({r.unit})</Text>
-                </View>
-                <Text style={[type.body, { marginTop: 6 }]}>
-                  Heaviest {r.heaviest.weight} × {r.heaviest.reps} · Most reps {r.most_reps.reps} @ {r.most_reps.weight}
-                </Text>
-                {e1rm ? <Text style={{ color: T.green, fontWeight: '700', marginTop: 4 }}>Est. 1RM ≈ {e1rm} {r.unit}</Text> : null}
-              </Card>
-            );
-          })}
-        </>
-      ) : null}
+      {tab === 'strength' ? <StrengthView workouts={filtered} lift={lift} unit={unit} /> : null}
+      {tab === 'consistency' ? <ConsistencyView workouts={filtered} allWorkouts={workouts} from={from} goal={settings.weeklyGoal} /> : null}
+      {tab === 'volume' ? <VolumeView workouts={filtered} unit={unit} from={from} /> : null}
+      {tab === 'performance' ? <PerformanceView workouts={filtered} lift={lift} unit={unit} /> : null}
+      {tab === 'prs' ? <RecordsView workouts={workouts} unit={unit} /> : null}
+      {editing ? <EditWorkoutSheet workoutId={editing} onClose={() => setEditing(null)} /> : null}
     </ScrollView>
   );
 }

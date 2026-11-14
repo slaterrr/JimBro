@@ -76,7 +76,9 @@ describe('stats', () => {
     assert.ok(o.topLift.delta > 0);
     assert.ok(o.strengthChangePct > 0);
     assert.deepEqual(o.consistency, { weeks: 4, of: 4, pct: 100 });
-    assert.deepEqual(o.prs, { count: 3, newThisWeek: 1 });
+    // Records come from history, not a stored flag: 205, 210, 220 and 225 each beat
+    // the previous heaviest (the first 200 is a baseline), and 225 is this week.
+    assert.deepEqual(o.prs, { count: 4, newThisWeek: 1 });
   });
   it('is empty-safe', () => {
     const o = overview([], 'lb', NOW);

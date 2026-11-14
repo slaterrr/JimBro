@@ -24,6 +24,22 @@ export const EXERCISE_MUSCLES = {
   pull_up: ['lats', 'biceps', 'forearms'],
 };
 
+/**
+ * Volume-by-muscle allocation (used by analytics.volumeByMuscle). Each set's
+ * volume and set count go 100% to the exercise's PRIMARY muscles and 50% to
+ * its SECONDARY muscles. A simple, documented convention for relative
+ * training load, the common "fractional sets" approach; it is not a
+ * measurement of how hard each muscle worked.
+ */
+export const EXERCISE_MUSCLE_SHARES = {
+  curl: { biceps: 1, forearms: 0.5 },
+  squat: { quads: 1, glutes: 1, hamstrings: 0.5 },
+  bench: { chest: 1, shoulders: 0.5, triceps: 0.5 },
+  deadlift: { hamstrings: 1, glutes: 1, lower_back: 1, traps: 0.5, forearms: 0.5 },
+  shoulder_press: { shoulders: 1, triceps: 0.5, traps: 0.5 },
+  pull_up: { lats: 1, biceps: 0.5, forearms: 0.5 },
+};
+
 const DAY = 86400000;
 const daysSince = (iso, now) => Math.floor((now.getTime() - new Date(iso).getTime()) / DAY);
 
