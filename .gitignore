@@ -18,3 +18,4 @@ apps/mobile/dist/
 *.sqlite3
 models/
 data/
+*.tsbuildinfo
