@@ -3,31 +3,23 @@ import { Text, TextInput, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
 import { exerciseName } from '../lib/exercises.js';
-import { fallbackReply } from '../lib/offline.js';
+import { coachReply } from '../lib/coach.js';
 import { parseSetUtterance } from '../lib/parse.js';
 import { Button, C, Card, Chip, Choice, JimPortrait, Kicker, Title, s } from '../ui.js';
 
 const TONES = [['direct', 'Direct'], ['friendly', 'Friendly'], ['silly', 'Silly'], ['hard', 'Hard']];
-const SOURCE = { ai: 'Jim (AI)', fallback: 'Jim', offline: 'Jim (offline)', safety: 'Safety' };
+const SOURCE = { coach: 'Jim', safety: 'Safety' };
 
 export function JimScreen({ applySuggestion }) {
-  const { api, settings, update, say, logSet } = useApp();
+  const { settings, update, say, logSet, allSets } = useApp();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
   const [draft, setDraft] = useState(null);
-  const [busy, setBusy] = useState(false);
 
-  const ask = async (message) => {
+  const ask = (message) => {
     setMessages((m) => [...m, { me: true, text: message }]);
-    setBusy(true);
-    let r;
-    try {
-      r = await api.coach(message, settings.tone);
-    } catch {
-      r = fallbackReply(message, settings.tone);
-    }
-    setBusy(false);
+    const r = coachReply(message, settings.tone, allSets);
     setMessages((m) => [...m, { me: false, text: r.text, source: r.source }]);
     setSuggestion(r.suggestion);
     say(r.text);
@@ -42,8 +34,8 @@ export function JimScreen({ applySuggestion }) {
     else ask(t);
   };
 
-  const confirm = async () => {
-    await logSet({ ...draft, rpe: draft.rpe ?? null, source: 'voice', reps_detail: [], confidence: null, model_version: null });
+  const confirm = () => {
+    logSet({ ...draft, rpe: draft.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim');
     say(`Logged ${draft.reps} ${exerciseName(draft.exercise)}.`);
     setDraft(null);
   };
@@ -67,7 +59,6 @@ export function JimScreen({ applySuggestion }) {
             <Text style={{ color: C.text }}>{m.text}</Text>
           </View>
         ))}
-        {busy ? <Text style={s.fine}>Jim is thinking…</Text> : null}
         <TextInput
           style={[s.input, { marginTop: 12 }]}
           value={text}

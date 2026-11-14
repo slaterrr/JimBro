@@ -23,10 +23,10 @@ a **Raspberry Pi** stores your workouts and shows live reps on a station display
   (`python -m jimbro.evaluate`). See [docs/EVIDENCE.md](docs/EVIDENCE.md).
 
 ## Apps
-- **`apps/expo`**: the Expo Go phone app (all tabs: workout, Jim, plan, progress, board). See
-  [apps/expo/README.md](apps/expo/README.md). It talks to the Pi over LAN HTTP on port 8080.
-- **`apps/mobile`**: the browser PWA the Pi serves over HTTPS; it runs camera pose detection and
-  rep counting (the Expo app opens it for that) and the `/station` display.
+- **`apps/expo`**: the JimBro phone app for Expo Go. It runs **entirely on the phone** (no server or
+  Pi): logging, Jim, plans, progress, records and streaks. Start here: [apps/expo/README.md](apps/expo/README.md).
+- **`apps/mobile`** and **`backend/`**: the earlier browser PWA and Raspberry Pi server. They are kept
+  and tested but are no longer required; the Pi direction is paused.
 
 ## Architecture
 ```
