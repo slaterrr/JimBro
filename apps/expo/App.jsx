@@ -1,60 +1,44 @@
-import React, { useCallback, useState } from 'react';
-import { ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, StatusBar, Text, View } from 'react-native';
 
 import { AppProvider, useApp } from './src/AppState.js';
-import { CameraCounter } from './src/screens/CameraCounter.js';
+import { ActivitySheet, LogSetSheet } from './src/components/Sheets.js';
+import { TabBar } from './src/components/TabBar.js';
+import { CoachScreen } from './src/screens/CoachScreen.js';
 import { HomeScreen } from './src/screens/HomeScreen.js';
-import { JimScreen } from './src/screens/JimScreen.js';
-import { PlanScreen } from './src/screens/PlanScreen.js';
+import { MusclesScreen } from './src/screens/MusclesScreen.js';
 import { ProgressScreen } from './src/screens/ProgressScreen.js';
-import { WorkoutScreen } from './src/screens/WorkoutScreen.js';
-import { C, s } from './src/ui.js';
-
-const TABS = [['Home', '⌂'], ['Workout', '◉'], ['Jim', '●'], ['Plan', '▦'], ['Progress', '↗']];
+import { T } from './src/theme.js';
 
 function Shell() {
-  const { ready, active, notice } = useApp();
-  const [tab, setTab] = useState('Home');
-  const [prefill, setPrefill] = useState(null);
-  const clearPrefill = useCallback(() => setPrefill(null), []);
-  const applySuggestion = (sug) => { setPrefill(sug); setTab('Workout'); };
-  const [camera, setCamera] = useState(null); // movement being counted, or null
-  const [cameraReps, setCameraReps] = useState(null);
-  const clearCameraReps = useCallback(() => setCameraReps(null), []);
+  const { ready, notice } = useApp();
+  // Web preview only (expo export -p web): ?tab=Muscles opens a tab, for design screenshots.
+  const [tab, setTab] = useState(() => {
+    const q = Platform.OS === 'web' && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
+    return ['Home', 'Muscles', 'Coach', 'Progress'].includes(q) ? q : 'Home';
+  });
+  const [log, setLog] = useState(null); // { initial, camera } while the sheet is open
+  const [activity, setActivity] = useState(false);
+  const openLog = (initial = null, camera = null) => setLog({ initial, camera });
 
   return (
-    <View style={s.screen}>
-      <StatusBar barStyle="light-content" />
-      <View style={s.header}>
-        <Text style={s.brand}>JimBro<Text style={s.dot}>.</Text></Text>
-        <Text style={[s.pill, { color: active ? C.green : C.muted, borderColor: active ? C.green : C.muted }]}>
-          {active ? `WORKOUT · ${active.sets.length} SETS` : 'ON THIS PHONE'}
-        </Text>
+    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 50 }}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      {notice ? <Text style={{ color: T.red, paddingHorizontal: 20 }}>{notice}</Text> : null}
+      <View style={{ flex: 1 }}>
+        {!ready ? null : tab === 'Home' ? (
+          <HomeScreen openLog={openLog} openActivity={() => setActivity(true)} />
+        ) : tab === 'Muscles' ? (
+          <MusclesScreen openLog={openLog} openHistory={() => setTab('Progress')} />
+        ) : tab === 'Coach' ? (
+          <CoachScreen openLog={openLog} />
+        ) : (
+          <ProgressScreen go={setTab} />
+        )}
       </View>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-        {!ready ? <Text style={s.body}>Loading…</Text> : null}
-        {notice ? <Text style={s.error}>{notice}</Text> : null}
-        {ready && camera ? (
-          <CameraCounter
-            movement={camera}
-            onCancel={() => setCamera(null)}
-            onDone={(result) => { setCameraReps(result); setCamera(null); setTab('Workout'); }}
-          />
-        ) : null}
-        {ready && !camera && tab === 'Home' ? <HomeScreen go={setTab} /> : null}
-        {ready && !camera && tab === 'Workout' ? <WorkoutScreen prefill={prefill} clearPrefill={clearPrefill} cameraReps={cameraReps} clearCameraReps={clearCameraReps} openCamera={setCamera} /> : null}
-        {ready && !camera && tab === 'Jim' ? <JimScreen applySuggestion={applySuggestion} /> : null}
-        {ready && !camera && tab === 'Plan' ? <PlanScreen go={setTab} /> : null}
-        {ready && !camera && tab === 'Progress' ? <ProgressScreen go={setTab} /> : null}
-      </ScrollView>
-      <View style={s.tabs}>
-        {TABS.map(([label, icon]) => (
-          <TouchableOpacity key={label} accessibilityRole="tab" accessibilityState={{ selected: tab === label }} onPress={() => { setCamera(null); setTab(label); }} style={s.tab}>
-            <Text style={[s.tabIcon, tab === label && s.selectedTab]}>{icon}</Text>
-            <Text style={[s.tabLabel, tab === label && s.selectedTab]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <TabBar tab={tab} onChange={setTab} />
+      <LogSetSheet visible={Boolean(log)} initial={log?.initial} camera={log?.camera} onClose={() => setLog(null)} />
+      <ActivitySheet visible={activity} onClose={() => setActivity(false)} />
     </View>
   );
 }
