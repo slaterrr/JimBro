@@ -6,6 +6,7 @@ import http from 'node:http';
 import Anthropic from '@anthropic-ai/sdk';
 
 import { allowRequest, authorized, handleChat } from './jim.js';
+import { healthReply } from './health.js';
 import { bodyLimitFor, handlePhysique } from './physique.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -20,7 +21,7 @@ if (!process.env.JIM_PROXY_KEY) console.warn('JIM_PROXY_KEY is not set: anyone o
 
 const cors = {
   'Access-Control-Allow-Origin': ORIGIN,
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, X-Jim-Key',
 };
 const send = (res, status, body) => {
@@ -30,7 +31,11 @@ const send = (res, status, body) => {
 
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') return void res.writeHead(204, cors).end();
-  if (req.method === 'GET' && req.url === '/health') return send(res, 200, { ok: true });
+  const health = healthReply(req.method, req.url);
+  if (health) {
+    if (!health.head) return send(res, health.status, health.body);
+    return void res.writeHead(health.status, { ...cors, 'Content-Type': 'application/json' }).end();
+  }
   const ROUTES = { '/chat': handleChat, '/physique': handlePhysique };
   const handler = ROUTES[req.url];
   if (req.method !== 'POST' || !handler) return send(res, 404, { error: 'not found' });
