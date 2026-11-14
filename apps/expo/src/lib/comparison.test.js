@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { metrics, periods } from './comparison.js';
+import { defaultPair, metrics, periods } from './comparison.js';
 import { restSeconds } from './rest.js';
 test('comparison converts units, isolates exercises and handles missing data', () => {
  const period = {workouts:[{sets:[{exercise:'bench',weight:100,unit:'kg',reps:5},{exercise:'curl',weight:20,unit:'kg',reps:10}]}]};
@@ -17,4 +17,11 @@ test('periods span years and sort workouts newest first', () => {
 test('rest follows lift and rep demands', () => {
  assert.ok(restSeconds('bench',8)>restSeconds('curl',8));
  assert.ok(restSeconds('bench',3)>restSeconds('bench',8));
+});
+test('default comparison picks the two newest periods that include the exercise', () => {
+ const w = (id, day, ex) => ({ id, name: id, startedAt: `2026-11-${day}T12:00:00Z`, sets: ex.map(e => ({ exercise: e, weight: 100, unit: 'lb', reps: 5 })) });
+ const history = [w('a', '08', ['bench']), w('b', '10', ['bench']), w('c', '12', ['squat'])];
+ const g = periods(history, 'workout');
+ assert.deepEqual(defaultPair(g, 'bench'), ['a', 'b'].map(id => g.find(x => x.workouts[0].id === id).key));
+ assert.deepEqual(defaultPair(g, 'deadlift'), [g[1].key, g[0].key]); // nothing logged: newest two
 });
