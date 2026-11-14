@@ -55,11 +55,13 @@ def test_constraints_reject_bad_rows(tmp_path):
     s = Store(tmp_path / "a.db")
     with s.tx() as c:
         c.execute(
-            "INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.co', 'x', 't')"
+            "INSERT INTO users (id, email, password_hash, created_at) "
+            "VALUES ('u1', 'a@b.co', 'x', 't')"
         )
         with pytest.raises(sqlite3.IntegrityError):
             c.execute(
-                "INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'A@B.CO', 'x', 't')"
+                "INSERT INTO users (id, email, password_hash, created_at) "
+                "VALUES ('u2', 'A@B.CO', 'x', 't')"
             )
         c.execute(
             "INSERT INTO workouts (id, user_id, name, started_at, status, version) "
@@ -74,7 +76,8 @@ def test_constraints_reject_bad_rows(tmp_path):
         ]:
             with pytest.raises(sqlite3.IntegrityError):
                 c.execute(
-                    "INSERT INTO workout_sets (id, workout_id, user_id, exercise, weight, unit, reps, "
+                    "INSERT INTO workout_sets (id, workout_id, user_id, exercise, weight, unit, "
+                    "reps, "
                     f"rpe, rir, source, completed_at, payload_hash) VALUES {bad}"
                 )
 

@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS workout_sets (
   fatigue TEXT
 );
 CREATE INDEX IF NOT EXISTS workout_sets_workout ON workout_sets(workout_id, completed_at);
-CREATE INDEX IF NOT EXISTS workout_sets_user_exercise ON workout_sets(user_id, exercise, completed_at);
+CREATE INDEX IF NOT EXISTS workout_sets_user_exercise
+  ON workout_sets(user_id, exercise, completed_at);
 CREATE TABLE IF NOT EXISTS set_reps (
   set_id TEXT NOT NULL REFERENCES workout_sets(id) ON DELETE CASCADE,
   idx INTEGER NOT NULL,
@@ -131,7 +132,8 @@ CREATE TABLE IF NOT EXISTS recommendations (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   workout_id TEXT REFERENCES workouts(id) ON DELETE SET NULL,
   exercise TEXT,
-  action TEXT NOT NULL CHECK (action IN ('increase', 'same', 'decrease', 'more_rest', 'fewer_reps', 'none')),
+  action TEXT NOT NULL CHECK (action IN
+    ('increase', 'same', 'decrease', 'more_rest', 'fewer_reps', 'none')),
   payload TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
   created_at TEXT NOT NULL,
@@ -144,7 +146,8 @@ CREATE TABLE IF NOT EXISTS ai_proposals (
   kind TEXT NOT NULL CHECK (kind IN ('log', 'correct', 'delete', 'plan')),
   payload TEXT NOT NULL,
   summary TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected', 'expired')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'confirmed', 'rejected', 'expired')),
   created_at TEXT NOT NULL,
   decided_at TEXT
 );
