@@ -10,7 +10,7 @@ import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
-export const DEFAULT_SETTINGS = { persona: 'coach', speak: false, unit: 'lb', weeklyGoal: 3, restSeconds: 90 };
+export const DEFAULT_SETTINGS = { persona: 'coach', speak: false, unit: 'lb', weeklyGoal: 3 }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
 const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
