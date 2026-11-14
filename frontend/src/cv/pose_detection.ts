@@ -7,7 +7,6 @@
  */
 
 import type { PoseLandmarker, PoseLandmarkerResult } from "@mediapipe/tasks-vision";
-import { calculateAngle } from "./angle_calculator";
 
 // ---- landmarks -----------------------------------------------------------
 
@@ -65,95 +64,39 @@ export const SKELETON_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 
 export type BodySide = "left" | "right";
 
-const SIDE_INDICES = {
-  left: { shoulder: L.LEFT_SHOULDER, hip: L.LEFT_HIP, knee: L.LEFT_KNEE, ankle: L.LEFT_ANKLE },
-  right: { shoulder: L.RIGHT_SHOULDER, hip: L.RIGHT_HIP, knee: L.RIGHT_KNEE, ankle: L.RIGHT_ANKLE },
-} as const;
+/** Landmark visibility (0–1), 0 when missing. */
+export const vis = (p: LandmarkLike | undefined): number => p?.visibility ?? 0;
 
-/** How much better the other side must be before we switch, to avoid flicker. */
+/** How much better the other side must be before switching, to avoid flicker. */
 const SIDE_SWITCH_MARGIN = 0.15;
 
-export interface SquatJoints {
-  /** The leg used for the angles (the one more visible to the camera). */
-  side: BodySide | null;
-  /** Hip–knee–ankle angle, degrees. null if any of the three is below threshold. */
-  kneeAngle: number | null;
-  /** Shoulder–hip–knee angle, degrees. null if any of the three is below threshold. */
-  hipAngle: number | null;
-  /** True when the leg used for counting is above the confidence threshold. */
-  visible: boolean;
-  /**
-   * Vertical hip position (normalised image y, 0 = top), averaged over both
-   * hips so it doesn't jump when the counting leg switches. null if not visible.
-   */
-  hipY: number | null;
-  /** Hip-to-ankle distance of the counting leg, in the same units as hipY. */
-  legLength: number | null;
+/**
+ * Pick the body side whose joints the camera sees better. A side-on camera sees
+ * one limb clearly and the other partly hidden, so averaging both would mix a
+ * good signal with a bad one. Sticks with `preferred` unless the other side is
+ * clearly better. Returns null if neither side passes `minVisibility`.
+ */
+export function pickSide(
+  landmarks: readonly LandmarkLike[],
+  joints: { left: readonly number[]; right: readonly number[] },
+  minVisibility: number,
+  preferred: BodySide | null = null,
+): BodySide | null {
+  const score = (idx: readonly number[]) => Math.min(...idx.map((i) => vis(landmarks[i])));
+  const left = score(joints.left);
+  const right = score(joints.right);
+  let side: BodySide = left >= right ? "left" : "right";
+  if (preferred) {
+    const p = preferred === "left" ? left : right;
+    const o = preferred === "left" ? right : left;
+    if (p >= minVisibility && o - p < SIDE_SWITCH_MARGIN) side = preferred;
+  }
+  return (side === "left" ? left : right) >= minVisibility ? side : null;
 }
 
-const vis = (p: LandmarkLike | undefined) => p?.visibility ?? 0;
-
-/**
- * Pick the more visible leg and compute knee / hip angles from it. A side-on
- * camera sees one leg clearly and the other partly hidden, so averaging both
- * would mix a good signal with a bad one.
- */
-export function extractSquatJoints(
-  landmarks: readonly LandmarkLike[] | undefined,
-  options: { minVisibility?: number; aspectRatio?: number; preferredSide?: BodySide | null } = {},
-): SquatJoints {
-  const minVisibility = options.minVisibility ?? 0.6;
-  const aspectRatio = options.aspectRatio ?? 1;
-  const none: SquatJoints = {
-    side: null,
-    kneeAngle: null,
-    hipAngle: null,
-    visible: false,
-    hipY: null,
-    legLength: null,
-  };
-  if (!landmarks || landmarks.length < 33) return none;
-
-  const legScore = (side: BodySide) => {
-    const i = SIDE_INDICES[side];
-    return Math.min(vis(landmarks[i.hip]), vis(landmarks[i.knee]), vis(landmarks[i.ankle]));
-  };
-  const left = legScore("left");
-  const right = legScore("right");
-
-  let side: BodySide = left >= right ? "left" : "right";
-  const preferred = options.preferredSide;
-  if (preferred) {
-    const pScore = preferred === "left" ? left : right;
-    const oScore = preferred === "left" ? right : left;
-    if (pScore >= minVisibility && oScore - pScore < SIDE_SWITCH_MARGIN) side = preferred;
-  }
-
-  const score = side === "left" ? left : right;
-  if (score < minVisibility) return none;
-
-  const i = SIDE_INDICES[side];
-  const shoulder = landmarks[i.shoulder];
-  const hip = landmarks[i.hip]!;
-  const knee = landmarks[i.knee]!;
-  const ankle = landmarks[i.ankle]!;
-
-  const kneeAngle = calculateAngle(hip, knee, ankle, aspectRatio);
-  const hipAngle =
-    shoulder && vis(shoulder) >= minVisibility ? calculateAngle(shoulder, hip, knee, aspectRatio) : null;
-
-  const otherHip = landmarks[side === "left" ? L.RIGHT_HIP : L.LEFT_HIP];
-  const hipY = otherHip ? (hip.y + otherHip.y) / 2 : hip.y;
-  const legLength = Math.hypot((hip.x - ankle.x) * aspectRatio, hip.y - ankle.y);
-
-  return {
-    side,
-    kneeAngle,
-    hipAngle,
-    visible: kneeAngle !== null,
-    hipY,
-    legLength: legLength > 1e-6 ? legLength : null,
-  };
+/** Distance between two landmarks in height-normalised units (x corrected by aspect ratio). */
+export function distance(a: LandmarkLike, b: LandmarkLike, aspectRatio = 1): number {
+  return Math.hypot((a.x - b.x) * aspectRatio, a.y - b.y);
 }
 
 // ---- camera --------------------------------------------------------------
@@ -369,8 +312,8 @@ export class PoseLoop {
 
 export interface SkeletonStyle {
   minVisibility: number;
-  /** Leg used for counting; drawn in the accent colour. */
-  activeSide: BodySide | null;
+  /** Landmarks used for counting; drawn in the accent colour. */
+  highlight: ReadonlySet<number> | null;
   lineColor: string;
   activeColor: string;
   dimColor: string;
@@ -380,18 +323,13 @@ export interface SkeletonStyle {
 
 export const DEFAULT_SKELETON_STYLE: Readonly<SkeletonStyle> = Object.freeze({
   minVisibility: 0.6,
-  activeSide: null,
+  highlight: null,
   lineColor: "rgba(255,255,255,0.85)",
   activeColor: "#C6FF00",
   dimColor: "rgba(255,255,255,0.2)",
   lineWidth: 4,
   pointRadius: 5,
 });
-
-const ACTIVE_LEG: Record<BodySide, ReadonlySet<number>> = {
-  left: new Set([L.LEFT_SHOULDER, L.LEFT_HIP, L.LEFT_KNEE, L.LEFT_ANKLE]),
-  right: new Set([L.RIGHT_SHOULDER, L.RIGHT_HIP, L.RIGHT_KNEE, L.RIGHT_ANKLE]),
-};
 
 /**
  * Draw the skeleton straight onto a canvas (no React involved). Size the canvas
@@ -408,7 +346,7 @@ export function drawSkeleton(
   ctx.clearRect(0, 0, width, height);
   if (!landmarks || landmarks.length === 0) return;
 
-  const active = s.activeSide ? ACTIVE_LEG[s.activeSide] : null;
+  const active = s.highlight;
   ctx.lineWidth = s.lineWidth;
   ctx.lineCap = "round";
 

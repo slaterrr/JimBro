@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jim Bro – CV squat tracker test bench</title>
+    <title>Jim Bro – CV exercise tracker test bench</title>
     <style>
       :root { color-scheme: dark; --bg: #141414; --card: #1e1e1e; --line: #2c2c2c; --text: #f2f2f2; --muted: #9a9a9a; --lime: #c6ff00; --warn: #ffb020; }
       * { box-sizing: border-box; }
@@ -22,9 +22,15 @@
       .tag.m { color: var(--lime); border-color: var(--lime); }
       .tag.e { color: var(--warn); border-color: var(--warn); }
       .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-      button { background: var(--lime); color: #111; border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+      button { background: var(--lime); color: #111; border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer; font: inherit; font-weight: 700; }
       button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
       button:disabled { opacity: 0.4; cursor: default; }
+      .picker { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+      .picker button { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 8px 14px; border-radius: 99px; font-weight: 600; }
+      .picker button[aria-pressed="true"] { background: var(--lime); color: #111; border-color: var(--lime); }
+      .slider { display: flex; gap: 10px; align-items: center; }
+      .slider input { flex: 1; accent-color: var(--lime); }
+      .slider strong { min-width: 3.5em; text-align: right; }
       #msg { min-height: 1.4em; color: var(--warn); }
       #log { font: 12px/1.5 ui-monospace, monospace; max-height: 220px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
     </style>
@@ -32,8 +38,9 @@
   <body>
     <main>
       <section>
-        <h1>Jim <span>Bro</span> · squat tracker test bench</h1>
-        <p class="note">Dev harness for the CV module only. Stand side-on, 2–3 m away, whole body in frame.</p>
+        <h1>Jim <span>Bro</span> · exercise tracker test bench</h1>
+        <div class="picker" id="picker" role="group" aria-label="Exercise"></div>
+        <p class="note" id="setup"></p>
         <div class="stage">
           <video id="video" playsinline muted></video>
           <canvas id="overlay"></canvas>
@@ -53,19 +60,20 @@
           <div id="status" class="note">idle</div>
         </div>
         <div class="card">
-          <div class="note" style="margin:0 0 6px">Depth line: a rep counts only if your knee goes <strong>below</strong> this</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <input id="depth" type="range" min="55" max="125" step="1" value="85" style="flex:1;accent-color:var(--lime)" aria-label="Depth line in degrees" />
-            <strong id="depthVal" style="min-width:3.5em;text-align:right">85°</strong>
+          <div class="note" style="margin:0 0 6px" id="angleLabel"></div>
+          <div class="slider">
+            <input id="peak" type="range" step="1" aria-label="Full-range line in degrees" />
+            <strong id="peakVal"></strong>
           </div>
-          <div class="note" style="margin:10px 0 6px">…and your hips must drop at least this much (% of leg length)</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <input id="hipdrop" type="range" min="10" max="70" step="1" value="40" style="flex:1;accent-color:var(--lime)" aria-label="Minimum hip drop in percent of leg length" />
-            <strong id="hipVal" style="min-width:3.5em;text-align:right">40%</strong>
+          <div id="progressBox">
+            <div class="note" style="margin:10px 0 6px" id="progressLabel"></div>
+            <div class="slider">
+              <input id="progress" type="range" min="10" max="95" step="1" aria-label="Minimum progress in percent" />
+              <strong id="progressVal"></strong>
+            </div>
           </div>
-          <p class="note" style="margin:6px 0 0">Guide: half squat ≈ 100–110° and 20–30%; parallel ≈ 60–75° and 55%+.</p>
-          <div class="row" style="margin-top:8px"><span>This rep, lowest<span class="tag m">measured</span></span><strong id="curMin">–</strong></div>
-          <p class="note" style="margin:8px 0 0">Do 3 half squats and 3 full squats, read the lowest angles in Events, and set the line between them.</p>
+          <p class="note" style="margin:6px 0 0" id="guide"></p>
+          <div class="row" style="margin-top:8px"><span>This rep, furthest<span class="tag m">measured</span></span><strong id="curPeak">–</strong></div>
         </div>
         <div class="card" id="metrics"></div>
         <div class="card"><div class="note">Events</div><div id="log"></div></div>

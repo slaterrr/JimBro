@@ -2,8 +2,7 @@
  * Jim Bro shared data contract.
  *
  * Single source of truth for data passed between the CV module, the frontend
- * and the backend (see docs/prompts/00-shared-context.md). Changing a shape
- * here means updating all three.
+ * and the backend. Changing a shape here means updating all three.
  */
 
 /** measured = directly observed by the camera; estimated = inferred. */
@@ -18,28 +17,50 @@ export interface Metric {
   confidence?: number;
 }
 
-export type SquatPhase = "standing" | "descending" | "bottom" | "ascending";
+export type ExerciseId = "squat" | "pushup" | "bicep_curl" | "shoulder_press";
+
+/** The joint whose angle drives rep counting for an exercise. */
+export type PrimaryJoint = "knee" | "elbow";
+
+/**
+ * Generic rep phases:
+ *   start → toward_peak → peak → returning → start
+ * e.g. squat: standing → descending → bottom → ascending.
+ * Each exercise supplies human-readable labels (ExerciseDefinition.phaseLabels).
+ */
+export type RepPhase = "start" | "toward_peak" | "peak" | "returning";
 
 /** Live, per-frame data. Not persisted. */
 export interface PoseFrame {
   timestamp: number;
-  phase: SquatPhase;
-  /** null when the hip/knee/ankle landmarks are below the confidence threshold. */
-  kneeAngle: number | null;
-  /** null when the shoulder/hip/knee landmarks are below the confidence threshold. */
-  hipAngle: number | null;
+  exercise: ExerciseId;
+  phase: RepPhase;
+  /** Smoothed primary joint angle (knee or elbow), degrees. null if not visible enough. */
+  primaryAngle: number | null;
+  /**
+   * Exercise-specific progress signal, as a fraction of a body length
+   * (squat: hip drop; push-up: chest drop; press: hands above shoulders).
+   * null if not measured.
+   */
+  progress: number | null;
   landmarksVisible: boolean;
 }
 
 /** Emitted once per completed, valid rep. */
 export interface RepEvent {
+  exercise: ExerciseId;
   repNumber: number;
   startedAt: number;
   endedAt: number;
   durationMs: number;
-  /** Always measured. */
-  minKneeAngle: Metric;
-  depthReached: boolean;
+  primaryJoint: PrimaryJoint;
+  /**
+   * Most extreme primary angle reached (lowest knee for squats, lowest elbow for
+   * push-ups and curls, highest elbow for presses). Always measured.
+   */
+  peakAngle: Metric;
+  /** Full range of motion reached (always true for counted reps). */
+  fullRange: boolean;
   formFlags: FormFlag[];
 }
 
@@ -52,7 +73,7 @@ export interface FormFlag {
 
 export interface WorkoutSession {
   id: string;
-  exercise: "squat";
+  exercise: ExerciseId;
   /** ISO 8601 */
   startedAt: string;
   endedAt: string | null;
@@ -62,6 +83,7 @@ export interface WorkoutSession {
     avgRepDurationMs: Metric;
     /** Coefficient of variation of rep durations. */
     tempoConsistency: Metric;
-    depthConsistency: Metric;
+    /** Standard deviation of the peak angle across reps. */
+    rangeConsistency: Metric;
   } | null;
 }

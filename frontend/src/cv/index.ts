@@ -3,17 +3,20 @@
  * here only; everything else is an implementation detail.
  */
 
-export { SquatTracker, initialTrackerState } from "./squat_tracker";
-export type { SquatTrackerOptions, TrackerError, TrackerState, TrackerStatus } from "./squat_tracker";
-export { useSquatTracker } from "./useSquatTracker";
-export type { UseSquatTracker } from "./useSquatTracker";
+export { ExerciseTracker, initialTrackerState } from "./exercise_tracker";
+export type { ExerciseTrackerOptions, TrackerError, TrackerState, TrackerStatus } from "./exercise_tracker";
+export { useExerciseTracker } from "./useExerciseTracker";
+export type { UseExerciseTracker } from "./useExerciseTracker";
 
-export { VoiceCoach, browserSpeaker, SETUP_INSTRUCTIONS } from "./voice_coach";
+export { EXERCISES, EXERCISE_IDS, getExercise } from "./exercises";
+export type { ExerciseDefinition } from "./exercises/types";
+
+export { VoiceCoach, browserSpeaker } from "./voice_coach";
 export type { VoiceCoachOptions, Speaker, CoachableTracker } from "./voice_coach";
 
 export { calculateAngle, calculateAngle3D, AngleSmoother } from "./angle_calculator";
-export { SquatRepCounter, DEFAULT_REP_COUNTER_CONFIG } from "./rep_counter";
-export type { RepCounterConfig, CompletedRep, RejectedRep, RejectionReason } from "./rep_counter";
+export { RepCounter, BaselineDropMeter } from "./rep_counter";
+export type { RepCounterConfig, CompletedRep, RejectedRep, RejectionReason, AngleDirection } from "./rep_counter";
 export { DEFAULT_FORM_ANALYZER_CONFIG } from "./form_analyzer";
 export type { FormAnalyzerConfig, CameraView, CameraViewAssessment } from "./form_analyzer";
 export { CameraError, ModelLoadError, DEFAULT_DETECTOR_OPTIONS } from "./pose_detection";

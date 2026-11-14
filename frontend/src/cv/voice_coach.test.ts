@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FormFlag, RepEvent } from "../../../shared/types";
-import { initialTrackerState, type TrackerState } from "./squat_tracker";
-import { SETUP_INSTRUCTIONS, VoiceCoach, type CoachableTracker, type Speaker } from "./voice_coach";
+import { initialTrackerState, type TrackerState } from "./exercise_tracker";
+import { pushup, squat } from "./exercises";
+import { VoiceCoach, type CoachableTracker, type Speaker } from "./voice_coach";
+
+const SETUP_INSTRUCTIONS = squat.setupInstructions;
 
 class FakeTracker implements CoachableTracker {
   state: TrackerState = initialTrackerState();
@@ -27,12 +30,14 @@ class FakeTracker implements CoachableTracker {
   }
   rep(n: number, flags: FormFlag[] = []) {
     const e: RepEvent = {
+      exercise: this.state.exercise,
       repNumber: n,
       startedAt: 0,
       endedAt: 2000,
       durationMs: 2000,
-      minKneeAngle: { value: 85, unit: "deg", source: "measured" },
-      depthReached: true,
+      primaryJoint: "knee",
+      peakAngle: { value: 85, unit: "deg", source: "measured" },
+      fullRange: true,
       formFlags: flags,
     };
     this.r.forEach((l) => l(e));
@@ -83,7 +88,7 @@ describe("VoiceCoach", () => {
     const { tracker, speaker } = setup();
     tracker.set({ status: "tracking", landmarksVisible: true, armed: true });
     tracker.rep(1, [
-      { code: "FAST_DESCENT", message: "x", source: "measured" },
+      { code: "FAST_LOWERING", message: "x", source: "measured" },
       { code: "UNEVEN_TEMPO", message: "y", source: "estimated" },
     ]);
     expect(speaker.said.slice(-2)).toEqual(["1", "Slow down on the way down."]);
@@ -96,6 +101,25 @@ describe("VoiceCoach", () => {
     expect(speaker.said).toEqual(["Not counted. Go a little lower.", "msg SOMETHING_NEW"]);
   });
 
+  it("uses the current exercise's wording", () => {
+    const { tracker, speaker } = setup();
+    tracker.set({ exercise: "pushup", status: "tracking" });
+    expect(speaker.said).toEqual([pushup.setupInstructions]);
+    tracker.reject("SHALLOW_PUSHUP");
+    expect(speaker.said.at(-1)).toBe("Not counted. Go lower.");
+    tracker.set({ landmarksVisible: true, armed: true });
+    expect(speaker.said.at(-1)).toBe(pushup.readyPrompt);
+  });
+
+  it("speaks the position hint when the user isn't in position", () => {
+    const { tracker, speaker, advance } = setup();
+    tracker.set({ exercise: "pushup", status: "tracking", landmarksVisible: false, positionHint: "Get down." });
+    speaker.said = [];
+    advance(3000);
+    tracker.set({ landmarksVisible: false });
+    expect(speaker.said).toEqual(["Get down."]);
+  });
+
   it("asks the user to step back only after a sustained loss of view", () => {
     const { tracker, speaker, advance } = setup();
     tracker.set({ status: "tracking", landmarksVisible: false });
@@ -105,7 +129,7 @@ describe("VoiceCoach", () => {
     expect(speaker.said).toEqual([]);
     advance(2000);
     tracker.set({ landmarksVisible: false });
-    expect(speaker.said).toEqual(["Step back so I can see your hips, knees and ankles."]);
+    expect(speaker.said).toEqual(["I can't see you clearly. Step back so I can see the whole movement."]);
   });
 
   it("prompts to stand, then says ready once armed, without nagging", () => {

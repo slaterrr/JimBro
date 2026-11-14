@@ -1,64 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { CameraError, POSE_LANDMARKS as L, extractSquatJoints, mapCameraError, type LandmarkLike } from "./pose_detection";
+import { CameraError, POSE_LANDMARKS as L, distance, mapCameraError, pickSide, type LandmarkLike } from "./pose_detection";
 
-/** Side-on standing pose with the left leg facing the camera. */
-function pose(opts: { leftVis?: number; rightVis?: number; kneeBend?: boolean } = {}): LandmarkLike[] {
-  const lv = opts.leftVis ?? 0.95;
-  const rv = opts.rightVis ?? 0.4;
-  const lm: LandmarkLike[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility: 0.9 }));
-  const knee = opts.kneeBend ? { x: 0.65, y: 0.6 } : { x: 0.5, y: 0.65 };
-  lm[L.LEFT_SHOULDER] = { x: 0.5, y: 0.2, visibility: lv };
-  lm[L.LEFT_HIP] = { x: 0.5, y: 0.45, visibility: lv };
-  lm[L.LEFT_KNEE] = { ...knee, visibility: lv };
-  lm[L.LEFT_ANKLE] = { x: 0.5, y: 0.85, visibility: lv };
-  lm[L.RIGHT_SHOULDER] = { x: 0.52, y: 0.2, visibility: rv };
-  lm[L.RIGHT_HIP] = { x: 0.52, y: 0.45, visibility: rv };
-  lm[L.RIGHT_KNEE] = { x: 0.52, y: 0.65, visibility: rv };
-  lm[L.RIGHT_ANKLE] = { x: 0.52, y: 0.85, visibility: rv };
-  return lm;
+const LEG = { left: [L.LEFT_HIP, L.LEFT_KNEE, L.LEFT_ANKLE], right: [L.RIGHT_HIP, L.RIGHT_KNEE, L.RIGHT_ANKLE] };
+
+function legs(leftVis: number, rightVis: number): LandmarkLike[] {
+  return Array.from({ length: 33 }, (_, i) => ({
+    x: 0.5,
+    y: 0.5,
+    visibility: LEG.left.includes(i as never) ? leftVis : LEG.right.includes(i as never) ? rightVis : 0.9,
+  }));
 }
 
-describe("extractSquatJoints", () => {
-  it("uses the more visible leg", () => {
-    const j = extractSquatJoints(pose());
-    expect(j.side).toBe("left");
-    expect(j.kneeAngle).toBeCloseTo(180, 0);
-    expect(j.hipAngle).toBeCloseTo(180, 0);
-    expect(j.visible).toBe(true);
+describe("pickSide", () => {
+  it("picks the more visible side", () => {
+    expect(pickSide(legs(0.95, 0.4), LEG, 0.6)).toBe("left");
+    expect(pickSide(legs(0.4, 0.95), LEG, 0.6)).toBe("right");
   });
 
-  it("reports hip height (averaged over both hips) and leg length", () => {
-    const j = extractSquatJoints(pose());
-    expect(j.hipY).toBeCloseTo(0.45);
-    expect(j.legLength).toBeCloseTo(0.4);
-  });
-
-  it("reports a bent knee", () => {
-    const j = extractSquatJoints(pose({ kneeBend: true }));
-    expect(j.kneeAngle!).toBeLessThan(120);
-  });
-
-  it("returns nulls when neither leg passes the confidence threshold", () => {
-    const j = extractSquatJoints(pose({ leftVis: 0.4, rightVis: 0.3 }));
-    expect(j).toEqual({ side: null, kneeAngle: null, hipAngle: null, visible: false, hipY: null, legLength: null });
-  });
-
-  it("returns nulls with no landmarks", () => {
-    expect(extractSquatJoints(undefined).visible).toBe(false);
-    expect(extractSquatJoints([]).visible).toBe(false);
+  it("returns null when neither side passes the threshold", () => {
+    expect(pickSide(legs(0.4, 0.3), LEG, 0.6)).toBeNull();
   });
 
   it("sticks with the preferred side unless the other is clearly better", () => {
-    expect(extractSquatJoints(pose({ leftVis: 0.8, rightVis: 0.88 }), { preferredSide: "left" }).side).toBe("left");
-    expect(extractSquatJoints(pose({ leftVis: 0.65, rightVis: 0.95 }), { preferredSide: "left" }).side).toBe("right");
+    expect(pickSide(legs(0.8, 0.88), LEG, 0.6, "left")).toBe("left");
+    expect(pickSide(legs(0.65, 0.95), LEG, 0.6, "left")).toBe("right");
   });
+});
 
-  it("drops the hip angle when the shoulder isn't visible", () => {
-    const lm = pose();
-    lm[L.LEFT_SHOULDER] = { ...lm[L.LEFT_SHOULDER]!, visibility: 0.2 };
-    const j = extractSquatJoints(lm);
-    expect(j.kneeAngle).not.toBeNull();
-    expect(j.hipAngle).toBeNull();
+describe("distance", () => {
+  it("corrects x for the aspect ratio", () => {
+    expect(distance({ x: 0, y: 0 }, { x: 0.5625, y: 0 }, 16 / 9)).toBeCloseTo(1);
   });
 });
 

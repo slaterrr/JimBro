@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { HipDropMeter, SquatRepCounter, type RepCounterEvent } from "./rep_counter";
-import { hold, sequence, squat, type Sample } from "./test_utils";
+import { pushup } from "./exercises/pushup";
+import { shoulderPress } from "./exercises/shoulder_press";
+import { squat } from "./exercises/squat";
+import { bicepCurl } from "./exercises/bicep_curl";
+import { BaselineDropMeter, RepCounter, type RepCounterConfig, type RepCounterEvent } from "./rep_counter";
+import { hold, sequence, squat as dip, type Sample } from "./test_utils";
 
-function run(samples: Sample[], counter = new SquatRepCounter()) {
+/** Squat thresholds without the hip-drop check, for angle-only tests. */
+const SQUAT_ANGLE_ONLY: RepCounterConfig = { ...squat.counter, minProgress: 0 };
+
+function run(samples: Array<Sample & { progress?: number | null }>, counter = new RepCounter(SQUAT_ANGLE_ONLY)) {
   const events: RepCounterEvent[] = [];
   for (const s of samples) {
-    const e = counter.update(s.t, s.knee, s.hip ?? null);
+    const e = counter.update(s.t, s.knee, s.progress ?? null);
     if (e) events.push(e);
   }
   return {
@@ -16,72 +23,65 @@ function run(samples: Sample[], counter = new SquatRepCounter()) {
   };
 }
 
-describe("SquatRepCounter", () => {
+const oneSquat = (bottom = 80) => sequence((t) => hold(t, 500, 175), (t) => dip(t, 2000, bottom), (t) => hold(t, 300, 175));
+
+describe("RepCounter (squat thresholds, decreasing angle)", () => {
   it("counts clean reps", () => {
     const { reps, rejected, counter } = run(
       sequence(
         (t) => hold(t, 500, 175),
-        (t) => squat(t, 2000, 80),
+        (t) => dip(t, 2000, 80),
         (t) => hold(t, 300, 175),
-        (t) => squat(t, 2000, 85),
+        (t) => dip(t, 2000, 82),
         (t) => hold(t, 300, 175),
-        (t) => squat(t, 1800, 75),
+        (t) => dip(t, 1800, 75),
         (t) => hold(t, 300, 175),
       ),
     );
     expect(reps.map((r) => r.repNumber)).toEqual([1, 2, 3]);
     expect(rejected).toEqual([]);
     expect(counter.repCount).toBe(3);
-    expect(counter.phase).toBe("standing");
+    expect(counter.phase).toBe("start");
   });
 
-  it("measures duration, depth and phase timings", () => {
-    const { reps } = run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175)));
-    const rep = reps[0]!;
-    // Duration runs from leaving lockout (< descentStartAngle) to lockout again
-    // (≥ standingAngle), so the near-straight top of the 2 s cosine isn't included.
+  it("measures duration, peak angle and phase timings", () => {
+    const rep = run(oneSquat()).reps[0]!;
+    // Duration runs from leaving the start zone to returning to it, so the
+    // near-straight top of the 2 s cosine isn't included.
     expect(rep.durationMs).toBeGreaterThan(1300);
     expect(rep.durationMs).toBeLessThan(2000);
-    expect(rep.minKneeAngle).toBeCloseTo(80, 0);
-    expect(rep.minHipAngle).not.toBeNull();
-    expect(rep.descentMs + rep.bottomMs + rep.ascentMs).toBeCloseTo(rep.durationMs);
-    expect(rep.descentMs).toBeGreaterThan(0);
-    expect(rep.ascentMs).toBeGreaterThan(0);
+    expect(rep.peakAngle).toBeCloseTo(80, 0);
+    expect(rep.toPeakMs + rep.peakHoldMs + rep.returnMs).toBeCloseTo(rep.durationMs);
+    expect(rep.toPeakMs).toBeGreaterThan(0);
+    expect(rep.returnMs).toBeGreaterThan(0);
   });
 
-  it("rejects a shallow squat and does not count it", () => {
-    const { reps, rejected } = run(
-      sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 120), (t) => hold(t, 300, 175)),
-    );
-    expect(reps).toEqual([]);
-    expect(rejected.map((r) => r.reason)).toEqual(["SHALLOW_DEPTH"]);
+  it("rejects a partial rep and does not count it", () => {
+    for (const bottom of [100, 105, 110, 120]) {
+      const { reps, rejected } = run(oneSquat(bottom));
+      expect(reps).toEqual([]);
+      expect(rejected.map((r) => r.reason)).toEqual(["PARTIAL_RANGE"]);
+    }
   });
 
   it("ignores small dips as noise", () => {
-    const { events } = run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 1500, 145), (t) => hold(t, 300, 175)));
-    expect(events).toEqual([]);
+    expect(run(oneSquat(145)).events).toEqual([]);
   });
 
-  it("does not count a rep until the user has stood up (starting mid-squat)", () => {
-    const { reps, counter } = run(
-      sequence(
-        (t) => hold(t, 500, 90), // already at the bottom when tracking starts
-        (t) => hold(t, 500, 175), // stands up: this must NOT count
-        (t) => squat(t, 2000, 80), // real rep
-        (t) => hold(t, 300, 175),
-      ),
+  it("does not count until the start position has been seen (starting mid-rep)", () => {
+    const { reps } = run(
+      sequence((t) => hold(t, 500, 80), (t) => hold(t, 500, 175), (t) => dip(t, 2000, 80), (t) => hold(t, 300, 175)),
     );
     expect(reps.length).toBe(1);
-    expect(counter.repCount).toBe(1);
   });
 
   it("doesn't double count when the angle jitters around thresholds", () => {
     const { reps } = run(
       sequence(
         (t) => hold(t, 500, 175),
-        (t) => squat(t, 2400, 80, 175, 6), // ±6° noise
+        (t) => dip(t, 2400, 75, 175, 6),
         (t) => hold(t, 400, 175),
-        (t) => squat(t, 2400, 80, 175, 6),
+        (t) => dip(t, 2400, 75, 175, 6),
         (t) => hold(t, 400, 175),
       ),
     );
@@ -89,49 +89,53 @@ describe("SquatRepCounter", () => {
   });
 
   it("counts a bounce at the bottom as one rep", () => {
-    // Down to 80, up to 115, back to 85, then stand: one rep.
     const samples: Sample[] = [
       ...hold(0, 500, 175),
-      ...[160, 140, 120, 100, 85, 80, 95, 115, 100, 85, 100, 130, 150, 165, 175].map((knee, i) => ({
-        t: 500 + i * 120,
-        knee,
-      })),
+      ...[160, 140, 120, 100, 85, 78, 90, 110, 95, 82, 100, 130, 150, 165, 175].map((knee, i) => ({ t: 500 + i * 120, knee })),
       ...hold(500 + 15 * 120, 300, 175),
     ];
     const { reps } = run(samples);
     expect(reps.length).toBe(1);
-    expect(reps[0]!.minKneeAngle).toBe(80);
+    expect(reps[0]!.peakAngle).toBe(78);
   });
 
   it("rejects reps that are too fast", () => {
-    const { reps, rejected } = run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 300, 80), (t) => hold(t, 300, 175)));
+    const { reps, rejected } = run(sequence((t) => hold(t, 500, 175), (t) => dip(t, 300, 80), (t) => hold(t, 300, 175)));
     expect(reps).toEqual([]);
     expect(rejected.map((r) => r.reason)).toEqual(["TOO_FAST"]);
   });
 
   it("rejects reps that are too slow", () => {
     const { reps, rejected } = run(
-      sequence((t) => hold(t, 500, 175), (t) => squat(t, 1000, 80).slice(0, 16), (t) => hold(t, 13_000, 85), (t) => hold(t, 300, 175)),
+      sequence((t) => hold(t, 500, 175), (t) => dip(t, 1000, 80).slice(0, 16), (t) => hold(t, 13_000, 80), (t) => hold(t, 300, 175)),
     );
     expect(reps).toEqual([]);
     expect(rejected.map((r) => r.reason)).toEqual(["TOO_SLOW"]);
   });
 
+  it("stays quiet about a very long incomplete attempt (a rest, not a rep)", () => {
+    const { events } = run(
+      sequence((t) => hold(t, 500, 175), (t) => hold(t, 13_000, 120), (t) => hold(t, 300, 175)),
+    );
+    expect(events).toEqual([]);
+  });
+
   it("pauses through a short tracking dropout and still counts the rep", () => {
-    const rep = squat(0, 2000, 80);
-    const withGap = rep.map((s, i) => (i > 25 && i < 33 ? { ...s, knee: null } : s)); // ~250 ms gap
-    const { reps } = run(sequence((t) => hold(t, 500, 175), (t) => withGap.map((s) => ({ ...s, t: s.t + t })), (t) => hold(t, 300, 175)));
+    const withGap = dip(0, 2000, 80).map((s, i) => (i > 25 && i < 33 ? { ...s, knee: null } : s));
+    const { reps } = run(
+      sequence((t) => hold(t, 500, 175), (t) => withGap.map((s) => ({ ...s, t: s.t + t })), (t) => hold(t, 300, 175)),
+    );
     expect(reps.length).toBe(1);
   });
 
-  it("aborts a rep when tracking is lost for too long, and needs a fresh stand", () => {
+  it("aborts a rep when tracking is lost for too long, and needs a fresh start", () => {
     const { reps, rejected, counter } = run(
       sequence(
         (t) => hold(t, 500, 175),
-        (t) => squat(t, 2000, 80).slice(0, 25), // down to the bottom
-        (t) => hold(t, 1000, null), // lost for 1 s
-        (t) => hold(t, 300, 90), // reappears still low
-        (t) => hold(t, 300, 175), // stands up: must not count
+        (t) => dip(t, 2000, 80).slice(0, 25),
+        (t) => hold(t, 1000, null),
+        (t) => hold(t, 300, 90),
+        (t) => hold(t, 300, 175),
       ),
     );
     expect(rejected.map((r) => r.reason)).toEqual(["TRACKING_LOST"]);
@@ -141,130 +145,128 @@ describe("SquatRepCounter", () => {
   });
 
   it("cancelCurrentRep drops the rep in progress but keeps the count", () => {
-    const counter = new SquatRepCounter();
-    run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175)), counter);
-    run(squat(10_000, 2000, 80).slice(0, 30), counter);
-    expect(counter.phase).not.toBe("standing");
+    const counter = new RepCounter(SQUAT_ANGLE_ONLY);
+    run(oneSquat(), counter);
+    run(dip(10_000, 2000, 80).slice(0, 30), counter);
+    expect(counter.phase).not.toBe("start");
     counter.cancelCurrentRep();
     expect(counter.repCount).toBe(1);
-    expect(counter.phase).toBe("standing");
+    expect(counter.phase).toBe("start");
     expect(counter.armed).toBe(false);
   });
 
-  it("a stricter depth line rejects a squat the default would count", () => {
-    const seq = () => sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
-    expect(run(seq()).reps.length).toBe(1);
-    const strict = new SquatRepCounter();
-    strict.configure({ depthAngle: 70 });
-    const { reps, rejected } = run(seq(), strict);
-    expect(reps).toEqual([]);
-    expect(rejected.map((r) => [r.reason, Math.round(r.minKneeAngle ?? 0)])).toEqual([["SHALLOW_DEPTH", 80]]);
-  });
-
-  it("does not count a half squat with the default thresholds", () => {
-    // Half squat side-on: knee bottoms around 100–110°, hips drop ~25% of leg length.
-    for (const bottom of [100, 105, 110]) {
-      const samples = sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, bottom), (t) => hold(t, 300, 175));
-      const counter = new SquatRepCounter();
-      const events = samples
-        .map((s) => counter.update(s.t, s.knee, null, s.knee === null ? null : ((175 - s.knee) / 70) * 0.25))
-        .filter((e) => e !== null);
-      expect(events.filter((e) => e.type === "rep")).toEqual([]);
-      expect(events.map((e) => (e.type === "rejected" ? e.rejected.reason : "rep"))).toEqual(["SHALLOW_DEPTH"]);
-    }
-  });
-
-  it("does not count a half squat even if the knee angle misreads deep, because the hips stayed high", () => {
-    const samples = sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
-    const counter = new SquatRepCounter();
-    const events = samples
-      .map((s) => counter.update(s.t, s.knee, null, s.knee === null ? null : ((175 - s.knee) / 95) * 0.28))
-      .filter((e) => e !== null);
-    expect(events.map((e) => (e.type === "rejected" ? e.rejected.reason : "rep"))).toEqual(["NO_HIP_DROP"]);
-  });
-
-  it("configure keeps the count and rejects invalid thresholds", () => {
-    const counter = new SquatRepCounter();
-    run(sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175)), counter);
-    counter.configure({ depthAngle: 85 });
+  it("configure changes thresholds live, keeps the count, rejects invalid values", () => {
+    const counter = new RepCounter(SQUAT_ANGLE_ONLY);
+    run(oneSquat(), counter);
+    counter.configure({ peakAngle: 70 });
+    const { rejected } = run(oneSquat(80).map((s) => ({ ...s, t: s.t + 10_000 })), counter);
+    expect(rejected.map((r) => [r.reason, Math.round(r.peakAngle ?? 0)])).toEqual([["PARTIAL_RANGE", 80]]);
     expect(counter.repCount).toBe(1);
-    expect(counter.config.depthAngle).toBe(85);
-    expect(() => counter.configure({ depthAngle: 145 })).toThrow(RangeError);
-    expect(counter.config.depthAngle).toBe(85);
-  });
-
-  describe("hip drop", () => {
-    /** Attach a hip-drop value to each sample: `drop(kneeAngle)`. */
-    const withDrop = (samples: Sample[], drop: (knee: number) => number) =>
-      samples.map((s) => ({ ...s, drop: s.knee === null ? null : drop(s.knee) }));
-    const runDrop = (samples: Array<Sample & { drop: number | null }>, counter = new SquatRepCounter()) => {
-      const events = samples.map((s) => counter.update(s.t, s.knee, null, s.drop)).filter((e) => e !== null);
-      return {
-        reps: events.flatMap((e) => (e.type === "rep" ? [e.rep] : [])),
-        rejected: events.flatMap((e) => (e.type === "rejected" ? [e.rejected] : [])),
-      };
-    };
-    const oneSquat = () =>
-      sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
-
-    it("counts a real squat where the hips drop with the knee", () => {
-      // Hips drop in proportion to knee bend: ~0.5 of leg length at 80°.
-      const { reps } = runDrop(withDrop(oneSquat(), (k) => ((175 - k) / 95) * 0.5));
-      expect(reps.length).toBe(1);
-      expect(reps[0]!.maxHipDrop).toBeCloseTo(0.5, 1);
-    });
-
-    it("does not count a bent knee when the hips stay up (raised leg on one foot)", () => {
-      const { reps, rejected } = runDrop(withDrop(oneSquat(), () => 0.05));
-      expect(reps).toEqual([]);
-      expect(rejected.map((r) => r.reason)).toEqual(["NO_HIP_DROP"]);
-    });
-
-    it("does not count a small dip even if the knee angle reads deep", () => {
-      const { reps } = runDrop(withDrop(oneSquat(), (k) => ((175 - k) / 95) * 0.2));
-      expect(reps).toEqual([]);
-    });
-
-    it("falls back to the knee angle when hip drop isn't measured", () => {
-      const { reps } = runDrop(withDrop(oneSquat(), () => NaN).map((s) => ({ ...s, drop: null })));
-      expect(reps.length).toBe(1);
-    });
-
-    it("can be disabled", () => {
-      const { reps } = runDrop(withDrop(oneSquat(), () => 0), new SquatRepCounter({ minHipDrop: 0 }));
-      expect(reps.length).toBe(1);
-    });
+    expect(() => counter.configure({ peakAngle: 145 })).toThrow(RangeError);
+    expect(counter.config.peakAngle).toBe(70);
   });
 
   it("validates its config", () => {
-    expect(() => new SquatRepCounter({ standingAngle: 140, descentStartAngle: 150 })).toThrow(RangeError);
-    expect(() => new SquatRepCounter({ depthAngle: 145 })).toThrow(RangeError);
+    expect(() => new RepCounter({ ...SQUAT_ANGLE_ONLY, startAngle: 140, leaveStartAngle: 150 })).toThrow(RangeError);
+    expect(() => new RepCounter({ ...SQUAT_ANGLE_ONLY, peakAngle: 145 })).toThrow(RangeError);
+  });
+
+  it("every built-in exercise has a valid config", () => {
+    for (const ex of [squat, pushup, bicepCurl, shoulderPress]) {
+      expect(() => new RepCounter(ex.counter)).not.toThrow();
+    }
   });
 });
 
-describe("HipDropMeter", () => {
-  it("returns null until a standing baseline exists", () => {
-    const m = new HipDropMeter();
-    expect(m.update(0.5, 0.4, false)).toBeNull();
+describe("progress check (squat hip drop)", () => {
+  const withProgress = (samples: Sample[], f: (knee: number) => number) =>
+    samples.map((s) => ({ ...s, progress: s.knee === null ? null : f(s.knee) }));
+  const real = (k: number) => ((175 - k) / 95) * 0.5;
+
+  it("counts a real squat where the hips drop with the knee", () => {
+    const { reps } = run(withProgress(oneSquat(), real), new RepCounter(squat.counter));
+    expect(reps.length).toBe(1);
+    expect(reps[0]!.maxProgress).toBeCloseTo(0.5, 1);
   });
 
-  it("measures drop as a fraction of standing leg length", () => {
-    const m = new HipDropMeter(1);
+  it("rejects a bent knee when the hips stay up (raised leg on one foot)", () => {
+    const { reps, rejected } = run(withProgress(oneSquat(), () => 0.05), new RepCounter(squat.counter));
+    expect(reps).toEqual([]);
+    expect(rejected.map((r) => r.reason)).toEqual(["PROGRESS_NOT_MET"]);
+  });
+
+  it("rejects a half squat even if the knee angle misreads deep", () => {
+    const { reps } = run(withProgress(oneSquat(), (k) => ((175 - k) / 95) * 0.28), new RepCounter(squat.counter));
+    expect(reps).toEqual([]);
+  });
+
+  it("falls back to the angle alone when progress isn't measured", () => {
+    expect(run(oneSquat(), new RepCounter(squat.counter)).reps.length).toBe(1);
+  });
+});
+
+describe("RepCounter (shoulder press thresholds, increasing angle)", () => {
+  /** Elbow from rack (`low`) up to `high` and back, with hands rising in proportion. */
+  function press(t0: number, ms: number, high: number, low = 85, handsTop = 0.95) {
+    return dip(t0, ms, -high, -low).map((s) => {
+      const elbow = -(s.knee as number);
+      return { t: s.t, knee: elbow, progress: 0.4 + ((elbow - low) / (high - low)) * (handsTop - 0.4) };
+    });
+  }
+  const rack = (t: number, ms: number) => hold(t, ms, 85).map((s) => ({ ...s, progress: 0.4 }));
+
+  it("counts a full press to lockout", () => {
+    const { reps } = run(
+      sequence((t) => rack(t, 500), (t) => press(t, 2000, 170), (t) => rack(t, 300), (t) => press(t, 2000, 168), (t) => rack(t, 300)),
+      new RepCounter(shoulderPress.counter),
+    );
+    expect(reps.map((r) => r.repNumber)).toEqual([1, 2]);
+    expect(reps[0]!.peakAngle).toBeCloseTo(170, 0);
+  });
+
+  it("rejects a half press", () => {
+    const { reps, rejected } = run(
+      sequence((t) => rack(t, 500), (t) => press(t, 2000, 140, 85, 0.7), (t) => rack(t, 300)),
+      new RepCounter(shoulderPress.counter),
+    );
+    expect(reps).toEqual([]);
+    expect(rejected.map((r) => r.reason)).toEqual(["PARTIAL_RANGE"]);
+  });
+
+  it("rejects straight arms that aren't overhead (e.g. arms out to the side)", () => {
+    const { reps, rejected } = run(
+      sequence((t) => rack(t, 500), (t) => press(t, 2000, 170, 85, 0.45), (t) => rack(t, 300)),
+      new RepCounter(shoulderPress.counter),
+    );
+    expect(reps).toEqual([]);
+    expect(rejected.map((r) => r.reason)).toEqual(["PROGRESS_NOT_MET"]);
+  });
+
+  it("doesn't arm or count while the arms hang down before the set", () => {
+    const hanging = (t: number, ms: number) => hold(t, ms, 170).map((s) => ({ ...s, progress: -0.9 }));
+    const { events, counter } = run(sequence((t) => hanging(t, 2000)), new RepCounter(shoulderPress.counter));
+    expect(events).toEqual([]);
+    expect(counter.armed).toBe(false);
+  });
+});
+
+describe("BaselineDropMeter", () => {
+  it("returns null until a start baseline exists", () => {
+    expect(new BaselineDropMeter().update(0.5, 0.4, false)).toBeNull();
+  });
+
+  it("measures drop as a fraction of the reference length", () => {
+    const m = new BaselineDropMeter(1);
     expect(m.update(0.45, 0.4, true)).toBeCloseTo(0);
-    expect(m.update(0.65, 0.3, false)).toBeCloseTo(0.5); // 0.2 down / 0.4 leg
-    expect(m.update(0.4, 0.4, false)).toBeCloseTo(-0.125); // above standing height
-  });
-
-  it("only learns the baseline while standing", () => {
-    const m = new HipDropMeter(1);
-    m.update(0.45, 0.4, true);
-    m.update(0.65, 0.3, false); // squatting: baseline must not move
     expect(m.update(0.65, 0.3, false)).toBeCloseTo(0.5);
+    expect(m.update(0.4, 0.4, false)).toBeCloseTo(-0.125);
   });
 
-  it("returns null without a hip position, and resets", () => {
-    const m = new HipDropMeter(1);
+  it("only learns the baseline in the start position, and resets", () => {
+    const m = new BaselineDropMeter(1);
     m.update(0.45, 0.4, true);
+    m.update(0.65, 0.3, false);
+    expect(m.update(0.65, 0.3, false)).toBeCloseTo(0.5);
     expect(m.update(null, 0.4, false)).toBeNull();
     m.reset();
     expect(m.update(0.6, 0.4, false)).toBeNull();

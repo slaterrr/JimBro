@@ -1,14 +1,14 @@
 /**
- * Spoken coaching for the squat tracker, using the browser's built-in speech
- * synthesis (Web Speech API). No network, no extra dependencies.
+ * Spoken coaching for the exercise tracker, using the browser's built-in
+ * speech synthesis (Web Speech API). No network, no extra dependencies.
  *
- * What it says, and when:
+ * What it says, and when (wording comes from the current exercise):
  *  - setup instructions when tracking starts
- *  - "step back" if the legs are out of view for a while
- *  - "stand up tall" until the counter is armed, then "Ready"
+ *  - a position hint, or "I can't see you", if out of view for a while
+ *  - the start prompt (e.g. "Stand up tall to begin.") until armed, then "Ready"
  *  - the rep number after each counted rep (interrupts anything else)
- *  - why a rep didn't count, and measured form tips (e.g. fast descent)
- *  - "turn side-on" when the camera-view check says the user faces the camera
+ *  - why a rep didn't count, and one measured form tip per rep
+ *  - a camera-position warning when the view doesn't suit the exercise
  *  - a short summary when the session ends
  *
  * Cues are rate-limited so it never talks over itself or nags. Only data the
@@ -19,9 +19,11 @@
  */
 
 import type { FormFlag, RepEvent, WorkoutSession } from "../../../shared/types";
-import type { TrackerState } from "./squat_tracker";
+import type { TrackerState } from "./exercise_tracker";
+import { getExercise } from "./exercises";
+import { VIEW_SPOKEN, spokenFor } from "./form_analyzer";
 
-/** The parts of SquatTracker the coach needs (keeps it testable). */
+/** The parts of ExerciseTracker the coach needs (keeps it testable). */
 export interface CoachableTracker {
   subscribe(listener: (state: TrackerState) => void): () => void;
   onRep(listener: (rep: RepEvent) => void): () => void;
@@ -42,7 +44,7 @@ export interface VoiceCoachOptions {
   lang?: string;
   /** Speak setup instructions when tracking starts. */
   setupInstructions?: boolean;
-  /** How long the legs must be out of view before "step back" (ms). */
+  /** How long the user must be out of view before a "can't see you" prompt (ms). */
   notVisibleDelayMs?: number;
   /** Minimum gap before the same cue repeats (ms). */
   repeatCooldownMs?: number;
@@ -60,23 +62,7 @@ const DEFAULTS = {
   repeatCooldownMs: 8000,
 } as const;
 
-export const SETUP_INSTRUCTIONS =
-  "Stand side on to the camera, about two to three metres back, with your whole body in view. " +
-  "Then stand up tall to begin.";
-
-/** Short spoken versions of form-flag codes. Codes not listed fall back to the flag's message. */
-const SPOKEN: Record<string, string> = {
-  SHALLOW_DEPTH: "Not counted. Go a little lower.",
-  NO_HIP_DROP: "Not counted. Keep both feet down and lower your hips.",
-  REP_TOO_FAST: "Not counted. Too quick.",
-  REP_TOO_SLOW: "Not counted. That took too long.",
-  TRACKING_LOST: "Not counted. I lost sight of your legs.",
-  FAST_DESCENT: "Slow down on the way down.",
-  CAMERA_NOT_SIDE_ON: "Turn side on to the camera.",
-};
-
-/** Flags worth saying out loud after a rep. Consistency flags stay on screen only. */
-const SPOKEN_REP_FLAGS = new Set(["FAST_DESCENT"]);
+const NOT_VISIBLE = "I can't see you clearly. Step back so I can see the whole movement.";
 
 export class VoiceCoach {
   private readonly o: Required<Omit<VoiceCoachOptions, "now">>;
@@ -119,7 +105,7 @@ export class VoiceCoach {
     this.unsubs.push(
       this.tracker.subscribe((s) => this.onState(s)),
       this.tracker.onRep((r) => this.onRep(r)),
-      this.tracker.onRejected((f) => this.say(SPOKEN[f.code] ?? f.message, { key: f.code, cooldownMs: 0 })),
+      this.tracker.onRejected((f) => this.say(this.spoken(f), { key: f.code, cooldownMs: 0 })),
     );
     return () => this.detach();
   }
@@ -150,14 +136,15 @@ export class VoiceCoach {
     const prev = this.prev;
     this.prev = s;
     const t = this.now();
+    const ex = getExercise(s.exercise);
 
     if (s.status === "tracking" && prev?.status !== "tracking") {
       this.notVisibleSince = null;
-      if (prev?.status === "paused") this.say("Resuming.", { interrupt: true });
+      if (prev?.status === "paused" && prev.exercise === s.exercise) this.say("Resuming.", { interrupt: true });
       else if (this.o.setupInstructions) {
-        this.say(SETUP_INSTRUCTIONS, { key: "setup", interrupt: true });
-        // The instructions already end with "stand up tall"; don't repeat it straight away.
-        this.lastSaid.set("stand-up", t);
+        this.say(ex.setupInstructions, { key: `setup-${ex.id}`, interrupt: true, cooldownMs: 0 });
+        // The instructions already end with the start prompt; don't repeat it straight away.
+        this.lastSaid.set("start-prompt", t);
       }
     }
     if (s.status === "paused" && prev?.status === "tracking") this.say("Paused.", { interrupt: true });
@@ -166,35 +153,42 @@ export class VoiceCoach {
     }
     if (s.status !== "tracking") return;
 
-    // Out of view for a while → step back.
+    // Out of view (or out of position) for a while → say how to fix it.
     if (!s.landmarksVisible) {
       this.notVisibleSince ??= t;
       if (t - this.notVisibleSince >= this.o.notVisibleDelayMs) {
-        this.say("Step back so I can see your hips, knees and ankles.", { key: "not-visible" });
+        this.say(s.positionHint ?? NOT_VISIBLE, { key: "not-visible" });
       }
     } else {
       this.notVisibleSince = null;
     }
 
-    // Visible but not yet armed → stand up tall; armed → ready.
+    // Visible but not yet armed → start prompt; armed → ready.
     if (s.landmarksVisible && !s.armed) {
-      this.say("Stand up tall to begin.", { key: "stand-up" });
+      this.say(ex.startPrompt, { key: "start-prompt" });
     }
     if (s.armed && prev && !prev.armed) {
-      this.say("Ready. Start squatting.", { key: "ready", cooldownMs: 0 });
+      this.say(ex.readyPrompt, { key: "ready", cooldownMs: 0 });
     }
 
     if (s.viewWarning && !prev?.viewWarning) {
-      this.say(SPOKEN[s.viewWarning.code] ?? s.viewWarning.message, { key: s.viewWarning.code });
+      this.say(VIEW_SPOKEN[s.viewWarning.code] ?? s.viewWarning.message, { key: s.viewWarning.code });
     }
   }
 
   private onRep(rep: RepEvent): void {
     // The count is the most important thing: say it now, cutting off anything else.
     this.say(String(rep.repNumber), { interrupt: true, cooldownMs: 0 });
-    for (const f of rep.formFlags) {
-      if (SPOKEN_REP_FLAGS.has(f.code)) this.say(SPOKEN[f.code] ?? f.message, { key: f.code });
-    }
+    // One measured tip at most, so the next count isn't delayed. Consistency
+    // flags (estimated) stay on screen only.
+    const ex = getExercise(rep.exercise);
+    const tip = rep.formFlags.find((f) => f.source === "measured" && ex.spoken[f.code]);
+    if (tip) this.say(ex.spoken[tip.code]!, { key: tip.code });
+  }
+
+  private spoken(flag: FormFlag): string {
+    const ex = getExercise(this.prev?.exercise ?? "squat");
+    return spokenFor(ex, flag.code) ?? flag.message;
   }
 
   private say(text: string, opts: { key?: string; interrupt?: boolean; cooldownMs?: number } = {}): void {

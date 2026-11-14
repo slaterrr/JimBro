@@ -3,7 +3,8 @@
  * Not part of the product UI; it exists to check tracking on a real camera.
  */
 
-import { SquatTracker, VoiceCoach, type TrackerState } from "../index";
+import type { ExerciseId } from "../../../../shared/types";
+import { EXERCISE_IDS, ExerciseTracker, VoiceCoach, getExercise, type TrackerState } from "../index";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const video = $<HTMLVideoElement>("video");
@@ -11,31 +12,124 @@ const canvas = $<HTMLCanvasElement>("overlay");
 const startBtn = $<HTMLButtonElement>("start");
 const pauseBtn = $<HTMLButtonElement>("pause");
 const stopBtn = $<HTMLButtonElement>("stop");
+const voiceBtn = $<HTMLButtonElement>("voice");
+const picker = $("picker");
 const msg = $("msg");
 const log = $("log");
+const peakInput = $<HTMLInputElement>("peak");
+const progressInput = $<HTMLInputElement>("progress");
 
-const voiceBtn = $<HTMLButtonElement>("voice");
+// ---- per-viewer settings (browser storage; optional) ----------------------
+const store = {
+  get(key: string): string | null {
+    try {
+      return localStorage.getItem(`jimbro.cv.v3.${key}`);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string): void {
+    try {
+      localStorage.setItem(`jimbro.cv.v3.${key}`, value);
+    } catch {
+      /* storage unavailable */
+    }
+  },
+};
 
-const tracker = new SquatTracker(video, canvas);
+const savedExercise = store.get("exercise") as ExerciseId | null;
+const tracker = new ExerciseTracker(video, canvas, {
+  exercise: savedExercise && EXERCISE_IDS.includes(savedExercise) ? savedExercise : "squat",
+});
 const coach = new VoiceCoach(tracker);
 let coachAttached = false;
 
-function renderVoiceButton() {
-  if (!coach.supported) {
-    voiceBtn.disabled = true;
-    voiceBtn.textContent = "Voice not supported";
-    return;
-  }
-  voiceBtn.textContent = coach.isEnabled ? "🔊 Voice on" : "🔇 Voice off";
-  voiceBtn.setAttribute("aria-pressed", String(coach.isEnabled));
+// ---- exercise picker -----------------------------------------------------
+const pickerButtons = new Map<ExerciseId, HTMLButtonElement>();
+for (const id of EXERCISE_IDS) {
+  const b = document.createElement("button");
+  b.textContent = getExercise(id).name;
+  b.addEventListener("click", () => selectExercise(id));
+  picker.append(b);
+  pickerButtons.set(id, b);
 }
-renderVoiceButton();
-voiceBtn.addEventListener("click", () => {
-  coach.setEnabled(!coach.isEnabled);
-  renderVoiceButton();
+
+function selectExercise(id: ExerciseId) {
+  const s = tracker.getState().status;
+  if (s === "tracking" || s === "paused") return; // end the session first
+  tracker.setExercise(id);
+  store.set("exercise", id);
+  log.textContent = "";
+  setupExerciseUi();
+}
+
+function setupExerciseUi() {
+  const ex = tracker.getExercise();
+  for (const [id, b] of pickerButtons) b.setAttribute("aria-pressed", String(id === ex.id));
+  $("setup").textContent = ex.setupInstructions;
+
+  // Full-range line slider. Bounds keep the counter config valid.
+  const c = tracker.getCounterConfig();
+  const dec = c.direction === "decreasing";
+  const joint = ex.primaryJoint;
+  $("angleLabel").innerHTML = dec
+    ? `Full-range line: a rep counts only if your ${joint} bends <strong>below</strong> this`
+    : `Full-range line: a rep counts only if your ${joint} straightens <strong>above</strong> this`;
+  if (dec) {
+    peakInput.min = String(Math.max(20, c.peakAngle - 35));
+    peakInput.max = String(Math.min(c.partialAngle, c.leaveStartAngle - c.hysteresis) - 1);
+  } else {
+    peakInput.min = String(Math.max(c.partialAngle, c.leaveStartAngle + c.hysteresis) + 1);
+    peakInput.max = String(Math.min(178, c.peakAngle + 20));
+  }
+  const savedPeak = Number(store.get(`${ex.id}.peak`));
+  applyPeak(savedPeak >= Number(peakInput.min) && savedPeak <= Number(peakInput.max) ? savedPeak : c.peakAngle);
+
+  // Progress slider (hidden for exercises without one).
+  $("progressBox").hidden = !ex.progress;
+  if (ex.progress) {
+    $("progressLabel").textContent = `…and ${ex.progress.label.toLowerCase()} must reach at least this (${ex.progress.hint})`;
+    const savedPct = Number(store.get(`${ex.id}.progress`));
+    applyProgress(savedPct >= 10 && savedPct <= 95 ? savedPct : Math.round(c.minProgress * 100));
+  }
+  $("guide").textContent = `Guide: ${ex.calibrationGuide}`;
+  attemptPeak = null;
+  $("curPeak").textContent = "–";
+  render(tracker.getState());
+}
+
+function applyPeak(deg: number) {
+  try {
+    tracker.setCounterConfig({ peakAngle: deg });
+  } catch {
+    deg = tracker.getCounterConfig().peakAngle;
+  }
+  peakInput.value = String(deg);
+  $("peakVal").textContent = `${deg}°`;
+}
+
+function applyProgress(pct: number) {
+  try {
+    tracker.setCounterConfig({ minProgress: pct / 100 });
+  } catch {
+    pct = Math.round(tracker.getCounterConfig().minProgress * 100);
+  }
+  progressInput.value = String(pct);
+  $("progressVal").textContent = `${pct}%`;
+}
+
+peakInput.addEventListener("input", () => {
+  applyPeak(Number(peakInput.value));
+  store.set(`${tracker.getExercise().id}.peak`, peakInput.value);
+});
+progressInput.addEventListener("input", () => {
+  applyProgress(Number(progressInput.value));
+  store.set(`${tracker.getExercise().id}.progress`, progressInput.value);
 });
 
+// ---- live readouts -------------------------------------------------------
 const fmt = (v: number | null, unit: string) => (v === null ? "–" : `${Math.round(v)}${unit}`);
+const pct = (v: number | null) => (v === null ? "–" : `${Math.max(0, Math.round(v * 100))}%`);
 const tag = (source: "measured" | "estimated") =>
   `<span class="tag ${source === "measured" ? "m" : "e"}">${source}</span>`;
 const row = (label: string, value: string, source: "measured" | "estimated") =>
@@ -46,131 +140,87 @@ function addLog(line: string) {
 }
 
 function render(s: TrackerState) {
+  const ex = getExercise(s.exercise);
+  const c = tracker.getCounterConfig();
   $("reps").textContent = String(s.repCount);
   $("status").textContent =
     s.status === "tracking"
-      ? s.landmarksVisible
-        ? s.armed
-          ? `phase: ${s.phase}`
-          : "Stand up straight to start counting"
-        : "Can't see your hips, knees and ankles"
+      ? s.positionHint ??
+        (s.landmarksVisible ? (s.armed ? `phase: ${s.phaseLabel}` : ex.startPrompt) : "Can't see the joints I need")
       : s.status;
-  $("metrics").innerHTML = [
-    row("Knee angle", fmt(s.liveAngles.knee, "°"), "measured"),
-    row("Hip angle", fmt(s.liveAngles.hip, "°"), "measured"),
-    row(
-      `Hips dropped (need ${Math.round(tracker.getCounterConfig().minHipDrop * 100)}%)`,
-      s.liveHipDrop === null ? "–" : `${Math.max(0, Math.round(s.liveHipDrop * 100))}%`,
-      "measured",
-    ),
+
+  const rows = [row(`${ex.primaryJoint === "knee" ? "Knee" : "Elbow"} angle`, fmt(s.liveAngle, "°"), "measured")];
+  if (ex.progress) {
+    rows.push(row(`${ex.progress.label} (need ${Math.round(c.minProgress * 100)}%)`, pct(s.liveProgress), "measured"));
+  }
+  rows.push(
     row("Last rep time", s.lastRep ? `${(s.lastRep.durationMs / 1000).toFixed(2)} s` : "–", "measured"),
-    row("Last rep depth", s.lastRep ? fmt(s.lastRep.minKneeAngle.value, "°") : "–", "measured"),
+    row("Last rep range", s.lastRep ? fmt(s.lastRep.peakAngle.value, "°") : "–", "measured"),
     row(
-      "Camera view",
+      `Camera view (want ${ex.cameraView})`,
       `${s.cameraView.view}${s.cameraView.confidence ? ` (${Math.round(s.cameraView.confidence * 100)}%)` : ""}`,
       "estimated",
     ),
-  ].join("");
+  );
+  $("metrics").innerHTML = rows.join("");
 
   msg.textContent = s.error?.message ?? s.viewWarning?.message ?? s.lastRejection?.message ?? "";
-  startBtn.disabled = s.status === "tracking" || s.status === "starting-camera" || s.status === "loading-model";
+  const busy = s.status === "tracking" || s.status === "starting-camera" || s.status === "loading-model";
+  startBtn.disabled = busy;
   startBtn.textContent = s.status === "paused" ? "Resume" : "Start";
   pauseBtn.disabled = s.status !== "tracking";
   stopBtn.disabled = s.status !== "tracking" && s.status !== "paused";
+  const locked = busy || s.status === "paused";
+  for (const b of pickerButtons.values()) b.disabled = locked;
 }
+
+// Furthest angle of the current (or last) attempt, held until the next attempt
+// starts. Written straight to the DOM; no throttled state needed.
+let attemptPeak: number | null = null;
+let prevPhase = "start";
+let lastShown = 0;
+tracker.onFrame((f) => {
+  if (f.primaryAngle !== null && f.phase !== "start") {
+    const further = tracker.getCounterConfig().direction === "decreasing" ? Math.min : Math.max;
+    attemptPeak = prevPhase === "start" || attemptPeak === null ? f.primaryAngle : further(attemptPeak, f.primaryAngle);
+  }
+  prevPhase = f.phase;
+  if (f.timestamp - lastShown > 100) {
+    lastShown = f.timestamp;
+    $("curPeak").textContent = attemptPeak === null ? "–" : `${Math.round(attemptPeak)}°`;
+  }
+});
 
 tracker.subscribe(render);
 tracker.onRep((r) =>
   addLog(
-    `✓ rep ${r.repNumber}: lowest ${Math.round(r.minKneeAngle.value)}°, ${(r.durationMs / 1000).toFixed(2)}s` +
+    `✓ rep ${r.repNumber}: ${Math.round(r.peakAngle.value)}°, ${(r.durationMs / 1000).toFixed(2)}s` +
       (r.formFlags.length ? `  [${r.formFlags.map((f) => `${f.code}/${f.source}`).join(", ")}]` : ""),
   ),
 );
 tracker.onRejected((f) => {
   const a = tracker.getState().lastAttempt;
-  const low = a?.minKneeAngle != null ? `lowest ${Math.round(a.minKneeAngle)}°, ` : "";
-  addLog(`✗ not counted: ${low}${f.code}`);
+  const angle = a?.peakAngle != null ? `${Math.round(a.peakAngle)}°, ` : "";
+  const prog = a?.progress != null ? `${pct(a.progress)}, ` : "";
+  addLog(`✗ not counted: ${angle}${prog}${f.code}`);
 });
 
-// ---- depth calibration ---------------------------------------------------
-const depthInput = $<HTMLInputElement>("depth");
-const depthVal = $("depthVal");
-const curMin = $("curMin");
-// v2: defaults tightened to near-parallel; ignore values saved under the old key.
-const DEPTH_KEY = "jimbro.cv.depthAngle.v2";
-const HIP_KEY = "jimbro.cv.minHipDrop.v2";
-const hipInput = $<HTMLInputElement>("hipdrop");
-const hipVal = $("hipVal");
-
-function applyHipDrop(pct: number) {
-  try {
-    tracker.setCounterConfig({ minHipDrop: pct / 100 });
-    hipInput.value = String(pct);
-    hipVal.textContent = `${pct}%`;
-  } catch {
-    hipInput.value = String(Math.round(tracker.getCounterConfig().minHipDrop * 100));
+// ---- voice ---------------------------------------------------------------
+function renderVoiceButton() {
+  if (!coach.supported) {
+    voiceBtn.disabled = true;
+    voiceBtn.textContent = "Voice not supported";
+    return;
   }
+  voiceBtn.textContent = coach.isEnabled ? "🔊 Voice on" : "🔇 Voice off";
+  voiceBtn.setAttribute("aria-pressed", String(coach.isEnabled));
 }
-applyHipDrop(Math.round(tracker.getCounterConfig().minHipDrop * 100));
-try {
-  const saved = Number(localStorage.getItem(HIP_KEY));
-  if (saved >= 10 && saved <= 70) applyHipDrop(saved);
-} catch {
-  /* storage unavailable: keep the default */
-}
-hipInput.addEventListener("input", () => {
-  const pct = Number(hipInput.value);
-  applyHipDrop(pct);
-  try {
-    localStorage.setItem(HIP_KEY, String(pct));
-  } catch {
-    /* ignore */
-  }
+voiceBtn.addEventListener("click", () => {
+  coach.setEnabled(!coach.isEnabled);
+  renderVoiceButton();
 });
 
-function applyDepth(deg: number) {
-  try {
-    tracker.setCounterConfig({ depthAngle: deg });
-    depthInput.value = String(deg);
-    depthVal.textContent = `${deg}°`;
-  } catch {
-    depthInput.value = String(tracker.getCounterConfig().depthAngle);
-  }
-}
-applyDepth(tracker.getCounterConfig().depthAngle);
-try {
-  const saved = Number(localStorage.getItem(DEPTH_KEY));
-  if (saved >= 70 && saved <= 125) applyDepth(saved);
-} catch {
-  /* storage unavailable: keep the default */
-}
-depthInput.addEventListener("input", () => {
-  const deg = Number(depthInput.value);
-  applyDepth(deg);
-  try {
-    localStorage.setItem(DEPTH_KEY, String(deg));
-  } catch {
-    /* ignore */
-  }
-});
-
-// Lowest knee angle of the current (or last) descent, including shallow dips
-// the counter ignores. Held until the next descent starts. Written straight to
-// the DOM; no throttled state needed.
-let attemptMin: number | null = null;
-let prevPhase = "standing";
-let lastShown = 0;
-tracker.onFrame((f) => {
-  if (f.kneeAngle !== null && f.phase !== "standing") {
-    attemptMin = prevPhase === "standing" || attemptMin === null ? f.kneeAngle : Math.min(attemptMin, f.kneeAngle);
-  }
-  prevPhase = f.phase;
-  if (f.timestamp - lastShown > 100) {
-    lastShown = f.timestamp;
-    curMin.textContent = attemptMin === null ? "–" : `${Math.round(attemptMin)}°`;
-  }
-});
-
+// ---- controls ------------------------------------------------------------
 startBtn.addEventListener("click", () => {
   // Browsers only allow speech after a click, so the coach starts here.
   if (!coachAttached) {
@@ -186,3 +236,6 @@ stopBtn.addEventListener("click", () => {
   addLog(`session ended:\n${JSON.stringify(session.summary, null, 2)}`);
   console.info("WorkoutSession", session);
 });
+
+renderVoiceButton();
+setupExerciseUi();
