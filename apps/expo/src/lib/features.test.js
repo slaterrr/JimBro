@@ -121,6 +121,9 @@ const WIRING = {
     [/estimateEffort\(/, 'effort estimate in the set report'],
     [/variants/, 'push-up rep types in the set report'],
   ],
+  'AppState.js#safety': [
+    [/if \(ready && canSave\)/, 'never saves over stored workouts after a failed load'],
+  ],
   'components/Mission.js': [
     [/recommendNext\(/, 'mission next-set recommendation'],
     [/>Use it</, 'recommendation needs approval (Use it)'],
