@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from jimbro.motion import joint_angle
+from backend.jimbro.motion import joint_angle
 
 
 @pytest.mark.parametrize(
