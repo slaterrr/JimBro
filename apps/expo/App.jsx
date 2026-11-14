@@ -9,6 +9,7 @@ import { CoachScreen } from './src/screens/CoachScreen.js';
 import { HomeScreen } from './src/screens/HomeScreen.js';
 import { MusclesScreen } from './src/screens/MusclesScreen.js';
 import { ProgressScreen } from './src/screens/ProgressScreen.js';
+import { FRAME_MAX, topInset } from './src/lib/layout.js';
 import { T } from './src/theme.js';
 
 function Shell() {
@@ -27,7 +28,9 @@ function Shell() {
   const openLog = (initial = null, camera = null) => setLog({ initial, camera });
 
   return (
-    <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 50 }}>
+    // One phone-width column on every screen: full width on phones, centered on tablets and desktop web.
+    <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center' }}>
+    <View style={{ flex: 1, width: '100%', maxWidth: FRAME_MAX, paddingTop: topInset(Platform.OS, StatusBar.currentHeight) }}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       {notice ? <Text style={{ color: T.red, paddingHorizontal: 20 }}>{notice}</Text> : null}
       <View style={{ flex: 1 }}>
@@ -45,6 +48,7 @@ function Shell() {
       <LogSetSheet visible={Boolean(log)} initial={log?.initial} camera={log?.camera} onClose={() => setLog(null)} />
       <ActivitySheet visible={activity} onClose={() => setActivity(false)} openSetup={() => { setActivity(false); setSetup(true); }} />
       <Onboarding visible={firstRun || setup} onClose={() => setSetup(false)} />
+    </View>
     </View>
   );
 }

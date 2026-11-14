@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { useApp } from '../AppState.js';
@@ -12,6 +12,7 @@ import { liveCue } from '../lib/cues.js';
 import { estimateEffort } from '../lib/effort.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
+import { stageHeight } from '../lib/layout.js';
 import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { switchPlan } from '../lib/switchExercise.js';
@@ -31,6 +32,7 @@ export function CoachScreen({ openLog }) {
   const { active, settings, voice: jim, mission, stepMission } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
+  const stageH = stageHeight(useWindowDimensions().height); // fits any screen; controls stay visible
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -175,7 +177,7 @@ export function CoachScreen({ openLog }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <Header live={ready && view.tracking === 'ok'} />
-      <View style={st.stage}>
+      <View style={[st.stage, { height: stageH }]}>
         <WebView
           ref={web}
           source={{ html, baseUrl: 'https://localhost/' }}
@@ -299,10 +301,10 @@ function Header({ live }) {
 }
 
 const st = StyleSheet.create({
-  stage: { height: 520, borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: T.border },
+  stage: { borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: T.border },
   glass: { position: 'absolute', backgroundColor: 'rgba(16,13,22,0.78)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: R.md, padding: 14 },
-  exerciseBox: { top: 12, left: 12, minWidth: 160 },
-  repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 110 },
+  exerciseBox: { top: 12, left: 12, maxWidth: '55%' },
+  repsBox: { top: 12, right: 12, alignItems: 'flex-start', minWidth: 96 },
   cue: { left: 12, right: 12, bottom: 12 },
   caught: { position: 'absolute', top: 110, alignSelf: 'center', backgroundColor: 'rgba(16,13,22,0.88)', borderWidth: 2, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 8 },
   suggest: { top: 160, left: 12, right: 12 },
