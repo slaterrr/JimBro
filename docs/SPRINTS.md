@@ -9,7 +9,7 @@ PR: `chore/sprint-0-tdd-pr-foundation`
 - Create Python package, API health endpoint and pure joint-angle function with unit tests.
 - Add Ruff formatting/lint, mypy, pytest + coverage, mutation audit, PR template, draft-PR workflow, issue backlog.
 - Test first: 90-degree / 0-degree / 180-degree / translated angles; non-finite and overlapping landmark rejection.
-- Done: `ruff check backend`, `ruff format --check backend`, `mypy backend/jimbro`, `pytest --cov=jimbro --cov-fail-under=90` pass.
+- Done: `ruff check backend`, `ruff format --check backend`, `mypy backend/jimbro`, `pytest --cov=backend/jimbro --cov-fail-under=90` pass.
 
 ## S1 Phone camera and pose overlay — 2h
 PR: `feat/s1-camera-pose`
