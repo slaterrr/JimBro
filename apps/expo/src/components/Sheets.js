@@ -42,6 +42,8 @@ export function RestTimer({ seconds, onDone }) {
  * Log one set. `initial` can prefill exercise/reps/weight; `camera` attaches counted reps
  * ({ movement, reps: reps_detail[] }) when the rep count is left unchanged.
  */
+const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', implausible_motion: 'tracking jump' };
+
 /** Evidence-backed post-set camera report. */
 export function SetReportCard({ report }) {
   const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
@@ -54,7 +56,7 @@ export function SetReportCard({ report }) {
         {report.trackingPct !== null ? ` · tracking ${report.trackingPct}%` : ''}
       </Text>
       {Object.entries(report.issues).length ? (
-        <Text style={type.small}>Not counted: {Object.entries(report.issues).map(([k, n]) => `${n}× ${k === 'arm_swing' ? 'arm swing' : 'tracking uncertain'}`).join(', ')}</Text>
+        <Text style={type.small}>Not counted: {Object.entries(report.issues).map(([k, n]) => `${n}× ${ISSUE_LABEL[k] ?? 'tracking uncertain'}`).join(', ')}</Text>
       ) : null}
       {report.repDurationsMs.length ? <Text style={type.small}>Rep times: {report.repDurationsMs.map(sec).join(' · ')}</Text> : null}
       {report.tempo ? <Text style={type.small}>Tempo: first 3 avg {sec(report.tempo.firstMs)} → last 3 avg {sec(report.tempo.lastMs)} ({report.tempo.changePct > 0 ? '+' : ''}{report.tempo.changePct}%)</Text> : null}

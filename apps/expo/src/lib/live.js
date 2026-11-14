@@ -1,9 +1,25 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { assessTracking, curlUpperArmSwing, movementAngle } from './angles.js';
+import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle } from './angles.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
 const MAX_CURL_SWING_DEG = 50; // conservative initial heuristic; validate on real videos
+// Hypothesis under test: real joints move < ~3 torso lengths/s even on fast reps; a landmark
+// that jumps faster than this was re-placed by the model, not moved by the body.
+const MAX_JOINT_SPEED_TORSO_PER_S = 6;
+const MAX_SPEED_GAP_MS = 300;
+
+/** Fastest tracked joint between two frames, in torso lengths per second. */
+export function jointSpeed(prev, pose, t, movement, side) {
+  if (!prev || t - prev.t <= 0 || t - prev.t > MAX_SPEED_GAP_MS) return 0;
+  const idx = (movement === 'squat' ? LEG : ARM)[side];
+  const sh = pose[side === 'left' ? 11 : 12];
+  const hip = pose[side === 'left' ? 23 : 24];
+  const torso = Math.hypot(sh.x - hip.x, sh.y - hip.y);
+  if (!(torso > 0.01)) return Infinity;
+  const dist = Math.max(...idx.map((i) => Math.hypot(pose[i].x - prev.pose[i].x, pose[i].y - prev.pose[i].y)));
+  return dist / torso / ((t - prev.t) / 1000);
+}
 
 export class LiveSession {
   constructor(movement) {
@@ -34,6 +50,7 @@ export class LiveSession {
   frame(t, pose) {
     const tracking = assessTracking(pose, 0.5, this.movement, this.side);
     if (tracking.status !== 'ok') {
+      this._prev = null;
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
     }
@@ -42,6 +59,12 @@ export class LiveSession {
     if (!m) {
       this.counter.interrupt();
       return this.result(null, tracking, null, 'tracking');
+    }
+    const speed = jointSpeed(this._prev, pose, t, this.movement, this.side);
+    this._prev = { t, pose };
+    if (speed > MAX_JOINT_SPEED_TORSO_PER_S) {
+      this.counter.interrupt();
+      return this.result(null, tracking, m.angle, 'implausible_motion');
     }
     if (this.movement === 'curl') {
       const swing = curlUpperArmSwing(pose, this.side);
@@ -64,6 +87,7 @@ export class LiveSession {
   /** Changing the physical camera may mirror sides; preserve completed reps. */
   reacquireTracking() {
     this.counter.interrupt();
+    this._prev = null;
     this.side = null;
   }
 
@@ -72,6 +96,7 @@ export class LiveSession {
     this.reps = [];
     this.side = null;
     this._q = null;
+    this._prev = null;
   }
 
   /** Reps in the shape a logged set stores. */
