@@ -15,7 +15,7 @@ describe('parseIntent: log', () => {
     assert.equal(r.type, 'log');
     assert.deepEqual(r.sets, [{ exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }]);
     assert.deepEqual(r.set, r.sets[0]);
-    assert.equal(r.summary, 'Log 10 × curl at 20 lb?');
+    assert.equal(r.summary, 'Log 10 × bicep curl at 20 lb?');
   });
   it('expands "3 sets of 5"', () => {
     const r = parseIntent('did 3 sets of 5 squats at 225', ctx);
@@ -58,7 +58,7 @@ describe('parseIntent: correct', () => {
     const r = parseIntent('that last set was bench not squat', ctx);
     assert.deepEqual(r.target, { setId: 'a2' });
     assert.deepEqual(r.changes, { exercise: 'bench' });
-    assert.equal(r.summary, 'Change your last squat (5 × 225 lb) to bench 5 × 225 lb?');
+    assert.equal(r.summary, 'Change your last squat (5 × 225 lb) to bench press 5 × 225 lb?');
   });
   it('asks when a bare number is ambiguous', () => {
     assert.equal(parseIntent('actually that was 8', ctx).type, 'clarify');

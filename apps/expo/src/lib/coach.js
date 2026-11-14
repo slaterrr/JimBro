@@ -37,7 +37,7 @@ export function suggestNext(history) {
   return { exercise: last.exercise, weight: Math.round(weight * 100) / 100, unit: last.unit, reps, rationale: why };
 }
 
-const SAFETY = /\b(sharp pain|chest pain|pain|hurts?|injur(ed|y)|dizz(y|iness)|faint|numb|can'?t breathe|pop(ped)?)\b/i;
+export const SAFETY = /\b(sharp pain|chest pain|pain|hurts?|injur(ed|y)|dizz(y|iness)|faint|numb|can'?t breathe|pop(ped)?)\b/i;
 export const SAFETY_TEXT =
   'Stop the set now. Pain, dizziness or numbness is a signal to rest, not push through. ' +
   'If it is sharp, persists, or you have chest pain or trouble breathing, get medical help. ' +
