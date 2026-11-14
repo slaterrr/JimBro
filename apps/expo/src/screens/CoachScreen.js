@@ -31,7 +31,7 @@ export function CoachScreen({ openLog }) {
   const [facing, setFacing] = useState('user');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
-  const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null });
+  const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null });
   const session = useRef(new LiveSession(movement));
   const web = useRef(null);
   const html = useMemo(() => poseHtml({ facing: 'user' }), []);
@@ -39,10 +39,15 @@ export function CoachScreen({ openLog }) {
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
   const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
   const cue = liveCue({ movement, count: view.count, target, lastRep: view.lastRep, tracking: view.tracking });
+  const cameraGuidance = view.issue === 'arm_swing'
+    ? 'Upper arm moved too far — rep not counted. Keep your elbow near your side.'
+    : view.issue === 'tracking'
+      ? 'Tracking uncertain — rep paused. Keep your body and working arm or leg in frame.'
+      : null;
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
-    setView({ count: 0, tracking: 'lost', lastRep: null });
+    setView({ count: 0, tracking: 'lost', lastRep: null, issue: null });
   };
   useEffect(() => {
     const p = plannedFor(active, movement);
@@ -67,8 +72,8 @@ export function CoachScreen({ openLog }) {
     const out = session.current.frame(m.t, m.pose);
     const lastRep = session.current.reps[session.current.reps.length - 1] ?? null;
     setView((v) => {
-      if (v.count === out.count && v.tracking === out.tracking.status) return v;
-      return { count: out.count, tracking: out.tracking.status, lastRep };
+      if (v.count === out.count && v.tracking === out.tracking.status && v.issue === out.issue) return v;
+      return { count: out.count, tracking: out.tracking.status, lastRep, issue: out.issue };
     });
     if (out.rep && voice) {
       Speech.stop();
@@ -83,6 +88,7 @@ export function CoachScreen({ openLog }) {
   };
   const flip = () => {
     const f = facing === 'user' ? 'environment' : 'user';
+    session.current.reacquireTracking();
     setFacing(f);
     web.current?.postMessage(JSON.stringify({ type: 'facing', facing: f }));
   };
@@ -134,7 +140,7 @@ export function CoachScreen({ openLog }) {
             <JimBars height={16} />
             <Text style={{ color: T.violetText, fontWeight: '700', fontSize: 16 }}>Jim</Text>
           </View>
-          <Text style={{ color: T.text, fontSize: 16, lineHeight: 22 }}>{error ?? (ready ? cue : 'Loading pose model…')}</Text>
+          <Text style={{ color: T.text, fontSize: 16, lineHeight: 22 }}>{error ?? (cameraGuidance || (ready ? cue : 'Loading pose model…'))}</Text>
         </View>
       </View>
 
