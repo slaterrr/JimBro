@@ -81,3 +81,34 @@ jobs:
         run: npm ci && npm test
       - name: Bundle for Android and iOS
         run: npx expo export --platform android --platform ios --output-dir /tmp/expo-dist
+
+  # Renders every screen in headless Chrome at 320px and 390px with demo data. Fails on crashes,
+  # console errors, overlapping / clipped / off-screen / covered / invisible buttons, tiny tap
+  # targets, and buttons or dropdowns that stop responding. Screenshots are uploaded every run.
+  ui-smoke:
+    name: ui-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/expo/package-lock.json
+      - run: npm ci
+      - name: UI smoke (web export + headless Chrome)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          E2E_OUT: e2e-artifacts
+        run: npm run test:ui
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: apps/expo/e2e-artifacts
+          retention-days: 14
