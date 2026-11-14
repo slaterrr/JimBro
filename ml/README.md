@@ -6,6 +6,21 @@ no ML runtime. The feature code (`frontend/src/cv/ml/rep_features.ts`) and the
 signal filter are imported straight from the app, so training and the app
 compute features identically.
 
+## Reviewer-labelled characteristics (your own data)
+
+Export a dataset from the validation lab (`/cv-lab.html` → "Export dataset"),
+then:
+
+```bash
+npm --prefix frontend run train:traits -- path/to/jimbro-reps.jsonl
+```
+
+Each (exercise, label) is trained only if two or more reviewers agreed
+(κ ≥ 0.6), with 10+ people and 30+ reps per class; otherwise it's refused
+with the reason. Results go to `ml/data/trait-models/` (gitignored). Nothing
+is shipped automatically. See `docs/cv/reliability-report.md` for the release
+bar.
+
 ## UI-PRMD squat movement-quality model
 
 Results and caveats: [uiprmd/REPORT.md](uiprmd/REPORT.md). In short: AUC 0.88

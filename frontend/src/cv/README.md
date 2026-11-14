@@ -4,6 +4,13 @@ In-browser rep counting and form feedback with MediaPipe Pose Landmarker, from
 the live camera or a prerecorded video. Video never leaves the device.
 Supported exercises: **squat, deadlift, lunge, push-up, bicep curl, shoulder press**.
 
+**Real-world validation:** `/cv-lab.html` (internal tool) extracts landmarks
+from videos, lets independent reviewers annotate reps, front legs/arms,
+reference angles and technique characteristics, evaluates the tracker against
+them, and exports a training dataset. What's reliable, what isn't, and the
+evidence needed before showing warnings:
+[docs/cv/reliability-report.md](../../../docs/cv/reliability-report.md).
+
 Per-exercise coverage, dataset gaps and the data-collection plan are in
 [docs/cv/exercise-coverage.md](../../../docs/cv/exercise-coverage.md). The plan for datasets, a learned form classifier and accuracy targets is in
 [docs/cv/form-analysis-ml-plan.md](../../../docs/cv/form-analysis-ml-plan.md); the
@@ -242,6 +249,10 @@ are shown, not spoken.
 | `pose_detection.ts` | Camera, model loading (GPU → CPU fallback), detection loop, side picking, overlay drawing |
 | `angle_calculator.ts` | `calculateAngle`, `calculateAngle3D`, `AngleSmoother` (legacy EMA) |
 | `signal_filter.ts` | `SignalFilter`: One Euro smoothing, gap bridging, glitch rejection |
+| `validation/*.ts` | Recording/annotation format, headless replay, accuracy metrics, reliability verdicts, dataset export, experimental exercise recognition |
+| `lab/lab.ts` + `cv-lab.html` | Validation lab page |
+| `leg_roles.ts` | Lunge front/back leg identification |
+| `ml/trait_training.ts`, `ml/logistic.ts` | Label-gated training for reviewer-labelled characteristics |
 | `ml/rep_features.ts` | Rep → feature vector, shared with the offline training code |
 | `ml/quality_model.ts`, `ml/models/*.json` | Learned movement-quality model (logistic regression, JSON weights) |
 | `voice_coach.ts` | `VoiceCoach` |
