@@ -15,6 +15,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.responses import FileResponse
 
 from .db import Conflict, Database, NotFound
 from .live import LiveSession
@@ -31,6 +32,7 @@ from .schemas import (
 )
 
 DEFAULT_DB = Path(os.environ.get("JIMBRO_DB", "data/jimbro.db"))
+DEFAULT_STATIC = Path(os.environ.get("JIMBRO_STATIC", "apps/mobile/dist"))
 
 
 def get_db(request: Request) -> Database:
@@ -95,7 +97,9 @@ def complete_set(set_id: str, body: SetIn, db: DB, who: Athlete, response: Respo
     return record
 
 
-def create_app(db_path: Path | str = DEFAULT_DB) -> FastAPI:
+def create_app(
+    db_path: Path | str = DEFAULT_DB, static_dir: Path | None = DEFAULT_STATIC
+) -> FastAPI:
     app = FastAPI(title="JimBro", version="0.2.0")
     app.state.db = Database(db_path)
 
@@ -120,7 +124,24 @@ def create_app(db_path: Path | str = DEFAULT_DB) -> FastAPI:
             return
 
     app.include_router(router)
+    if static_dir is not None and (static_dir / "index.html").is_file():
+        mount_pwa(app, static_dir)
     return app
+
+
+def mount_pwa(app: FastAPI, static_dir: Path) -> None:
+    """Serve built files, falling back to index.html for client-side routes."""
+    root = static_dir.resolve()
+    index = root / "index.html"
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def pwa(path: str) -> FileResponse:
+        if path.startswith("v1/"):
+            raise HTTPException(404)
+        candidate = (root / path).resolve()
+        if candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+        return FileResponse(index)
 
 
 app = create_app()
