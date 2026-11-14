@@ -1,6 +1,6 @@
 // Web bridge for the pose page: messages arrive by window.postMessage instead of the React Native
 // WebView bridge. Only JSON strings with the pose page's message types are passed on.
-const TYPES = new Set(['ready', 'frame', 'error']);
+const TYPES = new Set(['ready', 'frame', 'error', 'perf']);
 
 export function isPoseMessage(data) {
   if (typeof data !== 'string') return false;

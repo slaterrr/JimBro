@@ -11,6 +11,7 @@ import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../compo
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
 import { estimateEffort } from '../lib/effort.js';
+import { perfLabel, PerfTracker } from '../lib/cameraPerf.js';
 import { liveSlowdownCue } from '../lib/perfCoach.js';
 import { repMetrics } from '../lib/performance.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
@@ -70,6 +71,8 @@ export function CoachScreen({ openLog }) {
   const perf = useMemo(() => repMetrics(movement, session.current.repsDetail()), [view.count, movement]);
   const lastLiftS = perf.reps.length ? perf.reps[perf.reps.length - 1].lift_ms / 1000 : null;
   const slowCued = useRef(false);
+  const speed = useRef(new PerfTracker({ targetFps: 20 }));
+  const [speedText, setSpeedText] = useState(null);
 
   const resetSet = (m = movement) => {
     session.current = new LiveSession(m);
@@ -101,6 +104,11 @@ export function CoachScreen({ openLog }) {
     let m;
     try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
     if (m.type === 'ready') setReady(true);
+    if (m.type === 'perf') {
+      speed.current.add(m); // measured on this device by the pose page
+      setSpeedText(perfLabel(m));
+      return;
+    }
     if (m.type === 'error') {
       setError(m.kind === 'camera'
         ? 'The camera could not start. Allow camera access for Expo Go in Settings.'
@@ -284,7 +292,7 @@ export function CoachScreen({ openLog }) {
         <IconButton icon="camera-flip-outline" label="Flip camera" onPress={flip} />
       </View>
       <Text style={[type.small, { textAlign: 'center', marginTop: 12 }]}>
-        Pose tracking runs on this phone. Bench, deadlift and pull-ups: log them with + on Home.
+        Pose tracking runs on this device{speedText ? ` (${speedText})` : ''}. Bench press and lunges: log them with + on Home.
       </Text>
 
       <Sheet visible={setup} onClose={() => setSetup(false)} title="This set">

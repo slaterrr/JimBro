@@ -69,7 +69,9 @@ async function main() {
     const now = performance.now();
     if (v.readyState >= 2 && now - last >= ${Math.round(1000 / fps)}) {
       last = now;
+      const t0 = performance.now();
       const res = landmarker.detectForVideo(v, now);
+      perfSample(performance.now() - t0, now);
       const lm = res.landmarks && res.landmarks[0];
       const pose = lm ? lm.map((p) => ({ x: +p.x.toFixed(4), y: +p.y.toFixed(4), visibility: +(p.visibility ?? 0).toFixed(3) })) : null;
       const arms = pose ? Math.max(Math.min(pose[11].visibility, pose[13].visibility, pose[15].visibility), Math.min(pose[12].visibility, pose[14].visibility, pose[16].visibility)) : 0;
@@ -79,6 +81,28 @@ async function main() {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+
+// Speed readout measured on this device: effective fps, mean and p95 inference time, and the share
+// of target frames missed, posted every 2 s. Numbers only.
+let perfTimes = [], perfFrames = 0, perfStart = 0;
+function perfSample(ms, now) {
+  if (!perfStart) perfStart = now;
+  perfTimes.push(ms);
+  perfFrames += 1;
+  const span = now - perfStart;
+  if (span >= 2000) {
+    const sorted = perfTimes.slice().sort((a, b) => a - b);
+    const fps = (perfFrames * 1000) / span;
+    const target = ${fps};
+    post({
+      type: 'perf', fps: +fps.toFixed(1),
+      inferenceMs: +(perfTimes.reduce((a, b) => a + b, 0) / perfTimes.length).toFixed(1),
+      p95Ms: +sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))].toFixed(1),
+      droppedPct: Math.max(0, Math.round(100 * (1 - fps / target))),
+    });
+    perfTimes = []; perfFrames = 0; perfStart = now;
+  }
 }
 
 function onMessage(e) {
