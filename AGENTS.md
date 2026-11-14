@@ -21,7 +21,7 @@ Last updated: 2026-11-14 (integration branch `feat/integration-v2`).
 ## How to verify
 | What | Command |
 |---|---|
-| App logic tests | `cd apps/expo && npm ci && npm test` (148 pass on integration-v2) |
+| App logic tests | `cd apps/expo && npm ci && npm test` (148 pass on integration-v2; 166 with `feat/rest-and-compare`) |
 | Bundles | `cd apps/expo && npx expo export --platform android` (and `ios`) |
 | Vision lab tests (simulator + scoring) | `cd tools/vision-lab && npm ci && npm test` (15 pass) |
 | Real-video replay | `cd tools/vision-lab && node run.mjs` (needs Chrome + ffmpeg; videos downloaded per `labels/*.json` `source`) |
@@ -49,6 +49,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Five personas with roles (Coach, Hype, Sergeant, Zen, Data) driving all wording + voice | 🧪 PR #24 + integration | `lib/personas.js`, `coach.js`, `cues.js`, `speech.js`, `PersonaPicker` | tests: same numbers, different wording, no shaming | device voice pitch/rate |
 | Form review clips (skeleton replay vs ideal, why / fix / cue, "How to do it") | 🧪 PR #25 | `lib/form.js`, `FormReview.js` | sim fixtures; real squat/press reps → no false faults | **real bad-form clips** to validate thresholds |
 | Real AI Jim (Claude via proxy, tools, proposals → confirm cards, offline fallback, Talk mode) | 🧪 PR #26 | `server/jim-proxy`, `lib/jimAI.js`, HomeScreen | 13 app + 15 proxy tests (SDK mocked) | **live API smoke test** (needs `ANTHROPIC_API_KEY`); proxy auth secret |
+| Rest timer curated per exercise (lift, reps, RPE) with reason shown; rest setting removed | 🧪 feat/rest-and-compare | `lib/rest.js`, `Sheets.js` RestTimer | 6 unit tests | device check |
+| Progress History tab: full list, workout-to-workout, month/year comparisons | 🧪 feat/rest-and-compare | `lib/compare.js`, ProgressScreen History tab | 8 unit tests on demo fixture (hand-computed) | device check; 6 tabs on small phones; bodyweight lifts have no volume/e1RM |
 | Integration of #21–#26 | ✅ | `feat/integration-v2` | 148 + 15 + 15 tests, Android + iOS bundles, real replay unchanged | merge decision (human) |
 
 ## Waiting to be implemented (priority order)
