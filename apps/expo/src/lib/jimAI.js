@@ -128,6 +128,25 @@ export function proxyKey(env = {}, extra = {}) {
 }
 const headersFor = (key) => ({ 'Content-Type': 'application/json', ...(key ? { 'X-Jim-Key': key } : {}) });
 
+/** Wake-up ping: GET {url}/health. A sleeping free-tier host can take ~30-60 s to boot, so the
+ * caller fires this once on mount. Sends no user data. -> {ok:true, ms} | {ok:false, reason}. */
+export const HEALTH_TIMEOUT_MS = 60000;
+export async function checkProxy({ url, key = null, fetch: fetchImpl = globalThis.fetch, timeoutMs = HEALTH_TIMEOUT_MS, now = Date.now } = {}) {
+  if (!url || !fetchImpl) return { ok: false, reason: 'not configured' };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const start = now();
+  try {
+    const res = await fetchImpl(`${url}/health`, { method: 'GET', headers: key ? { 'X-Jim-Key': key } : {}, signal: controller.signal });
+    if (!res?.ok) return { ok: false, reason: 'unreachable' };
+    return { ok: true, ms: Math.max(0, Math.round(now() - start)) };
+  } catch (e) {
+    return { ok: false, reason: e?.name === 'AbortError' ? 'timeout' : 'unreachable' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Chat bubbles -> the last HISTORY_TURNS text turns for Claude. Cards are skipped. */
 export function historyFor(messages) {
   return messages
