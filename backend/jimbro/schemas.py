@@ -97,3 +97,29 @@ class SessionSummary(SessionOut):
     sets: list[SetOut]
     total_reps: int
     volume: dict[str, float]
+
+
+class AthleteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str = Field(min_length=1, max_length=40)
+    leaderboard_opt_in: bool
+
+
+class AthleteOut(BaseModel):
+    id: str
+    display_name: str | None
+    leaderboard_opt_in: bool
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    display_name: str
+    value: float
+    demo: bool
+
+
+class Leaderboard(BaseModel):
+    week: str
+    metric: Literal["reps", "sessions"]
+    entries: list[LeaderboardEntry]
