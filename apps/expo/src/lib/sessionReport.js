@@ -1,5 +1,8 @@
 // Post-set and post-session camera report. Every number comes from measured rep timing or
-// tracking quality; suggestions cite their evidence. No fatigue or form scores are invented.
+// tracking quality; suggestions cite their evidence. No form scores are invented; effort is an
+// explicitly labelled estimate from rep speed (lib/effort.js).
+import { estimateEffort } from './effort.js';
+
 const MIN_REPS_FOR_TEMPO = 6;
 const LOW_TRACKING_PCT = 80;
 
@@ -43,7 +46,29 @@ export function setReport({ movement, reps = [], quality = null, rpe = null, tar
     suggestions.push({ id: 'tempo', text: 'Your reps slowed noticeably by the end; keep this weight until the pace holds.', evidence: `Last 3 reps averaged ${tempo.changePct}% longer than the first 3.` });
   }
 
-  return { movement, counted, target, rpe, partials, issues, trackingPct, repDurationsMs, tempo, suggestions };
+  // Push-up rep types (knee / standard / incline) from body-line geometry, per rep.
+  const typed = reps.filter((r) => r.variant);
+  const variants = typed.length ? typed.reduce((acc, r) => ({ ...acc, [r.variant]: (acc[r.variant] ?? 0) + 1 }), {}) : null;
+  if (variants && movement === 'push_up') {
+    const parts = Object.entries(variants).sort((a, b) => b[1] - a[1]).map(([v, n], i) => `${n} ${v}${i === 0 ? ` push-up${n === 1 ? '' : 's'}` : ''}`);
+    const unclear = counted - typed.length;
+    suggestions.push({
+      id: 'variant',
+      text: `${parts.join(', ')}${unclear ? `, ${unclear} type unclear` : ''}.`,
+      evidence: 'Rep type from your body line on camera: knees bent and on the floor = knee push-up.',
+    });
+  }
+
+  const effort = estimateEffort({ movement, reps });
+  if (effort.rpe != null) {
+    suggestions.push({
+      id: 'effort',
+      text: `Estimated effort: about RPE ${effort.rpe} (${effort.rir === 0 ? 'at or near your limit' : `roughly ${effort.rir} rep${effort.rir === 1 ? '' : 's'} left`}). This is an estimate, ${effort.confidence} confidence.`,
+      evidence: effort.evidence.join(' '),
+    });
+  }
+
+  return { movement, counted, target, rpe, partials, issues, trackingPct, repDurationsMs, tempo, suggestions, variants, effort };
 }
 
 /** Summarize the camera-counted sets of one workout. */
