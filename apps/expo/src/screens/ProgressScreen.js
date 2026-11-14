@@ -3,7 +3,9 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
+import { HealthConnect } from '../components/HealthConnect.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Segmented, Sheet } from '../components/kit.js';
+import { ACTIVITY_LABELS } from '../lib/activityLevel.js';
 import { compareSessions, comparePeriods, historyNewestFirst } from '../lib/compare.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { describeGoal, goalProgress, GOAL_TYPES, weeklyCheckIn } from '../lib/goals.js';
@@ -59,6 +61,7 @@ function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
 export function ProgressScreen({ go, initialTab = 'overview' }) {
   const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
   const [adding, setAdding] = useState(false);
+  const [health, setHealth] = useState(false);
   const [tab, setTab] = useState(initialTab);
   const [exercise, setExercise] = useState('bench');
   const unit = settings.unit;
@@ -176,6 +179,18 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
       {tab === 'goals' ? (
         <>
           <CheckInCard checkIn={weeklyCheckIn({ history, active, plan, goals })} />
+          <Card style={{ marginTop: 12 }} onPress={() => setHealth(true)}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Icon name="heart-pulse" color={T.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={type.title}>Estimate my activity level</Text>
+                <Text style={type.small}>
+                  {settings.activityLevel ? `Saved: ${ACTIVITY_LABELS[settings.activityLevel] ?? settings.activityLevel}` : 'From your health app history, on this phone only.'}
+                </Text>
+              </View>
+            </View>
+          </Card>
+          <HealthConnect visible={health} onClose={() => setHealth(false)} />
           <Text style={[type.h2, { marginTop: 24 }]}>Goals</Text>
           {!goals.length ? <Text style={[type.body, { marginTop: 8 }]}>Set a measurable goal; it's checked against what you log.</Text> : null}
           {goals.map((g) => (

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FAKE data for tests only. Shape follows Apple Health export.xml. -->
+<HealthData locale="en_US">
+ <ExportDate value="2026-11-14 08:00:00 -0500"/>
+ <Me HKCharacteristicTypeIdentifierDateOfBirth=""/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Phone" unit="count" startDate="2026-11-10 08:00:00 -0500" endDate="2026-11-10 09:00:00 -0500" value="4000"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Phone" unit="count" startDate="2026-11-10 17:00:00 -0500" endDate="2026-11-10 18:00:00 -0500" value="4500"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Watch" unit="count/min" startDate="2026-11-10 08:00:00 -0500" endDate="2026-11-10 08:00:00 -0500" value="70"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="Watch" unit="kcal" startDate="2026-11-10 08:00:00 -0500" endDate="2026-11-10 09:00:00 -0500" value="250.5"/>
+ <Record type="HKQuantityTypeIdentifierAppleExerciseTime" sourceName="Watch" unit="min" startDate="2026-11-10 17:00:00 -0500" endDate="2026-11-10 17:30:00 -0500" value="30"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Phone" unit="count" startDate="2026-11-11 12:00:00 -0500" endDate="2026-11-11 13:00:00 -0500" value="6000"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="Watch" unit="Cal" startDate="2026-11-11 12:00:00 -0500" endDate="2026-11-11 13:00:00 -0500" value="100"/>
+ <Workout workoutActivityType="HKWorkoutActivityTypeTraditionalStrengthTraining" duration="45" durationUnit="min" sourceName="Watch" startDate="2026-11-11 18:00:00 -0500" endDate="2026-11-11 18:45:00 -0500">
+  <WorkoutStatistics type="HKQuantityTypeIdentifierActiveEnergyBurned" sum="200" unit="kcal"/>
+ </Workout>
+</HealthData>

@@ -65,6 +65,17 @@ const WIRING = {
   'screens/ProgressScreen.js': [
     [/Goals/, 'Goals tab'],
     [/History/, 'History tab with comparisons'],
+    [/Estimate my activity level/, 'activity level entry card'],
+    [/<HealthConnect\b/, 'health history import sheet mounted'],
+  ],
+  'components/HealthConnect.js': [
+    [/activityLevel\(/, 'activity level estimated from health history'],
+    [/What JimBro reads/, 'consent screen explains what is read'],
+    [/createHealthXmlParser\(/, 'Apple Health export.xml streamed, not loaded whole'],
+    [/parseHealthCsv\(/, 'CSV import'],
+    [/nativeHealth\(\)/, 'native HealthKit / Health Connect (dev build only)'],
+    [/activityLevel: result\.level/, 'save estimate to settings'],
+    [/activityLevel: null/, 'clear saved activity level'],
   ],
   'AppState.js': [
     [/migrateGoalSettings/, 'old saves get fitnessGoal general'],
