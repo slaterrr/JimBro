@@ -9,7 +9,6 @@ import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, historyFor, proxyKey, proxyUrl } from '../lib/jimAI.js';
-import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
@@ -87,7 +86,6 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const input = useRef(null);
   const talkRef = useRef(false);
   talkRef.current = talk;
-  const persona = personaFor(settings.persona ?? settings.tone);
   const health = healthSummary({ history, active, goals, plan });
 
   const push = (...m) => {
@@ -197,7 +195,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
           <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
-          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
+          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim</Text>
           <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI, compact && { padding: 4 }]}>
             {compact
               ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: source === 'ai' ? T.accent : T.textMute }} />

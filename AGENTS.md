@@ -50,6 +50,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Feature | Status | Where | Tested how | Still needs |
 |---|---|---|---|---|
 | Four-screen UI (Home, Muscles, Coach, Progress) | ✅ main | `apps/expo/src/screens` | logic tests, web screenshots | — |
+| Home header shows only Jim's name; persona remains available in settings | 🧪 codex/home-jim-header | `screens/HomeScreen.js` | JSX parse and existing persona/Home checks | device visual check |
 | Seafoam accent theme (`T.accent*`, legacy `T.purple*` aliases), AA contrast | ✅ feat/team-ui-home | `theme.js`, `lib/palette.js` | contrast tests (accent 8.2–9.6:1, accentText 13.4–15.7:1) | device check |
 | Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
 | Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |
