@@ -162,3 +162,41 @@ export function armShape(pose, side) {
   if (a.elbow < RACK_ELBOW_DROP && a.wrist < 0) return 'rack';
   return null;
 }
+
+// Push-ups from body-line geometry (side view), in torso lengths. Hypotheses under test, from
+// simulation only: the torso is within ~50° of horizontal through a push-up (knee push-ups are
+// the steepest, ~40° at the top); a bent knee (hip–knee–ankle < 160°) or an ankle raised above
+// the knee means the knees are the floor contact; hands well above the feet means an incline.
+const PUSHUP_MAX_TORSO_DEG = 55;
+const UPRIGHT_MIN_TORSO_DEG = 65;
+const KNEE_BENT_DEG = 160;
+const ANKLE_ABOVE_KNEE = 0.15;
+const INCLINE_HANDS_ABOVE_FEET = 0.4;
+const FLOOR_HANDS_FEET = 0.6; // hands and knees/feet near the same floor height
+
+/**
+ * { shape: 'pushup'|'upright'|null, variant: 'standard'|'knee'|'incline'|null, floor, torsoDeg }.
+ * floor: hands at floor level with the knees/feet (used to spot push-ups in another lift's mode).
+ */
+export function pushupShape(pose, side) {
+  const none = { shape: null, variant: null, floor: false, torsoDeg: null };
+  if (!pose || pose.length < POSE_LANDMARKS) return none;
+  const [s, , w] = ARM[side];
+  const [h, k, a] = LEG[side];
+  if ([s, h].some((i) => (pose[i]?.visibility ?? 0) < 0.5)) return none;
+  const torso = Math.hypot(pose[s].x - pose[h].x, pose[s].y - pose[h].y);
+  if (!(torso > 0.01)) return none;
+  const torsoDeg = (Math.atan2(Math.abs(pose[s].y - pose[h].y), Math.abs(pose[s].x - pose[h].x)) * 180) / Math.PI;
+  if (torsoDeg >= UPRIGHT_MIN_TORSO_DEG) return { ...none, shape: 'upright', torsoDeg };
+  if (torsoDeg > PUSHUP_MAX_TORSO_DEG) return { ...none, torsoDeg };
+  const handsOk = (pose[w]?.visibility ?? 0) >= 0.5 && pose[w].y > pose[s].y;
+  if (![k, a].every((i) => (pose[i]?.visibility ?? 0) >= 0.5)) return { ...none, shape: 'pushup', torsoDeg };
+  const knee = jointAngle(pose[h], pose[k], pose[a]);
+  const ankleAboveKnee = (pose[k].y - pose[a].y) / torso;
+  let variant = 'standard';
+  if ((knee !== null && knee < KNEE_BENT_DEG) || ankleAboveKnee > ANKLE_ABOVE_KNEE) variant = 'knee';
+  else if (handsOk && (pose[a].y - pose[w].y) / torso > INCLINE_HANDS_ABOVE_FEET) variant = 'incline';
+  const lowest = Math.max(pose[k].y, pose[a].y);
+  const floor = handsOk && Math.abs(lowest - pose[w].y) / torso < FLOOR_HANDS_FEET;
+  return { shape: 'pushup', variant, floor, torsoDeg };
+}
