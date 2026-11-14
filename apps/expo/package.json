@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.js",
-  "scripts": { "start": "expo start", "android": "expo start --android", "ios": "expo start --ios" },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "test": "node --test src/lib/"
+  },
   "dependencies": {
     "expo": "~58.0.0",
     "expo-status-bar": "~58.0.5",
@@ -15,4 +20,3 @@
     "react-native-svg": "15.16.0"
   }
 }
-
