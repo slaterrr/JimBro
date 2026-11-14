@@ -4,7 +4,8 @@ In-browser rep counting and form feedback with MediaPipe Pose Landmarker, from
 the live camera or a prerecorded video. Video never leaves the device.
 Supported exercises: **squat, deadlift, lunge, push-up, bicep curl, shoulder press**.
 
-The plan for datasets, a learned form classifier and accuracy targets is in
+Per-exercise coverage, dataset gaps and the data-collection plan are in
+[docs/cv/exercise-coverage.md](../../../docs/cv/exercise-coverage.md). The plan for datasets, a learned form classifier and accuracy targets is in
 [docs/cv/form-analysis-ml-plan.md](../../../docs/cv/form-analysis-ml-plan.md); the
 code review and verified dataset compatibility are in
 [docs/cv/codebase-and-dataset-review.md](../../../docs/cv/codebase-and-dataset-review.md).
@@ -83,7 +84,7 @@ in `exercises/`; adding another is a new file plus a line in `exercises/index.ts
 | | Squat | Deadlift | Lunge | Push-up | Bicep curl | Shoulder press |
 |---|---|---|---|---|---|---|
 | Camera | Side-on, 2–3 m, whole body. **Or front-on** (adds knee tracking) | Side-on, whole body and bar | Side-on, whole body, room to step | Side-on, at floor level, ~2 m | Side-on, curling arm nearest | Facing the camera, head to hips |
-| Counting angle | Knee, better-seen leg (front-on: both knees, 3D estimate) | Hip (shoulder–hip–knee) | Knee, better-seen leg | Elbow, better-seen arm | Elbow, nearest arm | Elbow, **both** arms (lagging arm decides) |
+| Counting angle | Knee, better-seen leg (front-on: both knees, 3D estimate) | Hip (shoulder–hip–knee) | **Front** knee (front/back legs identified; uncertain = no reading) | Elbow, better-seen arm | Elbow, nearest arm (front-on: both arms in 3D, more-bent arm counts) | Elbow, **both** arms (lagging arm decides) |
 | Start position | Knee ≥ 160° (standing) | Hip ≤ 115° (set up over the bar) | Knee ≥ 155° (standing) | Elbow ≥ 150° (top of plank) | Elbow ≥ 145° | Elbow ≤ 100° (weights at shoulders) |
 | Full range | Knee ≤ 85° | Hip ≥ 165° (lockout) | Knee ≤ 105° | Elbow ≤ 90° | Elbow ≤ 65° | Elbow ≥ 155° |
 | Progress check | Hips drop ≥ 40% of leg length | Shoulders rise ≥ 30% of torso length | Hips drop ≥ 25% of leg length | Shoulders drop ≥ 30% of arm length | none | Hands ≥ 70% of arm length above shoulders |
@@ -101,6 +102,24 @@ first pull counts and every rep must return the bar down. Romanian deadlifts
 Rough angle guides (side-on): half squat ≈ 100–110°, parallel ≈ 60–75°; full
 lunge ≈ 80–100°; deadlift set-up ≈ 60–110°, lockout ≈ 165–180°; half push-up ≈
 110–120°; half curl ≈ 90–100°; press lockout ≈ 160–175°.
+
+### Lunges: front and back legs
+
+The front leg is the foot further in the direction you face (from heel→toe and
+nose), not the knee the camera sees best. Roles are locked for each rep and
+re-decided when your feet come together, so alternating lunges work, and
+joints are re-paired by bone length if MediaPipe swaps left/right labels. If
+a leg is out of view or facing is unclear, the reading is uncertain: no
+angle and a position hint, never a guess (`leg_roles.ts`).
+
+### Per-rep measurements (`RepEvent.metrics`)
+
+Numbers, not judgements: lunge front/back knee depth and step length;
+deadlift set-up/lockout hip and knee angles, torso-angle change and hip-vs-knee
+extension timing; curl per-arm range and upper-arm movement (plus set style:
+alternating, simultaneous or single-arm); press per-arm lockout, lockout
+difference and overhead reach. For alternating curls filmed front-on, lower
+each arm fully before curling the other, or the two reps merge.
 
 ### Personal baselines instead of universal angles
 
