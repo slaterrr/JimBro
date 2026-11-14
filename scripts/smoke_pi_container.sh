@@ -16,7 +16,8 @@ export MSYS_NO_PATHCONV=1
 docker run --rm --platform linux/arm64 -v "$(cd "$BUNDLE" && pwd -W 2>/dev/null || pwd):/usb:ro" \
   debian:bookworm bash -euc '
 apt-get update -qq >/dev/null
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv openssl curl ca-certificates >/dev/null
+# Mirror Raspberry Pi OS Lite: no python3-venv / ensurepip, no desktop.
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 openssl curl ca-certificates avahi-daemon >/dev/null
 cat > /usr/local/bin/systemctl <<"EOF"
 #!/bin/sh
 # Stand-in for systemd inside the container: start jimbro.service on enable/restart.
@@ -35,7 +36,10 @@ EOF
 chmod +x /usr/local/bin/systemctl
 printf "#!/bin/sh\nexit 0\n" > /usr/local/bin/hostnamectl; chmod +x /usr/local/bin/hostnamectl
 cp -R /usb /tmp/bundle
-bash /tmp/bundle/install.sh --no-kiosk --no-button 2>&1 | grep -v "^\s*$" | tail -8
+bash /tmp/bundle/install.sh --headless --no-button > /tmp/install.log 2>&1 || { cat /tmp/install.log; exit 1; }
+grep -v "^\s*$" /tmp/install.log | tail -8
+if grep -q "trying the internet" /tmp/install.log; then echo "FAIL: offline install fell back to the internet"; exit 1; fi
+test ! -e /home/*/.config/autostart/jimbro-station.desktop && echo "headless: no kiosk installed"
 echo "--- checks"
 B=https://127.0.0.1
 curl -fsk $B/health; echo
