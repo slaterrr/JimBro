@@ -1,6 +1,7 @@
 // What Jim says about performance, built only from recorded data. During a set: at most one short
 // line, and only for a clear slowdown. After a set: one statement and one question. In chat:
 // answers about the last set, the next weight, and how past suggestions turned out.
+import { coachingStyle, recoveryQuestion } from './coachingPrinciples.js';
 import { EXERCISES, exerciseName } from './exercises.js';
 import { assessFatigue, repMetrics } from './performance.js';
 import { evaluateRecommendations, recommendNext } from './recommend.js';
@@ -26,7 +27,7 @@ export function afterSetLines({ completed, target, fatigue = null, rec = null })
     const lower = rec && (rec.action === 'decrease' || rec.action === 'fewer_reps');
     return {
       say: `You did ${completed} of ${target} reps.${slow}`,
-      ask: lower ? 'You missed your rep target. Would you like to reduce the weight for your next set?' : 'How hard was that?',
+      ask: recoveryQuestion({ fatigue }) ?? (lower ? 'You missed your rep target. Would you like to reduce the weight for your next set?' : 'How hard was that?'),
     };
   }
   return {
@@ -81,7 +82,8 @@ export function answerPerformance(message, { history = [], active = null } = {})
       exercise: last.exercise, unit: last.unit, weight: last.weight, target: last.target ?? last.reps, completed: last.reps,
       rpe: last.rpe ?? null, fatigue, history: prior,
     });
-    return `${rec.reasons.join(' ')} It's your call.`;
+    const style = coachingStyle({ sessions: history.filter((w) => (w.sets ?? []).length).length });
+    return style.askUserFirst ? `${style.prompt} For reference: ${rec.reasons.join(' ')}` : `${rec.reasons.join(' ')} It's your call.`;
   }
   return `Your last ${name} set: ${last.reps}${last.target ? ` of ${last.target}` : ''} reps at ${load}. ${fatigue.text}`;
 }
