@@ -184,3 +184,19 @@ def test_failed_write_rolls_back(client: TestClient, monkeypatch: pytest.MonkeyP
         client.post("/v1/sets/r/complete", json=set_body(sid), headers=ME)
     monkeypatch.undo()
     assert client.get(f"/v1/sessions/{sid}/summary", headers=ME).json()["sets"] == []
+
+
+def test_migrates_v03_database_in_place(db_path: Path) -> None:
+    import sqlite3
+
+    old = sqlite3.connect(db_path)
+    old.executescript(
+        "CREATE TABLE athletes (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);"
+        "INSERT INTO athletes VALUES ('alex', '2026-11-01T00:00:00+00:00');"
+    )
+    old.commit()
+    old.close()
+    with TestClient(create_app(db_path=db_path)) as c:
+        me = c.get("/v1/athletes/me", headers=ME).json()
+        assert me == {"id": "alex", "display_name": None, "leaderboard_opt_in": False}
+        assert new_session(c)

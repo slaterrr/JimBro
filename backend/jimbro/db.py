@@ -13,10 +13,19 @@ import sqlite3
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from .schemas import RepDetail, RepDetailOut, SessionOut, SessionSummary, SetIn, SetOut
+from .schemas import (
+    AthleteIn,
+    AthleteOut,
+    RepDetail,
+    RepDetailOut,
+    SessionOut,
+    SessionSummary,
+    SetIn,
+    SetOut,
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS athletes (
@@ -57,6 +66,26 @@ CREATE TABLE IF NOT EXISTS rep_summaries (
 """
 
 
+# Migration note (v0.4): athletes gained display_name, leaderboard_opt_in and demo.
+# Added in place with ALTER TABLE so existing Pi databases keep their data.
+ATHLETE_COLUMNS = {
+    "display_name": "TEXT",
+    "leaderboard_opt_in": "INTEGER NOT NULL DEFAULT 0",
+    "demo": "INTEGER NOT NULL DEFAULT 0",
+}
+
+
+def week_bounds(week: str | None) -> tuple[str, datetime, datetime]:
+    """ISO week 'YYYY-Www' (default: current UTC week) -> (label, start, end)."""
+    if week is None:
+        year, num, _ = datetime.now(UTC).isocalendar()
+    else:
+        y, w = week.split("-W")
+        year, num = int(y), int(w)
+    start = datetime.fromisocalendar(year, num, 1).replace(tzinfo=UTC)
+    return f"{year}-W{num:02d}", start, start + timedelta(days=7)
+
+
 class NotFound(Exception):
     pass
 
@@ -82,6 +111,10 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.tx() as conn:
             conn.executescript(SCHEMA)
+            have = {r["name"] for r in conn.execute("PRAGMA table_info(athletes)")}
+            for col, ddl in ATHLETE_COLUMNS.items():
+                if col not in have:
+                    conn.execute(f"ALTER TABLE athletes ADD COLUMN {col} {ddl}")
 
     @contextmanager
     def tx(self) -> Iterator[sqlite3.Connection]:
@@ -103,7 +136,10 @@ class Database:
     def create_session(self, athlete_id: str, notes: str | None) -> SessionOut:
         sid = uuid.uuid4().hex
         with self.tx() as conn:
-            conn.execute("INSERT OR IGNORE INTO athletes VALUES (?, ?)", (athlete_id, now_iso()))
+            conn.execute(
+                "INSERT OR IGNORE INTO athletes (id, created_at) VALUES (?, ?)",
+                (athlete_id, now_iso()),
+            )
             conn.execute(
                 "INSERT INTO sessions VALUES (?, ?, ?, NULL, ?)",
                 (sid, athlete_id, now_iso(), notes),
@@ -220,3 +256,41 @@ class Database:
             total_reps=sum(s.reps for s in sets),
             volume=volume,
         )
+
+    # athletes + leaderboard ---------------------------------------------------
+
+    def get_athlete(self, athlete_id: str) -> AthleteOut:
+        with self.tx() as conn:
+            row = conn.execute("SELECT * FROM athletes WHERE id = ?", (athlete_id,)).fetchone()
+        if row is None:
+            return AthleteOut(id=athlete_id, display_name=None, leaderboard_opt_in=False)
+        return AthleteOut(
+            id=row["id"],
+            display_name=row["display_name"],
+            leaderboard_opt_in=bool(row["leaderboard_opt_in"]),
+        )
+
+    def update_athlete(self, athlete_id: str, body: AthleteIn, demo: bool = False) -> AthleteOut:
+        with self.tx() as conn:
+            conn.execute(
+                "INSERT INTO athletes (id, created_at, display_name, leaderboard_opt_in, demo) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+                "display_name = excluded.display_name, "
+                "leaderboard_opt_in = excluded.leaderboard_opt_in",
+                (athlete_id, now_iso(), body.display_name, int(body.leaderboard_opt_in), int(demo)),
+            )
+        return self.get_athlete(athlete_id)
+
+    def weekly_stats(self, start: datetime, end: datetime) -> list[tuple[str, bool, int, int]]:
+        """(display_name, demo, reps, sessions) for opted-in athletes in [start, end)."""
+        with self.tx() as conn:
+            rows = conn.execute(
+                "SELECT a.display_name AS name, a.demo AS demo, "
+                "COALESCE(SUM(s.reps), 0) AS reps, COUNT(DISTINCT s.session_id) AS sessions "
+                "FROM athletes a JOIN sessions se ON se.athlete_id = a.id "
+                "JOIN sets s ON s.session_id = se.id "
+                "WHERE a.leaderboard_opt_in = 1 AND a.display_name IS NOT NULL "
+                "AND s.completed_at >= ? AND s.completed_at < ? GROUP BY a.id",
+                (start.isoformat(), end.isoformat()),
+            ).fetchall()
+        return [(r["name"], bool(r["demo"]), r["reps"], r["sessions"]) for r in rows]
