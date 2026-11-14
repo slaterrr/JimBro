@@ -1,7 +1,7 @@
 # AGENTS.md — status board for coding agents
 
 Read this before touching code. Update it in the same PR when a status changes.
-Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`.
+Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see `docs/AUDIT.md`. **Agentic Jim work: follow `docs/AGENT_SPRINTS.md`.**
 
 ## Hackathon constraints (HackPrinceton Fall '26; source: team tracking doc + hacker packet)
 - **Devpost deliverables due 8:00 AM Sunday Nov 15.** Hacking started 8 pm Nov 13. Public repo created Nov 13–15 (this repo: 2026-11-13 21:35 ET, public ✅).
