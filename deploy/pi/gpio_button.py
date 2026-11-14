@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import signal
+import ssl
 import sys
 import urllib.request
 
@@ -19,7 +20,9 @@ PIN = int(os.environ.get("JIMBRO_BUTTON_PIN", "17"))
 def press(api: str = API) -> bool:
     try:
         req = urllib.request.Request(f"{api}/v1/station/button", method="POST", data=b"")
-        with urllib.request.urlopen(req, timeout=2) as res:
+        # Loopback only: the Pi's certificate is self-signed, so skip verification here.
+        ctx = ssl._create_unverified_context() if api.startswith("https://127.") else None
+        with urllib.request.urlopen(req, timeout=2, context=ctx) as res:
             return bool(res.status == 200)
     except OSError:
         return False
