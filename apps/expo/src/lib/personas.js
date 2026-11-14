@@ -63,6 +63,18 @@ export function personaFor(id) {
   return PERSONAS[id] ?? PERSONAS[LEGACY[id]] ?? PERSONAS[DEFAULT_PERSONA];
 }
 
+/** Settings from any save: a legacy `tone` becomes `persona`; unknown ids fall back to the default. */
+export function migrateSettings(settings) {
+  const { tone, persona, ...rest } = settings ?? {};
+  return { ...rest, persona: personaFor(persona ?? tone).id };
+}
+
+/** expo-speech options (rate, pitch) for a persona or legacy tone id. */
+export function speechOptions(id) {
+  const { rate, pitch } = personaFor(id).voice;
+  return { rate, pitch };
+}
+
 /** Shared rules every persona follows, for both rule-based text and the LLM prompt. */
 export const GROUND_RULES = [
   'Only cite numbers that come from the user\'s data or this session; say so when data is missing.',

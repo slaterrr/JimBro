@@ -100,7 +100,7 @@ export function HomeScreen({ openLog, openActivity }) {
       say(intro);
       return;
     }
-    const r = coachReply(message, settings.tone, allSets);
+    const r = coachReply(message, settings.persona, allSets);
     push({ me: true, text: message }, { me: false, text: r.text, safety: r.source === 'safety', suggestion: r.suggestion });
     say(r.text);
   };

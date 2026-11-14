@@ -4,12 +4,13 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
 import { migrateGoals } from './lib/goals.js';
+import { migrateSettings, speechOptions } from './lib/personas.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
-export const DEFAULT_SETTINGS = { tone: 'friendly', speak: false, unit: 'lb', weeklyGoal: 3, restSeconds: 90 };
+export const DEFAULT_SETTINGS = { persona: 'coach', speak: false, unit: 'lb', weeklyGoal: 3, restSeconds: 90 };
 const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -27,7 +28,7 @@ export function AppProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...saved.settings }, goals: migrateGoals(saved.goals) });
+        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateSettings(saved.settings) }, goals: migrateGoals(saved.goals) });
       })
       .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
       .finally(() => setReady(true));
@@ -38,7 +39,12 @@ export function AppProvider({ children }) {
 
   const settings = data.settings;
   const update = (patch) => setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
-  const say = useCallback((text) => { if (settings.speak) Speech.speak(text); }, [settings.speak]);
+  // Jim speaks with the selected persona's voice. `force` plays even when spoken replies are off; `persona` overrides the voice (persona samples).
+  const say = useCallback((text, { force = false, persona = settings.persona } = {}) => {
+    if (!text || !(force || settings.speak)) return;
+    if (force) Speech.stop();
+    Speech.speak(text, speechOptions(persona));
+  }, [settings.speak, settings.persona]);
 
   /** All logged sets in order, including the workout in progress. */
   const allSets = [...data.history, ...(data.active ? [data.active] : [])].flatMap((w) => w.sets);
