@@ -71,6 +71,7 @@ Then tap **"I have 20 minutes, help me finish chest day"** on Home.
   after an explicit consent tick. It is never stored or logged, and replies never judge weight,
   looks or health.
 
+
 ## Repository
 | Path | What |
 |---|---|
