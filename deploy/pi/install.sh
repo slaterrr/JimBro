@@ -2,7 +2,10 @@
 # Install (or update) JimBro on a Raspberry Pi from the USB bundle. Safe to re-run.
 #
 #   sudo bash install.sh [--hostname jimbro] [--port 443] [--data-dir /var/lib/jimbro]
-#                        [--no-kiosk] [--no-button]
+#                        [--headless] [--no-kiosk] [--no-button]
+#
+# Works offline on Raspberry Pi OS Lite (no python3-venv needed: pip ships in the bundle).
+# --headless skips the desktop kiosk; it is also implied when no desktop is installed.
 #
 # After install the Pi runs everything on boot:
 #   * jimbro.service        API + PWA over HTTPS (phones need HTTPS for the camera)
@@ -24,9 +27,9 @@ while [ $# -gt 0 ]; do
     --hostname) HOSTNAME_WANTED="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --data-dir) DATA_DIR="$2"; shift 2 ;;
-    --no-kiosk) KIOSK=0; shift ;;
+    --no-kiosk|--headless) KIOSK=0; shift ;;
     --no-button) BUTTON=0; shift ;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -41,7 +44,6 @@ python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || die "Python 3.1
 
 say "Installing system packages (skipped if already present)"
 need=()
-python3 -c 'import venv, ensurepip' 2>/dev/null || need+=(python3-venv)
 command -v openssl >/dev/null || need+=(openssl)
 command -v avahi-daemon >/dev/null || need+=(avahi-daemon)
 if [ ${#need[@]} -gt 0 ]; then
@@ -73,11 +75,20 @@ mv "$PREFIX/app.new" "$PREFIX/app"
 chmod 755 "$PREFIX/app/station.sh"
 
 say "Installing Python dependencies"
-[ -x "$PREFIX/venv/bin/python" ] || python3 -m venv "$PREFIX/venv"
 export PIP_CONFIG_FILE=/dev/null PIP_DISABLE_PIP_VERSION_CHECK=1
-if ! "$PREFIX/venv/bin/pip" install --quiet --no-index --find-links "$HERE/wheels" -r "$HERE/requirements.txt"; then
+VPY="$PREFIX/venv/bin/python"
+if [ ! -x "$VPY" ]; then
+  # --without-pip avoids ensurepip, which Raspberry Pi OS Lite does not ship.
+  python3 -m venv --without-pip "$PREFIX/venv"
+fi
+if ! "$VPY" -m pip --version >/dev/null 2>&1; then
+  pipwhl="$(ls "$HERE"/wheels/pip-*.whl 2>/dev/null | head -1)"
+  [ -n "$pipwhl" ] || die "bundle has no pip wheel; rebuild with scripts/build_usb.sh"
+  "$VPY" "$pipwhl/pip" install --quiet --no-index "$pipwhl"
+fi
+if ! "$VPY" -m pip install --quiet --no-index --find-links "$HERE/wheels" -r "$HERE/requirements.txt"; then
   echo "offline wheels incomplete; trying the internet" >&2
-  "$PREFIX/venv/bin/pip" install --quiet -r "$HERE/requirements.txt"
+  "$VPY" -m pip install --quiet -r "$HERE/requirements.txt"
 fi
 
 say "Creating HTTPS certificate"
@@ -118,6 +129,10 @@ else
 fi
 
 DESKTOP_USER="${SUDO_USER:-}"
+if [ "$KIOSK" -eq 1 ] && ! command -v chromium-browser >/dev/null && ! command -v chromium >/dev/null; then
+  echo "No desktop browser found: running headless (open /station from any device)."
+  KIOSK=0
+fi
 if [ "$KIOSK" -eq 1 ] && [ -n "$DESKTOP_USER" ] && [ "$DESKTOP_USER" != root ]; then
   home="$(getent passwd "$DESKTOP_USER" | cut -d: -f6)"
   if [ -d "$home" ]; then
@@ -142,7 +157,9 @@ if curl -fsk "$url" >/dev/null 2>&1; then
   echo "  Accept the certificate warning once (self-signed), then 'Add to Home Screen'."
   echo "  Station display:    https://localhost$suffix/station"
   echo "  Logs:               journalctl -u jimbro -f"
-  command -v qrencode >/dev/null && [ -n "$IP" ] && qrencode -t ansiutf8 "https://$IP$suffix"
+  if command -v qrencode >/dev/null && [ -n "$IP" ]; then
+    qrencode -t ansiutf8 "https://$IP$suffix"
+  fi
 else
   die "API did not start; check: journalctl -u jimbro -n 50"
 fi
