@@ -32,4 +32,4 @@ jobs:
       - name: Strict types
         run: mypy backend/jimbro
       - name: Unit + API tests (coverage gate)
-        run: pytest --cov=jimbro --cov-report=term-missing --cov-fail-under=90
+        run: pytest --cov=backend/jimbro --cov-report=term-missing --cov-fail-under=90

@@ -3,7 +3,6 @@
 import math
 
 import pytest
-
 from backend.jimbro.motion import joint_angle
 
 
