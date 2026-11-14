@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "test": "node --test src/lib/*.test.js"
+    "test": "node --test src/lib/*.test.js",
+    "harness": "node scripts/engine-harness.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

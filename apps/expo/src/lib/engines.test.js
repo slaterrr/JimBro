@@ -131,3 +131,30 @@ describe('coach engine', () => {
     assert.equal(coach.ask('tell me a joke', { history: [], active: null }), null); // not deterministic: hand to the AI
   });
 });
+
+describe('real-clip landmarks through the engine API', () => {
+  it('matches the labeled counts on all four real clips and every event is valid', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const clip of ['fs_squat_rear', 'fs_press_rear', 'ez_talk_a', 'ez_talk_b']) {
+      const fx = JSON.parse(readFileSync(new URL(`../../../../tools/vision-lab/fixtures/${clip}.landmarks.json`, import.meta.url), 'utf8'));
+      const frames = fx.frames.map((f) => ({ t: f.t, pose: f.pose ? f.pose.map(([x, y, visibility]) => ({ x, y, visibility })) : null }));
+      const r = analyzeRecording(frames, { exerciseId: fx.movement });
+      assert.equal(r.count, fx.reps.length, clip);
+      assert.ok(r.events.every((e) => validateEvent(e).ok), clip);
+    }
+  });
+});
+
+describe('nothing counted means nothing to assess', () => {
+  it('zero reps: uncertain fatigue, no load call, sensible words', async () => {
+    const { assessFatigue } = await import('./performance.js');
+    const { recommendNext } = await import('./recommend.js');
+    const { afterSetLines } = await import('./perfCoach.js');
+    const f = assessFatigue({ movement: 'curl', reps: [], target: null, completed: 0, partials: 2 });
+    assert.equal(f.level, 'uncertain');
+    assert.match(f.text, /no reps/i);
+    assert.equal(recommendNext({ exercise: 'curl', unit: 'lb', weight: 0, target: 0, completed: 0 }).action, 'none');
+    assert.doesNotMatch(afterSetLines({ completed: 0, target: 0 }).say, /all 0/);
+    assert.match(afterSetLines({ completed: 1, target: 1 }).say, /all 1 rep\b/);
+  });
+});
