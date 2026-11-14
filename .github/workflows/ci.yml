@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: backend-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check backend
+      - name: Ruff formatting
+        run: ruff format --check backend
+      - name: Strict types
+        run: mypy backend/jimbro
+      - name: Unit + API tests (coverage gate)
+        run: pytest --cov=backend/jimbro --cov-report=term-missing --cov-fail-under=90
+
+  mobile-quality:
+    name: mobile-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc -b
+      - name: Unit + component tests
+        run: npm test
+      - name: Production build
+        run: npx vite build
+
+  expo-quality:
+    name: expo-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/expo/package-lock.json
+      - run: npm ci
+      - name: Engine + helper tests
+        run: npm test
+      - name: Bundle for Android and iOS
+        run: npx expo export --platform android --platform ios --output-dir /tmp/expo-dist
