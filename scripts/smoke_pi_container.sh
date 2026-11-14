@@ -60,6 +60,12 @@ async def main():
 asyncio.run(main())
 PY
 test -s /var/lib/jimbro/jimbro.db && echo "db persisted at /var/lib/jimbro/jimbro.db"
+echo "--- nightly backup + mdns"
+set -a; . /etc/jimbro/jimbro.env; set +a
+cmd=$(sed -n "s/^ExecStart=//p" /etc/systemd/system/jimbro-backup.service)
+su -s /bin/sh jimbro -c "PYTHONPATH=/opt/jimbro/app/backend JIMBRO_DB=$JIMBRO_DB $cmd" >/dev/null
+ls /var/lib/jimbro/backups/jimbro-*.db >/dev/null && echo "nightly backup command works"
+grep -q "<port>443</port>" /etc/avahi/services/jimbro.service && echo "mdns service advertised"
 echo "--- usb stick hook"
 mkdir -p /tmp/stick && cp -R /usb /tmp/stick/jimbro-usb
 bash /opt/jimbro/app/usb-hook.sh --mounted /tmp/stick > /tmp/hook1.log 2>&1

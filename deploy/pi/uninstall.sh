@@ -2,9 +2,11 @@
 # Remove JimBro services and program files. Keeps workout data unless --purge.
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 1; }
-systemctl disable --now jimbro.service jimbro-button.service 2>/dev/null || true
+systemctl disable --now jimbro.service jimbro-button.service jimbro-backup.timer 2>/dev/null || true
 rm -f /etc/systemd/system/jimbro.service /etc/systemd/system/jimbro-button.service \
-  /etc/systemd/system/jimbro-usb@.service /etc/udev/rules.d/99-jimbro-usb.rules
+  /etc/systemd/system/jimbro-usb@.service /etc/udev/rules.d/99-jimbro-usb.rules \
+  /etc/systemd/system/jimbro-backup.service /etc/systemd/system/jimbro-backup.timer \
+  /etc/avahi/services/jimbro.service
 udevadm control --reload-rules 2>/dev/null || true
 systemctl daemon-reload
 rm -rf /opt/jimbro

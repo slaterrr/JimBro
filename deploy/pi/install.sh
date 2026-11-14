@@ -120,10 +120,16 @@ cp "$HERE/systemd/jimbro.service" /etc/systemd/system/jimbro.service
 sed -i "s|@DATA_DIR@|$DATA_DIR|g" /etc/systemd/system/jimbro.service
 cp "$HERE/systemd/jimbro-button.service" /etc/systemd/system/jimbro-button.service
 cp "$HERE/systemd/jimbro-usb@.service" /etc/systemd/system/jimbro-usb@.service
+cp "$HERE/systemd/jimbro-backup.service" "$HERE/systemd/jimbro-backup.timer" /etc/systemd/system/
+if [ -d /etc/avahi/services ]; then
+  sed "s|@PORT@|$PORT|" "$HERE/jimbro.avahi.service" > /etc/avahi/services/jimbro.service
+  systemctl reload avahi-daemon 2>/dev/null || true
+fi
 cp "$HERE/99-jimbro-usb.rules" /etc/udev/rules.d/99-jimbro-usb.rules 2>/dev/null || true
 udevadm control --reload-rules 2>/dev/null || true
 systemctl daemon-reload
 systemctl enable --now jimbro.service
+systemctl enable --now jimbro-backup.timer 2>/dev/null || true
 systemctl restart jimbro.service
 if [ "$BUTTON" -eq 1 ]; then
   systemctl enable --now jimbro-button.service || true
