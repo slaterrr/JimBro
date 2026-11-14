@@ -223,7 +223,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
         <Text accessibilityLiveRegion="polite" style={[type.small, { flex: 1 }]}>
           {thinking ? 'Jim is working on your request…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : PROXY_URL ? 'Jim AI available · send a message to connect' : 'Offline coach · AI service not connected'}
         </Text>
-        {messages.length ? <TouchableOpacity accessibilityRole="button" onPress={() => { conversation.clear(); voice.stop(); setTalk(false); setText(''); }}><Text style={{ color: T.accentText }}>New chat</Text></TouchableOpacity> : null}
+        {messages.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="New chat" style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }} onPress={() => { conversation.clear(); voice.stop(); setTalk(false); setText(''); }}><Text style={{ color: T.accentText }}>New chat</Text></TouchableOpacity> : null}
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, paddingBottom: 30, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
