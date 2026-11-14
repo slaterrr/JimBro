@@ -12,7 +12,6 @@ mutants/
 !.env.example
 node_modules/
 dist/
-node_modules/
 apps/mobile/dist/
 *.db
 *.sqlite3
@@ -20,3 +19,6 @@ models/
 data/
 *.tsbuildinfo
 build/
+.expo/
+dist-check*/
+npm-debug.log*
