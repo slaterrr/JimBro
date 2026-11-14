@@ -42,3 +42,62 @@ test('unknown exercise falls back to 90 s; missing reps assumes a moderate set',
   assert.equal(restFor({ exercise: 'bench' }).seconds, 150);
   assert.equal(restFor({ exercise: 'bench' }).text, 'Bench press: 2:30 rest for strength');
 });
+
+
+// Goal-personalized rest (settings.fitnessGoal). No goal / 'general' keeps the rules above.
+test('general goal (and no goal) keep the moderate per-exercise rules', () => {
+  for (const ex of ['squat', 'bench', 'curl', 'pull_up', 'plank']) {
+    for (const reps of [5, 10]) {
+      assert.equal(restFor({ exercise: ex, reps, fitnessGoal: 'general' }).seconds, restFor({ exercise: ex, reps }).seconds);
+    }
+  }
+});
+
+test('strength goal: heavy compounds rest 3 min (2-5 min range), with the reason shown', () => {
+  const r = restFor({ exercise: 'squat', reps: 5, fitnessGoal: 'strength' });
+  assert.equal(r.seconds, 180);
+  assert.equal(r.text, 'Squat · 5 reps: 3:00 rest. Strength goal + heavy lift');
+  assert.equal(restFor({ exercise: 'squat', reps: 10, fitnessGoal: 'strength' }).seconds, 180);
+  assert.equal(restFor({ exercise: 'shoulder_press', reps: 6, fitnessGoal: 'strength' }).seconds, 150);
+  assert.equal(restFor({ exercise: 'curl', reps: 8, fitnessGoal: 'strength' }).seconds, 90);
+});
+
+test('muscle goal: 60-120 s', () => {
+  const s = (exercise) => restFor({ exercise, reps: 10, fitnessGoal: 'muscle' }).seconds;
+  assert.equal(s('squat'), 120);
+  assert.equal(s('row'), 90);
+  assert.equal(s('curl'), 60);
+  assert.match(restFor({ exercise: 'curl', reps: 10, fitnessGoal: 'muscle' }).text, /Muscle goal/);
+});
+
+test('endurance goal: 30-60 s', () => {
+  const s = (exercise) => restFor({ exercise, reps: 15, fitnessGoal: 'endurance' }).seconds;
+  assert.equal(s('squat'), 60);
+  assert.equal(s('pull_up'), 45);
+  assert.equal(s('curl'), 30);
+  assert.equal(s('plank'), 30);
+});
+
+test('fat loss goal: short rests, shorter than general', () => {
+  for (const ex of ['squat', 'row', 'curl']) {
+    const fl = restFor({ exercise: ex, reps: 12, fitnessGoal: 'fat_loss' }).seconds;
+    assert.ok(fl <= 75 && fl < restFor({ exercise: ex, reps: 12 }).seconds, ex);
+  }
+});
+
+test('every goal: hard set (RPE 9+) adds 30 s; beginners and sedentary users get +15 s', () => {
+  for (const fitnessGoal of ['strength', 'muscle', 'endurance', 'fat_loss', 'general']) {
+    const b = restFor({ exercise: 'bench', reps: 8, fitnessGoal }).seconds;
+    assert.equal(restFor({ exercise: 'bench', reps: 8, rpe: 9, fitnessGoal }).seconds, b + 30, fitnessGoal);
+    const easy = restFor({ exercise: 'bench', reps: 8, fitnessGoal, experience: 'new' });
+    assert.equal(easy.seconds, b + 15, fitnessGoal);
+    assert.match(easy.text, /easing in/);
+    assert.equal(restFor({ exercise: 'bench', reps: 8, fitnessGoal, activityLevel: 'sedentary' }).seconds, b + 15);
+    assert.equal(restFor({ exercise: 'bench', reps: 8, fitnessGoal, experience: 'new', activityLevel: 'sedentary' }).seconds, b + 15);
+    assert.equal(restFor({ exercise: 'bench', reps: 8, fitnessGoal, activityLevel: 'very_active' }).seconds, b);
+  }
+});
+
+test('unknown goal falls back to general', () => {
+  assert.equal(restFor({ exercise: 'squat', reps: 5, fitnessGoal: 'bulk' }).seconds, 180);
+});

@@ -26,6 +26,7 @@ const WIRING = {
     [/exercise_change/, 'exercise-change guidance'],
   ],
   'components/Sheets.js': [
+    [/restFor\(\{[^}]*fitnessGoal/, 'rest personalized by fitness goal'],
     [/spokenReport\(/, 'Jim speaks the set report'],
     [/Hear report/, 'Hear report button'],
     [/Review form/, 'form review entry'],
@@ -47,6 +48,9 @@ const WIRING = {
     [/r\.safety|result\.safety/, 'pain answer shows the safety message'],
     [/Skip/, 'setup is skippable'],
     [/onboarded: true/, 'setup shown once'],
+    [/r\.settings/, 'fitness goal, look and focus muscles saved to settings'],
+    [/TextInput/, 'free-text "what do you want to look like"'],
+    [/MUSCLE_GROUPS/, 'tap-select focus muscles'],
   ],
   '../App.jsx': [
     [/<Onboarding\b/, 'first-run setup mounted'],
@@ -63,6 +67,8 @@ const WIRING = {
     [/History/, 'History tab with comparisons'],
   ],
   'AppState.js': [
+    [/migrateGoalSettings/, 'old saves get fitnessGoal general'],
+    [/DEFAULT_GOAL_SETTINGS/, 'goal fields in DEFAULT_SETTINGS'],
     [/migrateSettings/, 'legacy tone → persona migration'],
     [/migrateVoiceSettings/, 'voice on by default (sound bug)'],
     [/enableAudio\(/, 'iOS silent-mode playback (sound bug)'],

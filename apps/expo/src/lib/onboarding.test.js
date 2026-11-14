@@ -2,14 +2,39 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { SAFETY_TEXT } from './coach.js';
+import { FITNESS_GOAL_IDS } from './fitnessGoal.js';
 import { isOnboarded, ONBOARDING_QUESTIONS, onboardingResult } from './onboarding.js';
 import { validatePlan } from './plans.js';
 
-test('three questions: experience, goal, pain', () => {
-  assert.deepEqual(ONBOARDING_QUESTIONS.map((q) => q.id), ['experience', 'goal', 'pain']);
+test('four short questions: experience, goal (5 fitness goals), look (optional), pain', () => {
+  assert.deepEqual(ONBOARDING_QUESTIONS.map((q) => q.id), ['experience', 'goal', 'look', 'pain']);
   assert.deepEqual(ONBOARDING_QUESTIONS[0].options.map(([id]) => id), ['new', 'returning', 'experienced']);
-  assert.deepEqual(ONBOARDING_QUESTIONS[1].options.map(([id]) => id), ['habit', 'stronger', 'muscle', 'health']);
-  assert.deepEqual(ONBOARDING_QUESTIONS[2].options.map(([id]) => id), ['no', 'yes']);
+  assert.deepEqual(ONBOARDING_QUESTIONS[1].options.map(([id]) => id), FITNESS_GOAL_IDS);
+  assert.equal(ONBOARDING_QUESTIONS[2].optional, true);
+  assert.match(ONBOARDING_QUESTIONS[2].title, /look like/);
+  assert.deepEqual(ONBOARDING_QUESTIONS[3].options.map(([id]) => id), ['no', 'yes']);
+});
+
+test('settings: goal, look and focus muscles are saved', () => {
+  const r = onboardingResult({ experience: 'experienced', goal: 'endurance', look: { text: '  Leaner, run a 10k  ', muscles: ['quads', 'calves', 'wings'] }, pain: 'no' });
+  assert.deepEqual(r.settings, { fitnessGoal: 'endurance', physiqueGoal: 'Leaner, run a 10k', focusMuscles: ['quads', 'calves'], experience: 'experienced' });
+  assert.equal(r.plan.goal, 'general');
+});
+
+test('settings: look is optional; every goal maps to a valid plan', () => {
+  for (const goal of FITNESS_GOAL_IDS) {
+    const r = onboardingResult({ experience: 'experienced', goal, pain: 'no' });
+    assert.equal(r.settings.fitnessGoal, goal);
+    assert.equal(r.settings.physiqueGoal, '');
+    assert.deepEqual(r.settings.focusMuscles, []);
+    assert.deepEqual(validatePlan(r.plan, r.plan.request), [], goal);
+  }
+  assert.equal(onboardingResult({ experience: 'experienced', goal: 'muscle', pain: 'no' }).plan.goal, 'hypertrophy');
+});
+
+test('settings: pain still saves the goal (rest uses it later), skip saves nothing', () => {
+  assert.equal(onboardingResult({ experience: 'new', goal: 'strength', pain: 'yes' }).settings.fitnessGoal, 'strength');
+  assert.equal(onboardingResult({}).settings, null);
 });
 
 for (const experience of ['new', 'returning']) {
@@ -28,7 +53,7 @@ for (const experience of ['new', 'returning']) {
 }
 
 test('experienced: persona untouched, regular plan from the goal', () => {
-  const r = onboardingResult({ experience: 'experienced', goal: 'stronger', pain: 'no' });
+  const r = onboardingResult({ experience: 'experienced', goal: 'strength', pain: 'no' });
   assert.equal(r.persona, null);
   assert.equal(r.plan.goal, 'strength');
   assert.equal(r.plan.days.length, 3);
@@ -37,7 +62,7 @@ test('experienced: persona untouched, regular plan from the goal', () => {
 
 test('pain: safety message, see a professional, never a plan', () => {
   for (const experience of ['new', 'returning', 'experienced']) {
-    const r = onboardingResult({ experience, goal: 'stronger', pain: 'yes' });
+    const r = onboardingResult({ experience, goal: 'strength', pain: 'yes' });
     assert.equal(r.plan, null);
     assert.equal(r.goal, null);
     assert.equal(r.safety, SAFETY_TEXT);
