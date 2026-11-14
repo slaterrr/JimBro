@@ -70,3 +70,28 @@ test('front squat with feet cut off tells the user what to fix (not silent)', ()
   const out = replay('squat', cut);
   assert.ok(out.frames.some((f) => f.issue && f.hint === 'feet'), 'expected a "show your feet" hint');
 });
+
+test('lunges done in squat mode are not counted as squats, and the change is detected (side view)', async () => {
+  const { simulateLunges } = await import('../lib/simulate.mjs');
+  const out = replay('squat', simulateLunges().frames);
+  assert.equal(out.predEnds.length, 0);
+  assert.ok(out.frames.some((f) => f.issue === 'exercise_change' && f.hint === 'lunge'));
+  assert.equal(out.suggested, 'lunge');
+});
+
+test('lunges facing the camera are not counted as squats either', async () => {
+  const { simulateLunges } = await import('../lib/simulate.mjs');
+  const out = replay('squat', simulateLunges({ view: 'front', seed: 42 }).frames);
+  assert.equal(out.predEnds.length, 0);
+  assert.equal(out.suggested, 'lunge');
+});
+
+test('switching from squats to lunges mid-set keeps the squats already counted', async () => {
+  const { simulateLunges } = await import('../lib/simulate.mjs');
+  const sq = simulateSet('squat', { reps: 5, seed: 43 });
+  const last = sq.frames[sq.frames.length - 1].t;
+  const lu = simulateLunges({ seed: 44 }).frames.map((f) => ({ ...f, t: f.t + last + 50 }));
+  const out = replay('squat', [...sq.frames, ...lu]);
+  assert.equal(out.predEnds.length, 5);
+  assert.equal(out.suggested, 'lunge');
+});

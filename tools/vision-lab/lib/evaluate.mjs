@@ -64,5 +64,5 @@ export function replay(movement, frames) {
     log.push({ t, count: out.count, state: out.state, angle: out.angle, tracking: out.tracking.status, issue: out.issue ?? null, hint: out.hint ?? null, rep: Boolean(out.rep) });
   }
   const ok = log.filter((f) => f.tracking === 'ok').length;
-  return { predEnds, frames: log, trackingOkRatio: ratio(ok, log.length), reps: session.repsDetail() };
+  return { predEnds, frames: log, trackingOkRatio: ratio(ok, log.length), reps: session.repsDetail(), suggested: session.suggested ?? null };
 }

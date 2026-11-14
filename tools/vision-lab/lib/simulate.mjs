@@ -138,3 +138,42 @@ export function simulateHallucination({ glitches = 8, glitchMs = 900, everyMs = 
   }
   return { frames, trueEnds: [] };
 }
+
+/** One lunge pose. p: 0 standing in split stance → 1 bottom. Front leg = near (left) side. */
+export function lungeBody(p, cx = 0.5) {
+  const kF = 175 - 85 * p;
+  const a = (180 - kF) / 2;
+  const ankleF = { x: cx + 0.12, y: 0.92 };
+  const kneeF = add(ankleF, BONE.shank, 180 - a);
+  const hip = add(kneeF, BONE.thigh, 180 + a);
+  const shoulder = add(hip, BONE.torso, 180);
+  const kneeB = add(hip, BONE.thigh, -(25 - 20 * p));
+  const ankleB = add(kneeB, BONE.shank, -(40 + 45 * p));
+  const elbow = add(shoulder, BONE.upper, 5);
+  const wrist = add(elbow, BONE.fore, 10);
+  const pose = Array.from({ length: 33 }, () => ({ x: shoulder.x, y: shoulder.y - 0.1, visibility: 0.99 }));
+  const set = (i, q, v = 0.95) => { pose[i] = { ...q, visibility: v }; };
+  set(11, shoulder); set(12, { x: shoulder.x + 0.015, y: shoulder.y }, 0.6);
+  set(13, elbow); set(14, { x: elbow.x + 0.015, y: elbow.y }, 0.55);
+  set(15, wrist); set(16, { x: wrist.x + 0.015, y: wrist.y }, 0.55);
+  set(23, hip); set(24, { x: hip.x + 0.015, y: hip.y }, 0.9);
+  set(25, kneeF); set(26, kneeB, 0.9);
+  set(27, ankleF); set(28, ankleB, 0.9);
+  return pose;
+}
+
+/** A set of lunges (zero true squats). view 'front' keeps the vertical drop, loses depth. */
+export function simulateLunges({ reps = 8, repMs = 2200, restMs = 400, view = 'side', fps = 20, seed = 41, noise = 0.003 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const cycle = repMs + restMs;
+  const end = 1000 + reps * cycle + 1000;
+  for (let t = 0; t <= end; t += 1000 / fps) {
+    const u = t - 1000;
+    const inRep = u > 0 && u < reps * cycle && u % cycle < repMs;
+    const p = inRep ? Math.sin((Math.PI * (u % cycle)) / repMs) ** 2 : 0;
+    const side = lungeBody(p);
+    frames.push({ t: Math.round(t), pose: jitter(view === 'front' ? frontView(side) : side, r, noise, 0) });
+  }
+  return { frames, trueEnds: [] };
+}
