@@ -67,7 +67,7 @@ describe('stats', () => {
       w(26, [set('bench', 200, 5)]),
       w(19, [set('bench', 205, 5)]),
       w(12, [set('bench', 210, 5, 'lb', true)]),
-      w(5, [set('bench', 220, 5, 'lb', true)]),
+      w(9, [set('bench', 220, 5, 'lb', true)]),
       w(1, [set('bench', 225, 5, 'lb', true)]),
     ];
     const o = overview(hist, 'lb', NOW);
