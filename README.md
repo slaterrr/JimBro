@@ -22,6 +22,12 @@ a **Raspberry Pi** stores your workouts and shows live reps on a station display
 - **Evidence tooling**: export angle traces with ground-truth counts and replay them
   (`python -m jimbro.evaluate`). See [docs/EVIDENCE.md](docs/EVIDENCE.md).
 
+## Apps
+- **`apps/expo`**: the Expo Go phone app (all tabs: workout, Jim, plan, progress, board). See
+  [apps/expo/README.md](apps/expo/README.md). It talks to the Pi over LAN HTTP on port 8080.
+- **`apps/mobile`**: the browser PWA the Pi serves over HTTPS; it runs camera pose detection and
+  rep counting (the Expo app opens it for that) and the `/station` display.
+
 ## Architecture
 ```
  Phone (PWA, HTTPS)                         Raspberry Pi 4 (from the USB bundle)

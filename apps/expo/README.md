@@ -1,16 +1,41 @@
-# JimBro
+# JimBro for Expo Go
 
-Preliminary Expo Go frontend for JimBro, an adaptive training companion.
+The phone app for JimBro (Expo SDK 58). It started as the Expo Go prototype and now
+connects to the JimBro Raspberry Pi for everything the prototype faked.
 
-## Open on your phone
+## Run it
+```bash
+cd apps/expo
+npm install
+npx expo start          # scan the QR code with Expo Go (same Wi-Fi as your computer)
+```
+If local networking fails, try `npx expo start --tunnel`. On a physical iPhone, sign in to
+the same Expo account in Expo CLI and Expo Go if prompted.
 
-1. Install Node.js and Expo Go on your phone.
-2. Run `npm install` in this directory.
-3. Run `npx expo start` and scan the QR code with Expo Go. Keep the phone and computer on the same Wi-Fi. If local networking fails, try `npx expo start --tunnel`.
+In the app, open **Home → Your Pi** and enter the Pi's address (`jimbro.local`, or the IP in
+`jimbro-status.txt` on the USB stick). The app uses the Pi's LAN HTTP port **8080**, because
+Expo Go can't accept the Pi's self-signed HTTPS certificate.
 
-This project targets Expo SDK 58. On a physical iPhone, sign in to the same Expo account in Expo CLI and Expo Go if prompted.
+## What each tab does
+| Tab | With the Pi | Without the Pi |
+|---|---|---|
+| Home | connection status, pending sync count, tone and units | same; sets wait on the phone |
+| Workout | log sets for the six lifts (kg/lb, RPE); **live camera rep counts** fill the set, with per-rep timing | log sets offline; they sync later under the same IDs |
+| Jim | coaching in four tones from your history, next-set suggestion you can apply, spoken replies; type or dictate "10 curls at 20 pounds" to log a set (confirmed first) | preset replies; pain mentions still get the safety reply |
+| Plan | validated plan for goal, days, minutes and equipment | on-phone starter plan |
+| Progress | per-exercise trends from the Pi (units never mixed) | first-vs-latest comparison from this phone |
+| Board | opt-in weekly leaderboard, labeled demo athletes | needs the Pi |
 
-The native app includes a dashboard, workout and set logging, a dedicated Jim tab with a centered illustrated placeholder character, four coaching tones, spoken preset replies, a camera preview, starter plans, progress comparisons between completed workouts, and a private leaderboard placeholder. Workout data is stored on the device with AsyncStorage. The earlier browser prototype remains in `legacy-web/` for reference; Expo Go launches `App.jsx`.
+**Camera rep counting.** Expo Go can't load the on-device pose model, so *Open camera counter*
+launches the JimBro PWA in the phone's browser (accept the certificate once). Video never
+leaves the phone; the Pi broadcasts each counted rep and this app shows the live count.
 
-The camera does not perform pose estimation, repetition detection, form analysis, or time-under-tension measurement. Jim's messages and plans are starter frontend behavior, not AI-generated advice. Speech input, shared leaderboards, and persistence across devices need backend work. The Google Doc's FastAPI, SQLite, MoveNet/LiteRT, Raspberry Pi, WebSocket, and testing requirements remain future integration work.
+## Develop
+- Logic lives in `src/lib` (API client, offline queue, station feed, parser, fallbacks) and is
+  tested with `npm test` (Node's test runner, no extra dependencies).
+- `JIMBRO_API=http://127.0.0.1:8080 npm test` also runs integration tests against a live
+  server: from the repo root, `JIMBRO_HTTP_PORT=8080 JIMBRO_PORT=0 PYTHONPATH=backend python -m jimbro.serve`.
+- The API contract is `docs/openapi.json`; websocket messages are in `docs/API.md`.
+- The first browser prototype is kept in `legacy-web/` for reference.
 
+Not a medical device. TUT is estimated movement timing, not muscle tension.
