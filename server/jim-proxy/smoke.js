@@ -52,7 +52,7 @@ for (const c of checks) {
     failed += 1;
     console.log(`FAIL  ${c.name}  ${e.status ?? ''} ${e.name}: ${String(e.message).slice(0, 200)}`);
     if (e.status === 400 && /fallback|beta/i.test(String(e.message))) console.log('      hint: run again with JIM_FALLBACKS=0');
-    if (e.status === 401) console.log('      hint: no valid API key or `ant auth login` profile found');
+    if (e.status === 401 || /authentication method/i.test(String(e.message))) console.log('      hint: no valid API key or `ant auth login` profile found (set ANTHROPIC_API_KEY in this shell)');
   }
 }
 console.log(failed ? `${failed} check(s) failed` : 'all checks passed');
