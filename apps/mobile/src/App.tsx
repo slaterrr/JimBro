@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import type { ExerciseId, RepDetail, Unit } from "./api/client";
 import { CoachScreen } from "./components/CoachScreen";
+import { HistoryScreen } from "./components/HistoryScreen";
 import { PlanBuilder } from "./components/PlanBuilder";
 import { LiveWorkout, type RepEvent } from "./components/LiveWorkout";
 import { SessionSummaryCard } from "./components/SessionSummaryCard";
@@ -8,9 +9,9 @@ import { SetForm } from "./components/SetForm";
 import type { Movement } from "./pose/angles";
 import { useWorkout } from "./state/useWorkout";
 
-type Tab = "train" | "log" | "jim";
+type Tab = "train" | "log" | "history" | "jim";
 type Prefill = { exercise: ExerciseId; weight: number; unit: Unit; reps: number };
-const TAB_LABEL: Record<Tab, string> = { train: "Train", log: "Log", jim: "Jim" };
+const TAB_LABEL: Record<Tab, string> = { train: "Train", log: "Log", history: "Progress", jim: "Jim" };
 
 const toDetail = (r: RepEvent): RepDetail => ({
   index: r.index,
@@ -68,6 +69,8 @@ export function App() {
           <SessionSummaryCard summary={workout.summary} />
         </>
       )}
+
+      {tab === "history" && <HistoryScreen />}
 
       {tab === "jim" && (
         <>

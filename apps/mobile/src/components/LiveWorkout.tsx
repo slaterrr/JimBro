@@ -1,4 +1,5 @@
 import { type ComponentType, useCallback, useEffect, useRef, useState } from "react";
+import { athleteId } from "../api/client";
 import { LiveClient, type LiveEvent, type LiveStatus, liveUrl } from "../live/client";
 import { movementAngle, type Movement } from "../pose/angles";
 import { CameraView, type PoseFrame } from "./CameraView";
@@ -18,7 +19,7 @@ type Connect = (
 ) => Client;
 
 const defaultConnect: Connect = (movement, onEvent, onStatus) =>
-  new LiveClient(liveUrl(location.origin, movement), onEvent, WebSocket, onStatus);
+  new LiveClient(`${liveUrl(location.origin, movement)}?athlete=${encodeURIComponent(athleteId())}`, onEvent, WebSocket, onStatus);
 
 export const MOVEMENT_LABEL: Record<Movement, string> = {
   curl: "Bicep curl",

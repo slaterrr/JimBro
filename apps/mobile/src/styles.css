@@ -40,3 +40,7 @@ th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .bubble { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 6px 0; white-space: pre-wrap; }
 .bubble.me { border-color: var(--accent); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.station { min-height: 100vh; display: flex; flex-direction: column; padding: 24px 32px; cursor: pointer; user-select: none; }
+.station-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: 2rem; }
+.station-count { font-size: min(40vh, 30vw); font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.station-sub { font-size: 1.5rem; color: var(--muted); text-align: center; }
