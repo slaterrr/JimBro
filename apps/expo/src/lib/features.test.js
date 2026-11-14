@@ -138,6 +138,7 @@ const WIRING = {
   ],
   'screens/HomeScreen.js#perf': [
     [/answerPerformance\(/, 'chat answers about the last set from recorded data'],
+    [/answerContext\(/, 'workout-context answers (today, sets left, swaps, progress, rest)'],
   ]
 };
 

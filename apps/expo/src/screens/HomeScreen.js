@@ -13,6 +13,7 @@ import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
+import { answerContext } from '../lib/coachQA.js';
 import { answerPerformance } from '../lib/perfCoach.js';
 import { isCompact } from '../lib/layout.js';
 import { buildPlan } from '../lib/plans.js';
@@ -108,7 +109,8 @@ export function HomeScreen({ openLog, openActivity, go }) {
     push({ me: true, text: message });
     // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
     // recorded sets on the phone, so every claim comes from data.
-    const perfReply = answerPerformance(message, { history, active });
+    const perfReply = answerPerformance(message, { history, active })
+      ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
     if (perfReply) {
       push({ me: false, text: perfReply });
       speak(perfReply);
