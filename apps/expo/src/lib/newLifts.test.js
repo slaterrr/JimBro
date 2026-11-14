@@ -76,3 +76,14 @@ describe('deadlift (experimental, simulated)', () => {
     assert.equal(run('curl', frames).s.count, 0);
   });
 });
+
+describe('guidance for the new lifts names the right exercise', () => {
+  it('deadlift and pull-up switch lines', async () => {
+    const { cameraGuidance } = await import('./guidance.js');
+    assert.match(cameraGuidance('exercise_change', 'squat', 'deadlift'), /squats, so deadlift counting is paused/);
+    assert.match(cameraGuidance('exercise_change', 'shoulder_press', 'pull_up'), /shoulder presses, so pull-up counting is paused/);
+    assert.match(cameraGuidance('exercise_change', 'hang', 'pull_up'), /arms overhead/);
+    // existing wording unchanged
+    assert.match(cameraGuidance('exercise_change', 'shoulder_press', 'curl'), /so curl counting is paused/);
+  });
+});

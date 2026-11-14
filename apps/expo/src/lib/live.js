@@ -36,6 +36,14 @@ const FORM_REVIEW = new Set(['curl', 'squat', 'shoulder_press']);
 // Push-up mode: arms straight again (elbow >= this) in a push-up position releases the latch.
 const ARMS_STRAIGHT_DEG = 150;
 const ARM_SUGGEST = { curl: 'curl', press: 'shoulder_press' };
+// EXPERIMENTAL gates (simulation-tested only). Pull-up: hands overhead (wrist above the shoulder by
+// a tenth of a torso) and fixed on the bar; if the wrist travels > 0.35 torso lengths during a rep,
+// the hands are moving, not the body (a press), so the rep is not a pull-up.
+const PULLUP_OVERHEAD_TORSO = 0.1;
+const PULLUP_WRIST_DRIFT_TORSO = 0.35;
+// Deadlift: a knee bent below this at any point looks like a squat, not a hinge. Heuristic: real
+// deep deadlift starts and quarter squats overlap; validate on real clips.
+const DEADLIFT_SQUAT_KNEE_DEG = 100;
 
 /** Evenly pick at most n items, keeping the first and last. */
 export function downsample(items, n) {
@@ -160,7 +168,9 @@ export class LiveSession {
       this.counter.interrupt();
       return this.result(null, tracking, m.angle, 'implausible_motion');
     }
-    const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle) : this._pushupElsewhere(pose);
+    const changed = this.movement === 'push_up' ? this._pushupGate(pose, m.angle)
+      : this.movement === 'pull_up' ? this._pullupGate(pose, m.angle)
+        : (this.movement === 'deadlift' && this._deadliftGate(pose)) || this._pushupElsewhere(pose);
     if (changed) {
       this.counter.interrupt();
       return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: changed, suggested: this.suggested ?? null };
@@ -241,6 +251,50 @@ export class LiveSession {
     if (other && (this._other >= CHANGE_FRAMES || this.counter.state !== 'rest')) this._latched = true;
     if (this._latched && !other && elbow >= ARMS_STRAIGHT_DEG) this._latched = false;
     return this._latched ? (this.suggested ?? 'upright') : null;
+  }
+
+  /** Pull-up mode: arms overhead with the hands fixed on the bar (see PULLUP_* above). */
+  _pullupGate(pose, elbow) {
+    const L = this.side === 'left' ? { sh: 11, wr: 15, hip: 23 } : { sh: 12, wr: 16, hip: 24 };
+    const sh = pose[L.sh];
+    const wr = pose[L.wr];
+    const torso = Math.hypot(sh.x - pose[L.hip].x, sh.y - pose[L.hip].y);
+    if (!(torso > 0.01)) return null;
+    const overhead = wr.y < sh.y - PULLUP_OVERHEAD_TORSO * torso;
+    const moving = this.counter.state !== 'rest';
+    if (!moving && overhead) this._wristRef = this._wristRef == null ? wr.y : 0.7 * this._wristRef + 0.3 * wr.y;
+    const drift = moving && this._wristRef != null ? Math.abs(wr.y - this._wristRef) / torso : 0;
+    const hands = drift > PULLUP_WRIST_DRIFT_TORSO;
+    const other = !overhead || hands;
+    if (other) {
+      const cand = hands ? 'shoulder_press' : ARM_SUGGEST[armShape(pose, this.side)] ?? null;
+      if (cand) {
+        const seen = (this._seen ??= {});
+        seen[cand] = (seen[cand] ?? 0) + 1;
+        if (seen[cand] >= SUGGEST_FRAMES) this.suggested = cand;
+      }
+    }
+    this._other = other ? (this._other ?? 0) + 1 : 0;
+    if (other && (this._other >= ARM_CHANGE_FRAMES || moving)) this._latched = true;
+    if (this._latched && !other && elbow >= ARMS_STRAIGHT_DEG) {
+      this._latched = false;
+      this._wristRef = wr.y;
+    }
+    return this._latched ? (this.suggested ?? 'hang') : null;
+  }
+
+  /** Deadlift mode: a deep knee bend is a squat, not a hip hinge (until standing again). */
+  _deadliftGate(pose) {
+    const knee = movementAngle(pose, 'squat', this.side)?.angle;
+    if (!Number.isFinite(knee)) return null;
+    const squat = knee < DEADLIFT_SQUAT_KNEE_DEG;
+    if (squat) {
+      this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = 'squat';
+      this._latched = true;
+    }
+    if (this._latched && knee >= STANDING_DEG) this._latched = false;
+    return this._latched ? 'squat' : null;
   }
 
   /** Other modes: hands and knees/feet on the floor with a flat body is a push-up, not this lift. */

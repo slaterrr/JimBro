@@ -9,8 +9,8 @@ const PART = {
   body: 'Step back so your whole body is in frame, in good light.',
 };
 
-const NAME = { curl: 'curls', squat: 'squats', shoulder_press: 'shoulder presses', push_up: 'push-ups' };
-const SINGULAR = { curls: 'curl', squats: 'squat', 'shoulder presses': 'shoulder press', 'push-ups': 'push-up' };
+const NAME = { curl: 'curls', squat: 'squats', shoulder_press: 'shoulder presses', push_up: 'push-ups', pull_up: 'pull-ups', deadlift: 'deadlifts' };
+const SINGULAR = { curls: 'curl', squats: 'squat', 'shoulder presses': 'shoulder press', 'push-ups': 'push-up', 'pull-ups': 'pull-up', deadlifts: 'deadlift' };
 
 export function cameraGuidance(issue, hint, movement) {
   switch (issue) {
@@ -24,6 +24,10 @@ export function cameraGuidance(issue, hint, movement) {
         if (hint === 'upright') return 'Push-up counting is paused. Get into a plank with your hands on the floor to count push-ups.';
         if (NAME[hint]) return `Looks like ${NAME[hint]}, so push-up counting is paused. Switch to ${NAME[hint]} to count them.`;
         return 'Looks like a different exercise, so push-up counting is paused.';
+      }
+      if (movement === 'pull_up' && hint === 'hang') return 'Pull-up counting is paused. Hang from the bar facing the camera, arms overhead.';
+      if ((movement === 'pull_up' || movement === 'deadlift') && NAME[hint]) {
+        return `Looks like ${NAME[hint]}, so ${SINGULAR[NAME[movement]]} counting is paused. Switch to ${NAME[hint]} to count them.`;
       }
       if (hint === 'push_up') return `Looks like push-ups, so ${SINGULAR[NAME[movement]] ?? 'rep'} counting is paused. Switch to push-ups to count them.`;
       if (hint === 'lunge') return "Looks like lunges, so squat counting is paused. Lunges aren't camera-counted yet; log them with +, or go back to squats.";
