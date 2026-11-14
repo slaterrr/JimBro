@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp } from '../AppState.js';
+import { ImportSheet } from '../components/ImportSheet.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
@@ -120,8 +121,8 @@ export function HomeScreen({ openLog, openActivity, go }) {
       }
       go?.('Coach');
     } else if (id === 'plan') {
-      const intro = "Let's build your plan. Pick a goal, adjust the week and save it.";
-      push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' });
+      const intro = "Let's build your plan. Pick a goal and save it, or import past workouts and use a reference photo.";
+      push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' }, { kind: 'import' });
       speak(intro);
     } else {
       go?.('Progress');
@@ -209,6 +210,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
         ) : (
           messages.map((m, i) => {
             if (m.kind === 'plan') return <PlanCard key={i} />;
+            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} onDone={speak} />;
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>
