@@ -41,6 +41,19 @@ const WIRING = {
     [/healthSummary\(/, 'weekly health summary card'],
     [/go\?\.\('Progress'\)/, 'health summary opens Progress'],
   ],
+  'components/ImportSheet.js': [
+    [/getDocumentAsync\(/, 'pick a CSV / Excel workout sheet'],
+    [/parseWorkoutFile\(/, 'sheet parsed with tolerant headers'],
+    [/skipped/, 'skipped rows shown, not guessed'],
+    [/importData\(toExport\(/, 'import only after Confirm, via the existing importer'],
+    [/launchImageLibraryAsync\(/, 'pick a reference photo'],
+    [/consent/, 'explicit consent before the photo is uploaded'],
+    [/askPhysique\(/, 'photo -> AI emphasis -> plan (offline fallback)'],
+    [/savePlan\(/, 'plan saved only after Confirm'],
+  ],
+  'screens/HomeScreen.js#import': [
+    [/<ImportSheet\b/, 'import / photo plan entry on Create a New Plan'],
+  ],
   'components/Onboarding.js': [
     [/onboardingResult\(/, 'beginner/comeback setup effects'],
     [/ONBOARDING_QUESTIONS/, 'three setup questions'],
@@ -84,7 +97,7 @@ const WIRING = {
 
 for (const [file, checks] of Object.entries(WIRING)) {
   for (const [re, feature] of checks) {
-    test(`${file} still wires: ${feature}`, () => assert.match(src(file), re));
+    test(`${file} still wires: ${feature}`, () => assert.match(src(file.split('#')[0]), re)); // 'file#tag' keys add checks to a file listed elsewhere
   }
 }
 
