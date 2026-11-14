@@ -19,14 +19,16 @@ import { R, T, type } from '../theme.js';
 const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}%`);
 const signed = (v) => (v > 0 ? `+${v}` : `${v}`);
 
-function Tile({ icon, title, value, sub }) {
+function Tile({ icon, title, value, sub, onPress }) {
   return (
-    <Card style={st.tile}>
+    <TouchableOpacity disabled={!onPress} onPress={onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={onPress ? `View ${title} details` : undefined} style={{ width: '48%', flexGrow: 1 }}>
+    <Card style={{ flex: 1, alignItems: 'center', paddingVertical: 16 }}>
       <Icon name={icon} size={24} color={T.purple} />
       <Text style={[type.label, { color: T.text, marginTop: 6 }]}>{title}</Text>
       <Text style={type.statGreen}>{value}</Text>
       {sub ? <Text style={type.small}>{sub}</Text> : null}
     </Card>
+    </TouchableOpacity>
   );
 }
 
@@ -81,7 +83,8 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs'], ['history', 'History'], ['goals', 'Goals']]} value={tab} onChange={setTab} />
+      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
+      {['volume', 'prs'].includes(tab) ? <PrimaryButton secondary onPress={() => setTab('overview')}>Back to Overview</PrimaryButton> : null}
 
       {tab === 'overview' ? <Comparisons history={history} unit={unit} /> : null}
       {tab === 'overview' ? (
@@ -96,9 +99,9 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
           </Card>
           <View style={st.grid}>
             <Tile icon="dumbbell" title="Est. 1RM" value={o.topLift ? `${o.topLift.e1rm} ${unit}` : '—'} sub={o.topLift ? `${exerciseName(o.topLift.exercise)} (${signed(o.topLift.delta)} ${unit})` : 'log a set'} />
-            <Tile icon="layers-outline" title="Volume" value={pct(o.volumeChangePct)} sub="vs. prior 4 weeks" />
+            <Tile icon="layers-outline" title="Volume" value={pct(o.volumeChangePct)} sub="vs. prior 4 weeks · View details" onPress={() => setTab('volume')} />
             <Tile icon="target" title="Consistency" value={`${o.consistency.pct}%`} sub={`(${o.consistency.weeks} / ${o.consistency.of} weeks)`} />
-            <Tile icon="trophy" title="PRs" value={String(o.prs.count)} sub={`(+${o.prs.newThisWeek} new)`} />
+            <Tile icon="trophy" title="PRs" value={String(o.prs.count)} sub={`(+${o.prs.newThisWeek} new) · View details`} onPress={() => setTab('prs')} />
           </View>
           <Text style={[type.h2, { marginTop: 24 }]}>History</Text>
           {!history.length ? <Text style={[type.body, { marginTop: 8 }]}>Finished workouts show up here.</Text> : null}

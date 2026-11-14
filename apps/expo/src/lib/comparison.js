@@ -1,5 +1,7 @@
 import { estimate1RM } from './tools.js';
+import { sessionOptions } from './historyOrder.js';
 export function periods(history, mode) {
+  if (mode === 'workout') return sessionOptions(history);
   const groups = new Map();
   for (const w of [...history].sort((a,b) => b.startedAt.localeCompare(a.startedAt))) {
     const d = new Date(w.startedAt);

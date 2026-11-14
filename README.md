@@ -71,6 +71,39 @@ Then tap **"I have 20 minutes, help me finish chest day"** on Home.
   after an explicit consent tick. It is never stored or logged, and replies never judge weight,
   looks or health.
 
+
+## Shared team preview (phones, no laptop)
+
+[![Shared preview QR](docs/testing/preview-qr.svg)](https://expo.dev/accounts/slaterr/projects/jimbro/branches/preview)
+
+Scan with your phone camera to open the persistent Expo preview page, then select the latest update. This is a dashboard QR, not a temporary laptop tunnel or a direct installation QR. Sign in if prompted.
+
+[Open latest preview](https://expo.dev/accounts/slaterr/projects/jimbro/branches/preview) · [Install a build](https://expo.dev/accounts/slaterr/projects/jimbro/builds) · [CI status](https://github.com/slaterrr/JimBro/actions/workflows/ci.yml)
+
+Install a compatible preview build on each phone once. It receives the `preview` channel without a laptop server. After publishing, launch the app to download the update, then fully close and reopen it to apply it. Default behavior can require two launches. Each phone keeps its own workout records.
+
+#### One-time activation
+
+The Expo project is linked. Add an Expo access token as the GitHub Actions repository secret `expo_access_token`. Never put tokens in source code or chat. Create and install the first preview build:
+
+```bash
+cd apps/expo
+npx eas-cli@latest login
+npx eas-cli@latest build --profile preview --platform android
+# For iPhones use --platform ios; Apple signing and registered devices are required.
+```
+
+Follow build prompts for application identifiers and signing. JavaScript updates cannot add native modules to an installed build. Rebuild after native dependency/configuration changes and increase the app version when changing the native runtime. Updates use the `appVersion` runtime policy.
+
+#### Team workflow
+
+1. Branch from current main, develop locally, and open a pull request.
+2. Pass CI and review, then merge into main.
+3. The main CI run publishes to `preview` only after all quality jobs pass. PRs never publish to this shared channel.
+4. Check Actions and the preview page, then reopen the installed app.
+
+EAS Update publishes JavaScript and bundled assets. The optional AI proxy is deployed separately; updates do not synchronize workout data.
+
 ## Repository
 | Path | What |
 |---|---|

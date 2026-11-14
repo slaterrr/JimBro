@@ -1,0 +1,11 @@
+fastapi<1,>=0.115
+uvicorn[standard]<1,>=0.30
+anthropic>=0.70
+
+[dev]
+httpx<1,>=0.27
+pytest<10,>=8.3
+pytest-cov<8,>=6
+ruff<1,>=0.12
+mypy<2,>=1.15
+mutmut<4,>=3.7

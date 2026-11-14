@@ -25,6 +25,8 @@ Last updated: 2026-11-14 night. Everything is consolidated on `main` (#39); see 
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents
+Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
+
 - **Never push to `main` or merge PRs without human approval.** Work on a branch off `main`, open a draft PR. Full audit: `docs/AUDIT.md`; Devpost draft: `docs/DEVPOST.md`.
 - Strict TDD: `test(...)` commit that fails for the expected reason → `feat/fix(...)` → refactor. Atomic commits.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; PR bodies end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
@@ -50,6 +52,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Feature | Status | Where | Tested how | Still needs |
 |---|---|---|---|---|
 | Four-screen UI (Home, Muscles, Coach, Progress) | ✅ main | `apps/expo/src/screens` | logic tests, web screenshots | — |
+| Home header shows only Jim's name; persona remains available in settings | 🧪 codex/home-jim-header | `screens/HomeScreen.js` | JSX parse and existing persona/Home checks | device visual check |
 | Seafoam accent theme (`T.accent*`, legacy `T.purple*` aliases), AA contrast | ✅ feat/team-ui-home | `theme.js`, `lib/palette.js` | contrast tests (accent 8.2–9.6:1, accentText 13.4–15.7:1) | device check |
 | Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
 | Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |
@@ -109,6 +112,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Effort estimate (RPE / RIR) from velocity loss + ROM decay, labelled estimate, in set report + Coach screen | 🧪 feat/pushup-variants | `lib/effort.js`, `sessionReport.js` | 8 unit tests | uncalibrated bands; validate against user-entered RPE |
 | Import past workouts from CSV / Excel (.xlsx): tolerant headers, catalog matching, skipped rows listed, preview → Confirm | 🧪 feat/import-plan | `lib/importWorkouts.js`, `components/ImportSheet.js` | 14 unit tests (messy CSV + generated xlsx fixtures) | device file picker (iOS Files / Android) |
 | Plan toward a physique photo (consent → `/physique` → muscle emphasis → plan confirm card); offline rule plan from `fitnessGoal` + `focusMuscles` + history | 🧪 feat/import-plan | `server/jim-proxy/physique.js`, `lib/jimAI.js` `askPhysique`, `lib/planFromGoal.js` | 11 proxy (SDK mocked) + 16 app unit tests | **live API smoke test with a real photo**; device image picker |
+| Shared live camera summary between Coach and Jim | 🧪 codex/shared-session-context | `AppState.js` live camera context, `CoachScreen.js` publisher, `HomeScreen.js` request context, `lib/jimAI.js` whitelist | 3 tests for active session, freshness, and privacy; 413 pass across 31 Expo test files; `importWorkouts.test.js` cannot load because `fflate` is not installed here | real-phone navigation and latency smoke test; verify deployment target before release |
 | Real-clip landmark regressions in `npm test`; vision-lab + proxy suites in CI | ✅ #31 | `tools/vision-lab/fixtures`, ci.yml | 4 real clips | more clips |
 | **Workout Mission**: "I have 20 minutes, help me finish chest day" → on-phone plan from history + goal (time-boxed, every choice explained) → confirm card → hands-free run on Coach (auto-start when tracked, auto-end set, quick RPE check that saves itself, rest with next-set adjustment, switch to a camera-counted lift, skip/end) → summary checked against the plan | 🧪 feat/workout-mission | `lib/mission.js`, `components/Mission.js`, HomeScreen chips + intercept, CoachScreen, AppState `mission` | 15 unit tests (parse, plan budget/progression/rested area, state machine, summary, weight pick, camera swap); iOS bundle; simulator tap-through of the tap-counted path (no camera in simulator) | camera-counted path on a real phone; spoken lines on device |
 
@@ -135,3 +139,9 @@ Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-
 
 ## PR map
 #18 camera guards → #19 vision lab → #20 report + sim + 2 fixes → #21 speech + caught-it, #22 Jim edits, #23 goals → `feat/integration` → #24 personas, #25 form review, #26 AI Jim → `feat/integration-v2`.
+
+## Shared preview delivery
+EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after all quality jobs pass, once the repository `expo_access_token` secret exists. README has a persistent preview-page QR. First preview builds/signing and device acceptance remain required. Config: `apps/expo/eas.json`, `apps/expo/app.json`, `.github/workflows/ci.yml`.
+
+## Progression date navigation
+Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.

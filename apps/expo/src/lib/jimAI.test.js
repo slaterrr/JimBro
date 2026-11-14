@@ -50,6 +50,55 @@ describe('buildContext', () => {
   it('falls back to the legacy tone for persona', () => {
     assert.equal(buildContext({ ...state, settings: { unit: 'kg', tone: 'hard' } }, NOW).persona, 'hard');
   });
+  it('includes a compact active-session summary and fresh camera result, without identifiers or raw pose data', () => {
+    const current = {
+      ...state,
+      active: {
+        ...state.active,
+        cameraSnapshot: {
+          sessionId: 'device-only-session-id',
+          updatedAt: '2026-11-14T11:59:30.000Z',
+          exercise: 'curl',
+          reps: 8,
+          trackingPct: 96,
+          frames: [{ landmarks: [{ x: 0.5, y: 0.2 }] }],
+        },
+      },
+    };
+    const context = buildContext(current, NOW);
+    assert.deepEqual(context.activeSession, {
+      startedAt: '2026-11-14T11:00:00Z',
+      setCount: 1,
+      exercises: ['curl'],
+    });
+    assert.deepEqual(context.liveCamera, {
+      updatedAt: '2026-11-14T11:59:30.000Z',
+      exercise: 'curl',
+      reps: 8,
+      trackingPct: 96,
+    });
+    const json = JSON.stringify(context);
+    for (const secret of ['device-only-session-id', 'sessionId', 'frames', 'landmarks', '0.5']) assert.ok(!json.includes(secret), secret);
+  });
+  it('does not claim live camera awareness when there is no active camera result', () => {
+    const context = buildContext({ ...state, active: { ...state.active, cameraSnapshot: null } }, NOW);
+    assert.equal(context.liveCamera, null);
+  });
+  it('omits a stale camera result while retaining the active workout summary', () => {
+    const context = buildContext({
+      ...state,
+      active: {
+        ...state.active,
+        cameraSnapshot: { updatedAt: '2026-11-14T11:54:59.999Z', exercise: 'curl', reps: 8, trackingPct: 96 },
+      },
+    }, NOW);
+    assert.equal(context.liveCamera, null);
+    assert.deepEqual(context.activeSession, {
+      startedAt: '2026-11-14T11:00:00Z',
+      setCount: 1,
+      exercises: ['curl'],
+    });
+  });
 });
 
 describe('validateProposal', () => {

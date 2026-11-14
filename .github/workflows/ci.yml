@@ -112,3 +112,37 @@ jobs:
           name: ui-screenshots
           path: apps/expo/e2e-artifacts
           retention-days: 14
+
+  publish-preview:
+    name: Publish shared Expo preview
+    needs: [backend-quality, mobile-quality, expo-quality, ui-smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/expo/package-lock.json
+      - name: Require publishing credential
+        env:
+          EXPO_TOKEN: ${{ secrets.expo_access_token }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo 'Add expo_access_token in repository Settings > Secrets and variables > Actions.'
+            exit 1
+          fi
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.expo_access_token }}
+      - run: npm ci
+      - name: Publish tested main commit
+        run: eas update --channel preview --environment preview --message "main $GITHUB_SHA" --non-interactive
+      - name: Link shared preview
+        run: echo 'https://expo.dev/accounts/slaterr/projects/jimbro/branches/preview' >> "$GITHUB_STEP_SUMMARY"
