@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { askJim, buildContext, historyFor, proxyUrl, validateProposal } from './jimAI.js';
+import { askJim, buildContext, checkProxy, historyFor, proxyUrl, validateProposal } from './jimAI.js';
 
 const NOW = new Date('2026-11-14T12:00:00Z');
 const set = (id, exercise, reps, weight, loggedAt, extra = {}) => ({ id, exercise, reps, weight, unit: 'lb', rpe: null, source: 'manual', loggedAt, pr: false, ...extra });
@@ -241,5 +241,36 @@ describe('Claude sees measured speed, labelled as relative', () => {
     assert.equal(m.peakDps.length, 6);
     assert.match(m.note, /relative/i);
     assert.match(m.note, /not bar speed|not m\/s/i);
+  });
+});
+
+describe('checkProxy', () => {
+  const okFetch = (calls = []) => async (url, opts) => { calls.push({ url, opts }); return { ok: true, status: 200 }; };
+
+  it('reports not configured without a URL or fetch', async () => {
+    assert.deepEqual(await checkProxy({ url: null, fetch: okFetch() }), { ok: false, reason: 'not configured' });
+    assert.deepEqual(await checkProxy({ url: 'http://x', fetch: null }), { ok: false, reason: 'not configured' });
+  });
+
+  it('GETs /health with the key and returns the round-trip ms', async () => {
+    const calls = [];
+    let t = 1000;
+    const r = await checkProxy({ url: 'http://x', key: 'k', fetch: okFetch(calls), now: () => (t += 250) });
+    assert.deepEqual(r, { ok: true, ms: 250 });
+    assert.equal(calls[0].url, 'http://x/health');
+    assert.equal(calls[0].opts.method, 'GET');
+    assert.equal(calls[0].opts.headers['X-Jim-Key'], 'k');
+  });
+
+  it('reports unreachable on a network error or non-2xx', async () => {
+    assert.deepEqual(await checkProxy({ url: 'http://x', fetch: async () => { throw new TypeError('Network request failed'); } }), { ok: false, reason: 'unreachable' });
+    assert.deepEqual(await checkProxy({ url: 'http://x', fetch: async () => ({ ok: false, status: 503 }) }), { ok: false, reason: 'unreachable' });
+  });
+
+  it('reports timeout when the host does not answer in time', async () => {
+    const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener('abort', () => {
+      const e = new Error('aborted'); e.name = 'AbortError'; reject(e);
+    }));
+    assert.deepEqual(await checkProxy({ url: 'http://x', fetch: hang, timeoutMs: 10 }), { ok: false, reason: 'timeout' });
   });
 });
