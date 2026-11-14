@@ -42,3 +42,20 @@ test('arm-lift exercise changes are explained neutrally and say how to count the
   assert.match(curl, /switch to curl/i);
   for (const g of [press, curl]) assert.doesNotMatch(g, /cheat|wrong|bad/i);
 });
+
+test('push-up exercise changes use readable names, never raw ids', () => {
+  const inCurl = cameraGuidance('exercise_change', 'push_up', 'curl');
+  assert.match(inCurl, /push-ups/i);
+  assert.match(inCurl, /curl counting is paused/i);
+  assert.match(inCurl, /switch to push-ups/i);
+  const upright = cameraGuidance('exercise_change', 'upright', 'push_up');
+  assert.match(upright, /push-up counting is paused/i);
+  assert.match(upright, /plank|hands/i);
+  const squatInPu = cameraGuidance('exercise_change', 'squat', 'push_up');
+  assert.match(squatInPu, /squats/i);
+  assert.match(cameraGuidance('exercise_change', 'curl', 'push_up'), /push-up counting is paused/i);
+  for (const g of [inCurl, upright, squatInPu, cameraGuidance('exercise_change', 'x', 'push_up')]) {
+    assert.doesNotMatch(g, /_/);
+    assert.doesNotMatch(g, /cheat|wrong|bad/i);
+  }
+});
