@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Segmented, Sheet } from '../components/kit.js';
+import { compareSessions, comparePeriods, historyNewestFirst } from '../lib/compare.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { describeGoal, goalProgress, GOAL_TYPES, weeklyCheckIn } from '../lib/goals.js';
 import { MUSCLE_GROUPS } from '../lib/muscles.js';
@@ -76,7 +77,7 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs'], ['goals', 'Goals']]} value={tab} onChange={setTab} />
+      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['volume', 'Volume'], ['prs', 'PRs'], ['history', 'History'], ['goals', 'Goals']]} value={tab} onChange={setTab} />
 
       {tab === 'overview' ? (
         <>
@@ -161,6 +162,17 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
         </>
       ) : null}
 
+      {tab === 'history' ? (
+        <HistoryTab
+          workouts={workouts}
+          history={history}
+          unit={unit}
+          active={active}
+          onRepeat={(w) => { startWorkout(`${w.name} (repeat)`, repeatPlan(w)); go('Coach'); }}
+          onDelete={remove}
+        />
+      ) : null}
+
       {tab === 'goals' ? (
         <>
           <CheckInCard checkIn={weeklyCheckIn({ history, active, plan, goals })} />
@@ -184,6 +196,90 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function Delta({ label, value }) {
+  const color = value === null || value === undefined ? T.textMute : value >= 0 ? T.green : T.amber;
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text style={{ color, fontSize: 18, fontWeight: '800' }}>{pct(value)}</Text>
+      <Text style={type.small}>{label}</Text>
+    </View>
+  );
+}
+
+const fmt = (v, unit) => (v === null || v === undefined ? '—' : `${v} ${unit}`);
+
+/** Full workout history plus workout-to-workout and month/year comparisons. */
+function HistoryTab({ workouts, history, unit, active, onRepeat, onDelete }) {
+  const [exercise, setExercise] = useState('curl');
+  const [period, setPeriod] = useState('month');
+  const s = useMemo(() => compareSessions(workouts, exercise, unit), [workouts, exercise, unit]);
+  const p = useMemo(() => comparePeriods(workouts, { period, unit }), [workouts, period, unit]);
+  const list = useMemo(() => historyNewestFirst(history), [history]);
+  const line = (x) => `${x.label}: ${fmt(x.topWeight, unit)} top · e1RM ${fmt(x.e1rm, unit)} · vol ${fmt(x.volume, unit)}`;
+  return (
+    <>
+      <Card style={{ marginTop: 14 }}>
+        <Text style={type.title}>Workout to workout</Text>
+        <View style={{ marginTop: 8 }}>
+          <Chips options={EXERCISES.map((e) => [e.id, e.name])} value={exercise} onChange={setExercise} />
+        </View>
+        {!s ? (
+          <Text style={[type.body, { marginTop: 12 }]}>No {exerciseName(exercise).toLowerCase()} logged yet.</Text>
+        ) : (
+          <>
+            <Text style={[type.body, { marginTop: 12 }]}>{s.text}</Text>
+            {s.previous ? (
+              <>
+                <View style={{ flexDirection: 'row', marginTop: 10 }}>
+                  <Delta label="Top weight" value={s.change.topWeightPct} />
+                  <Delta label="Est. 1RM" value={s.change.e1rmPct} />
+                  <Delta label="Volume" value={s.change.volumePct} />
+                </View>
+                <Text style={[type.small, { marginTop: 8 }]}>{line(s.current)}</Text>
+                <Text style={type.small}>{line(s.previous)}</Text>
+              </>
+            ) : null}
+          </>
+        )}
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <Text style={type.title}>{period === 'month' ? 'Month to month' : 'Year to year'}</Text>
+        <View style={{ marginTop: 8 }}>
+          <Chips options={[['month', 'Month'], ['year', 'Year']]} value={period} onChange={setPeriod} />
+        </View>
+        <Text style={[type.body, { marginTop: 12 }]}>{p.text}</Text>
+        {p.previous ? (
+          <View style={{ flexDirection: 'row', marginTop: 10 }}>
+            <Delta label="Sessions" value={p.change.sessionsPct} />
+            <Delta label="Total e1RM" value={p.change.e1rmPct} />
+            <Delta label="Volume" value={p.change.volumePct} />
+          </View>
+        ) : null}
+        <Text style={[type.small, { marginTop: 8 }]}>
+          {p.current.label}: {p.current.sessions} sessions · vol {fmt(p.current.volume, unit)}
+          {p.previous ? ` · ${p.previous.label}: ${p.previous.sessions} sessions · vol ${fmt(p.previous.volume, unit)}` : ''}
+        </Text>
+        {p.exercises.map((e) => (
+          <Text key={e.exercise} style={[type.body, { marginTop: 6 }]}>
+            {exerciseName(e.exercise)}: e1RM {fmt(e.current?.bestE1rm, unit)}
+            {e.previous ? ` (was ${fmt(e.previous.bestE1rm, unit)}, ${pct(e.change?.e1rmPct)})` : ' (no previous data)'}
+            {e.current ? ` · vol ${fmt(e.current.volume, unit)}` : ' · none this period'}
+            {e.change ? ` (${pct(e.change.volumePct)})` : ''}
+          </Text>
+        ))}
+      </Card>
+
+      <Text style={[type.h2, { marginTop: 24 }]}>All workouts</Text>
+      {!list.length ? <Text style={[type.body, { marginTop: 8 }]}>Finished workouts show up here.</Text> : null}
+      {list.map((w) => (
+        <HistoryItem key={w.id} workout={w} canRepeat={!active} onRepeat={() => onRepeat(w)} onDelete={() => onDelete(w)} />
+      ))}
+      <Text style={[type.small, { marginTop: 10 }]}>Tap a workout to see its sets. Bodyweight sets add no volume or e1RM.</Text>
+    </>
   );
 }
 
