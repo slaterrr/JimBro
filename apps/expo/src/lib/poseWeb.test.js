@@ -22,3 +22,12 @@ describe('pose page on web', () => {
     assert.deepEqual(fromFrame(frame), { nativeEvent: { data: frame } });
   });
 });
+
+describe('pose view wiring', () => {
+  it('CoachScreen imports PoseView without an extension, so Metro picks PoseView.web.js on web', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../screens/CoachScreen.js', import.meta.url), 'utf8');
+    assert.match(src, /from '\.\.\/components\/PoseView';/);
+    assert.doesNotMatch(src, /react-native-webview/);
+  });
+});

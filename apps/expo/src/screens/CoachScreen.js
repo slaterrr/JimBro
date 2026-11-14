@@ -5,7 +5,8 @@ import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimen
 import { useApp } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { MissionPanel } from '../components/Mission.js';
-import { PoseView } from '../components/PoseView.js';
+// No extension on purpose: Metro then loads PoseView.web.js on web and PoseView.js on phones.
+import { PoseView } from '../components/PoseView';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
