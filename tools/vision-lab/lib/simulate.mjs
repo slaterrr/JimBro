@@ -43,11 +43,19 @@ export function body({ upperArm = 0, elbow = 170, knee = 175, cx = 0.5 }) {
 // Facing the camera: the sagittal motion (knees and hips travelling toward the lens) is lost
 // in x; only the vertical projection remains. Left/right joints separate by body width.
 const HALF_WIDTH = { 11: 0.09, 13: 0.11, 15: 0.11, 23: 0.06, 25: 0.065, 27: 0.06 };
-export function frontView(pose, cx = 0.5) {
+// armsFrontal: the arms move in the image plane (a shoulder press facing the camera: elbows
+// out to the sides), so their side-view forward offset becomes a sideways offset per arm.
+export function frontView(pose, cx = 0.5, { armsFrontal = false } = {}) {
   const out = pose.map((p) => ({ ...p }));
   for (const [i, w] of Object.entries(HALF_WIDTH)) {
     out[+i] = { x: cx + w, y: pose[+i].y, visibility: 0.98 }; // subject's left appears on image right
     out[+i + 1] = { x: cx - w, y: pose[+i + 1].y, visibility: 0.98 }; // each side keeps its own height
+  }
+  if (armsFrontal) {
+    for (const i of [13, 15]) {
+      out[i].x = out[11].x + (pose[i].x - pose[11].x);
+      out[i + 1].x = out[12].x - (pose[i + 1].x - pose[12].x);
+    }
   }
   return out;
 }
@@ -91,7 +99,7 @@ export function simulateSet(movement, o = {}) {
   for (let tt = 0; tt <= end; tt += dt) {
     while (k < phases.length - 1 && tt > phases[k].until) k++;
     const side = body(MOVES[movement](phases[k].p(tt)));
-    const pose = view === 'front' ? frontView(side) : side;
+    const pose = view === 'front' ? frontView(side, 0.5, { armsFrontal: movement === 'shoulder_press' }) : side;
     frames.push({ t: Math.round(tt), pose: jitter(pose, r, noise, dropout) });
   }
   return { frames, trueEnds };
@@ -174,4 +182,21 @@ export function simulateLunges({ reps = 8, repMs = 2200, restMs = 400, view = 's
     frames.push({ t: Math.round(t), pose: jitter(view === 'front' ? frontView(side) : side, r, noise, 0) });
   }
   return { frames, trueEnds: [] };
+}
+
+/**
+ * Mid-set exercise switch: `fromReps` of one lift, then `toReps` of another, without a pause in
+ * tracking. Ground truth (trueEnds) is the first lift's reps only; the second lift must not be
+ * counted in the first lift's mode.
+ */
+export function simulateSwitch(from, to, { fromReps = 5, toReps = 6, view = 'side', seed = 51, noise = 0.003 } = {}) {
+  const a = simulateSet(from, { reps: fromReps, view, seed, noise });
+  const last = a.frames[a.frames.length - 1].t;
+  const b = simulateSet(to, { reps: toReps, view, seed: seed + 1, noise });
+  return { frames: [...a.frames, ...b.frames.map((f) => ({ ...f, t: f.t + last + 50 }))], trueEnds: a.trueEnds };
+}
+
+/** Another lift done in this lift's mode (e.g. presses in curl mode): zero true reps. */
+export function simulateOtherLift(lift, o = {}) {
+  return { frames: simulateSet(lift, o).frames, trueEnds: [] };
 }
