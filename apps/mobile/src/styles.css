@@ -39,3 +39,4 @@ table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
 .bubble { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 6px 0; white-space: pre-wrap; }
 .bubble.me { border-color: var(--accent); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
