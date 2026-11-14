@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jim Bro – CV exercise tracker test bench</title>
+    <style>
+      :root { color-scheme: dark; --bg: #141414; --card: #1e1e1e; --line: #2c2c2c; --text: #f2f2f2; --muted: #9a9a9a; --lime: #c6ff00; --warn: #ffb020; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, sans-serif; }
+      main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+      @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+      h1 { font-size: 18px; margin: 0 0 4px; } h1 span { color: var(--lime); }
+      .note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+      .stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; }
+      .stage video, .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+      .reps { font-size: 72px; font-weight: 800; color: var(--lime); line-height: 1; font-variant-numeric: tabular-nums; }
+      .row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+      .row:last-child { border-bottom: 0; }
+      .tag { font-size: 11px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
+      .tag.m { color: var(--lime); border-color: var(--lime); }
+      .tag.e { color: var(--warn); border-color: var(--warn); }
+      .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      button { background: var(--lime); color: #111; border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer; font: inherit; font-weight: 700; }
+      button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+      button:disabled { opacity: 0.4; cursor: default; }
+      .picker { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+      .picker button { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 8px 14px; border-radius: 99px; font-weight: 600; }
+      .picker button[aria-pressed="true"] { background: var(--lime); color: #111; border-color: var(--lime); }
+      .slider { display: flex; gap: 10px; align-items: center; }
+      .slider input { flex: 1; accent-color: var(--lime); }
+      .slider strong { min-width: 3.5em; text-align: right; }
+      #msg { min-height: 1.4em; color: var(--warn); }
+      #log { font: 12px/1.5 ui-monospace, monospace; max-height: 220px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>Jim <span>Bro</span> · exercise tracker test bench</h1>
+        <div class="picker" id="picker" role="group" aria-label="Exercise"></div>
+        <p class="note" id="setup"></p>
+        <div class="stage">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="btns">
+          <button id="start">Start</button>
+          <button id="pause" class="secondary" disabled>Pause</button>
+          <button id="stop" class="secondary" disabled>End session</button>
+          <button id="voice" class="secondary" aria-pressed="true">🔊 Voice on</button>
+        </div>
+        <p id="msg"></p>
+      </section>
+      <aside>
+        <div class="card">
+          <div class="note">Reps <span class="tag m">measured</span></div>
+          <div class="reps" id="reps">0</div>
+          <div id="status" class="note">idle</div>
+        </div>
+        <div class="card">
+          <div class="note" style="margin:0 0 6px" id="angleLabel"></div>
+          <div class="slider">
+            <input id="peak" type="range" step="1" aria-label="Full-range line in degrees" />
+            <strong id="peakVal"></strong>
+          </div>
+          <div id="progressBox">
+            <div class="note" style="margin:10px 0 6px" id="progressLabel"></div>
+            <div class="slider">
+              <input id="progress" type="range" min="10" max="95" step="1" aria-label="Minimum progress in percent" />
+              <strong id="progressVal"></strong>
+            </div>
+          </div>
+          <p class="note" style="margin:6px 0 0" id="guide"></p>
+          <div class="row" style="margin-top:8px"><span>This rep, furthest<span class="tag m">measured</span></span><strong id="curPeak">–</strong></div>
+        </div>
+        <div class="card" id="metrics"></div>
+        <div class="card"><div class="note">Events</div><div id="log"></div></div>
+      </aside>
+    </main>
+    <script type="module" src="/src/cv/demo/demo.ts"></script>
+  </body>
+</html>

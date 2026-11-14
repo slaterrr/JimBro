@@ -22,3 +22,5 @@ build/
 .expo/
 dist-check*/
 npm-debug.log*
+.vite/
+.DS_Store
