@@ -44,3 +44,11 @@ test('fast but real curls (about 1.1 s per rep) are still all counted', () => {
   const s = scoreClip({ trueEnds, predEnds: replay('curl', frames).predEnds });
   assert.deepEqual({ tp: s.tp, fp: s.fp, fn: s.fn }, { tp: 20, fp: 0, fn: 0 });
 });
+
+test('curls with the hips below the frame edge (waist-up framing) are paused, not counted', () => {
+  const { frames } = simulateSet('curl', { reps: 6, seed: 9 });
+  const cropped = frames.map((f) => ({ ...f, pose: f.pose.map((p, i) => ([23, 24].includes(i) ? { ...p, y: 0.99 } : p)) }));
+  const out = replay('curl', cropped);
+  assert.equal(out.predEnds.length, 0);
+  assert.ok(out.frames.some((f) => f.issue === 'framing'));
+});
