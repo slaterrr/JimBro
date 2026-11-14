@@ -125,3 +125,40 @@ export function lowerBodyShape(pose, kneeAngle = null) {
   if ((standing && !isFrontal(pose) && stance > LUNGE_STANCE) || kneeDrop > LUNGE_KNEE_DROP) return 'lunge';
   return 'squat';
 }
+
+// Curl vs shoulder press from where the arms are, in torso lengths below (+) or above (−) the
+// shoulder (the torso barely foreshortens; upper arm and forearm do). Hypotheses under test:
+// a press locks out with BOTH wrists well overhead and both elbows above the shoulders (a wave
+// is one arm, and a raised waving forearm stays lower); a curl lifts the wrist toward the
+// shoulder while the elbow hangs beside the torso.
+const PRESS_WRIST_RISE = 0.9;
+const PRESS_ELBOW_RISE = 0.3;
+const HANG_ELBOW_DROP = 0.45;
+const CURL_WRIST_DROP = 0.6;
+const DOWN_WRIST_DROP = 0.9;
+const RACK_ELBOW_DROP = 0.2;
+
+/** 'press' (lockout), 'curl' (flexed, elbow hanging), 'down' (arm hanging), 'rack', or null. */
+export function armShape(pose, side) {
+  if (!pose || pose.length < POSE_LANDMARKS) return null;
+  if ([11, 12, 23, 24].some((i) => (pose[i]?.visibility ?? 0) < 0.3)) return null;
+  const m1 = mid(pose[11], pose[12]);
+  const m2 = mid(pose[23], pose[24]);
+  const torso = Math.hypot(m1.x - m2.x, m1.y - m2.y);
+  if (!(torso > 0.01)) return null;
+  const arm = (s) => {
+    const [sh, el, wr] = ARM[s];
+    if ([el, wr].some((i) => (pose[i]?.visibility ?? 0) < 0.3)) return null;
+    return { elbow: (pose[el].y - pose[sh].y) / torso, wrist: (pose[wr].y - pose[sh].y) / torso };
+  };
+  const both = [arm('left'), arm('right')];
+  if (both.every((a) => a && a.wrist < -PRESS_WRIST_RISE && a.elbow < -PRESS_ELBOW_RISE)) return 'press';
+  const a = arm(side);
+  if (!a) return null;
+  if (a.elbow > HANG_ELBOW_DROP) {
+    if (a.wrist < CURL_WRIST_DROP) return 'curl';
+    if (a.wrist > DOWN_WRIST_DROP) return 'down';
+  }
+  if (a.elbow < RACK_ELBOW_DROP && a.wrist < 0) return 'rack';
+  return null;
+}

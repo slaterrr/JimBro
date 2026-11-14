@@ -1,6 +1,6 @@
 // One camera set: landmark frames in, live count and per-rep timing out.
 // Quality gates prevent missing joints or camera side swaps from completing fake reps.
-import { ARM, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint } from './angles.js';
+import { ARM, armShape, assessTracking, curlUpperArmSwing, LEG, movementAngle, frontalKneeAngle, isFrontal, lowerBodyShape, missingHint } from './angles.js';
 import { analyzeRep } from './form.js';
 import { MOVEMENTS, RepCounter } from './reps.js';
 
@@ -15,6 +15,12 @@ const CHANGE_FRAMES = 6;
 const SUGGEST_FRAMES = 20;
 // Once a rep looks like a lunge, the rest of that rep stays blocked until the user stands up.
 const STANDING_DEG = 150;
+// Arm lifts: a press lockout is brief (~0.3 s), so fewer consecutive frames latch it.
+const ARM_CHANGE_FRAMES = 3;
+const ARM_OTHER = {
+  curl: { shape: 'press', suggested: 'shoulder_press', rest: ['down'] },
+  shoulder_press: { shape: 'curl', suggested: 'curl', rest: ['down', 'rack'] },
+};
 // Hypothesis under test: MediaPipe extrapolates hips that are off-screen with passing
 // visibility (waist-up framing). Torso anchors must lie inside the frame, with a margin.
 const FRAME_MARGIN = 0.05;
@@ -156,6 +162,22 @@ export class LiveSession {
       if (this._latched) {
         this.counter.interrupt();
         return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: 'lunge', suggested: this.suggested ?? null };
+      }
+    }
+    const armOther = ARM_OTHER[this.movement];
+    if (armOther) {
+      // Same pattern as lunges: other-lift shape latches the whole rep until the arms are back
+      // at this lift's rest (arms hanging for curl mode; hanging or racked for press mode).
+      const shape = armShape(pose, this.side);
+      const other = shape === armOther.shape;
+      this._other = other ? (this._other ?? 0) + 1 : 0;
+      if (other) this._otherTotal = (this._otherTotal ?? 0) + 1;
+      if (this._otherTotal >= SUGGEST_FRAMES) this.suggested = armOther.suggested;
+      if (other && (this._other >= ARM_CHANGE_FRAMES || this.counter.state !== 'rest')) this._latched = true;
+      if (this._latched && armOther.rest.includes(shape)) this._latched = false;
+      if (this._latched) {
+        this.counter.interrupt();
+        return { ...this.result(null, tracking, m.angle, 'exercise_change'), hint: armOther.suggested, suggested: this.suggested ?? null };
       }
     }
     if (this.movement === 'curl') {

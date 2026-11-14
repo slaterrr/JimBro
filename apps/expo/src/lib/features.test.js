@@ -58,7 +58,7 @@ const WIRING = {
     [/missingHint/, 'which body part is out of view'],
     [/lowerBodyShape/, 'exercise-change detection (lunge in squat mode)'],
     [/armShape/, 'exercise-change detection (press in curl mode, curl in press mode)'],
-    [/suggested = other/, 'shoulder press suggested from curl mode'],
+    [/suggested = armOther\.suggested/, 'shoulder press suggested from curl mode'],
   ],
 };
 
