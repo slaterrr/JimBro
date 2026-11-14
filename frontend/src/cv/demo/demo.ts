@@ -96,7 +96,37 @@ tracker.onRejected((f) => {
 const depthInput = $<HTMLInputElement>("depth");
 const depthVal = $("depthVal");
 const curMin = $("curMin");
-const DEPTH_KEY = "jimbro.cv.depthAngle";
+// v2: defaults tightened to near-parallel; ignore values saved under the old key.
+const DEPTH_KEY = "jimbro.cv.depthAngle.v2";
+const HIP_KEY = "jimbro.cv.minHipDrop.v2";
+const hipInput = $<HTMLInputElement>("hipdrop");
+const hipVal = $("hipVal");
+
+function applyHipDrop(pct: number) {
+  try {
+    tracker.setCounterConfig({ minHipDrop: pct / 100 });
+    hipInput.value = String(pct);
+    hipVal.textContent = `${pct}%`;
+  } catch {
+    hipInput.value = String(Math.round(tracker.getCounterConfig().minHipDrop * 100));
+  }
+}
+applyHipDrop(Math.round(tracker.getCounterConfig().minHipDrop * 100));
+try {
+  const saved = Number(localStorage.getItem(HIP_KEY));
+  if (saved >= 10 && saved <= 70) applyHipDrop(saved);
+} catch {
+  /* storage unavailable: keep the default */
+}
+hipInput.addEventListener("input", () => {
+  const pct = Number(hipInput.value);
+  applyHipDrop(pct);
+  try {
+    localStorage.setItem(HIP_KEY, String(pct));
+  } catch {
+    /* ignore */
+  }
+});
 
 function applyDepth(deg: number) {
   try {
@@ -107,6 +137,7 @@ function applyDepth(deg: number) {
     depthInput.value = String(tracker.getCounterConfig().depthAngle);
   }
 }
+applyDepth(tracker.getCounterConfig().depthAngle);
 try {
   const saved = Number(localStorage.getItem(DEPTH_KEY));
   if (saved >= 70 && saved <= 125) applyDepth(saved);

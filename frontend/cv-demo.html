@@ -55,9 +55,15 @@
         <div class="card">
           <div class="note" style="margin:0 0 6px">Depth line: a rep counts only if your knee goes <strong>below</strong> this</div>
           <div style="display:flex;gap:10px;align-items:center">
-            <input id="depth" type="range" min="70" max="125" step="1" value="100" style="flex:1;accent-color:var(--lime)" aria-label="Depth line in degrees" />
-            <strong id="depthVal" style="min-width:3.5em;text-align:right">100°</strong>
+            <input id="depth" type="range" min="55" max="125" step="1" value="85" style="flex:1;accent-color:var(--lime)" aria-label="Depth line in degrees" />
+            <strong id="depthVal" style="min-width:3.5em;text-align:right">85°</strong>
           </div>
+          <div class="note" style="margin:10px 0 6px">…and your hips must drop at least this much (% of leg length)</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input id="hipdrop" type="range" min="10" max="70" step="1" value="40" style="flex:1;accent-color:var(--lime)" aria-label="Minimum hip drop in percent of leg length" />
+            <strong id="hipVal" style="min-width:3.5em;text-align:right">40%</strong>
+          </div>
+          <p class="note" style="margin:6px 0 0">Guide: half squat ≈ 100–110° and 20–30%; parallel ≈ 60–75° and 55%+.</p>
           <div class="row" style="margin-top:8px"><span>This rep, lowest<span class="tag m">measured</span></span><strong id="curMin">–</strong></div>
           <p class="note" style="margin:8px 0 0">Do 3 half squats and 3 full squats, read the lowest angles in Events, and set the line between them.</p>
         </div>

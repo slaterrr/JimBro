@@ -152,13 +152,35 @@ describe("SquatRepCounter", () => {
   });
 
   it("a stricter depth line rejects a squat the default would count", () => {
-    const seq = () => sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 95), (t) => hold(t, 300, 175));
+    const seq = () => sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
     expect(run(seq()).reps.length).toBe(1);
     const strict = new SquatRepCounter();
-    strict.configure({ depthAngle: 90 });
+    strict.configure({ depthAngle: 70 });
     const { reps, rejected } = run(seq(), strict);
     expect(reps).toEqual([]);
-    expect(rejected.map((r) => [r.reason, Math.round(r.minKneeAngle ?? 0)])).toEqual([["SHALLOW_DEPTH", 95]]);
+    expect(rejected.map((r) => [r.reason, Math.round(r.minKneeAngle ?? 0)])).toEqual([["SHALLOW_DEPTH", 80]]);
+  });
+
+  it("does not count a half squat with the default thresholds", () => {
+    // Half squat side-on: knee bottoms around 100–110°, hips drop ~25% of leg length.
+    for (const bottom of [100, 105, 110]) {
+      const samples = sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, bottom), (t) => hold(t, 300, 175));
+      const counter = new SquatRepCounter();
+      const events = samples
+        .map((s) => counter.update(s.t, s.knee, null, s.knee === null ? null : ((175 - s.knee) / 70) * 0.25))
+        .filter((e) => e !== null);
+      expect(events.filter((e) => e.type === "rep")).toEqual([]);
+      expect(events.map((e) => (e.type === "rejected" ? e.rejected.reason : "rep"))).toEqual(["SHALLOW_DEPTH"]);
+    }
+  });
+
+  it("does not count a half squat even if the knee angle misreads deep, because the hips stayed high", () => {
+    const samples = sequence((t) => hold(t, 500, 175), (t) => squat(t, 2000, 80), (t) => hold(t, 300, 175));
+    const counter = new SquatRepCounter();
+    const events = samples
+      .map((s) => counter.update(s.t, s.knee, null, s.knee === null ? null : ((175 - s.knee) / 95) * 0.28))
+      .filter((e) => e !== null);
+    expect(events.map((e) => (e.type === "rejected" ? e.rejected.reason : "rep"))).toEqual(["NO_HIP_DROP"]);
   });
 
   it("configure keeps the count and rejects invalid thresholds", () => {

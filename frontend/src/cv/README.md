@@ -99,12 +99,12 @@ call does nothing.
    |---|---|
    | standing | knee ≥ 160° |
    | descent starts | knee < 150° (10° dead band prevents flicker) |
-   | depth reached | knee ≤ 100° |
-   | ascent starts | knee > 108° (8° hysteresis) |
+   | depth reached | knee ≤ 85° (near parallel; half squat ≈ 100–110°, parallel ≈ 60–75°) |
+   | ascent starts | knee > 93° (8° hysteresis) |
    | rep complete | back to ≥ 160° after reaching depth |
 
-   **Hip drop:** depth also requires the hips to drop at least 30% of standing
-   leg length (`minHipDrop`). The baseline (standing hip height and hip→ankle
+   **Hip drop:** depth also requires the hips to drop at least 40% of standing
+   leg length (`minHipDrop`). Half squat ≈ 20–30%, parallel ≈ 55%+. The baseline (standing hip height and hip→ankle
    length) is learned while the user stands straight. This stops a bent knee
    on its own from counting, for example the raised leg when standing on one
    foot, or a knee angle misread on a small dip (`NO_HIP_DROP`). If hip height

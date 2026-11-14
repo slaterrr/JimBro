@@ -31,6 +31,8 @@ export interface RepCounterConfig {
   /**
    * Knee angle at or below which depth counts as reached. This is a camera
    * threshold on the projected knee angle, not an anatomical "parallel" check.
+   * Side-on, roughly: half squat ≈ 100–110°, parallel ≈ 60–75°. The default
+   * (85°) means "close to parallel".
    */
   depthAngle: number;
   /** Degrees the knee must rise above depthAngle before ascent begins. */
@@ -50,7 +52,8 @@ export interface RepCounterConfig {
    * Hips must drop at least this fraction of standing leg length (hip→ankle)
    * for depth to count. Stops a bent knee on its own (e.g. a raised leg on a
    * one-legged stance, or a small dip) from counting. 0 disables the check.
-   * Roughly: half squat ≈ 0.25–0.3, knee at 100° ≈ 0.4, parallel ≈ 0.5+.
+   * Side-on geometry, roughly: half squat (thigh ~45° down) ≈ 0.2–0.3,
+   * near parallel ≈ 0.45, parallel ≈ 0.55+.
    */
   minHipDrop: number;
 }
@@ -58,13 +61,13 @@ export interface RepCounterConfig {
 export const DEFAULT_REP_COUNTER_CONFIG: Readonly<RepCounterConfig> = Object.freeze({
   standingAngle: 160,
   descentStartAngle: 150,
-  depthAngle: 100,
+  depthAngle: 85,
   hysteresis: 8,
   partialMinAngle: 135,
   minRepDurationMs: 600,
   maxRepDurationMs: 12_000,
   trackingLossTimeoutMs: 700,
-  minHipDrop: 0.3,
+  minHipDrop: 0.4,
 });
 
 /** A rep that passed every validation check. Timings are in the caller's clock. */
