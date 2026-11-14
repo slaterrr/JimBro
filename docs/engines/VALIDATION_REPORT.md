@@ -6,7 +6,7 @@ separately and must never be combined.
 ## Test suites (all passing)
 | Suite | Command | Count |
 |---|---|---|
-| App logic, engines, wiring | `cd apps/expo && npm test` | 518 |
+| App logic, engines, wiring | `cd apps/expo && npm test` | 519 |
 | Vision lab (simulator, scoring, real-clip regressions) | `cd tools/vision-lab && npm test` | 44 |
 | AI proxy (Claude SDK mocked) | `cd server/jim-proxy && npm test` | 33 |
 

@@ -17,6 +17,7 @@ import { repMetrics } from '../lib/performance.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
 import { stageHeight } from '../lib/layout.js';
+import { analyzerFor, cameraLabel } from '../lib/analyzers.js';
 import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { switchPlan } from '../lib/switchExercise.js';
@@ -206,6 +207,12 @@ export function CoachScreen({ openLog }) {
         <TouchableOpacity style={[st.glass, st.exerciseBox]} onPress={() => setSetup(true)} accessibilityLabel="Change exercise">
           <Text style={{ color: T.text, fontSize: 18, fontWeight: '700' }}>{exerciseName(movement)}</Text>
           <Text style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>Set {setNo} of {Math.max(sets, setNo)}</Text>
+          {analyzerFor(movement)?.status !== 'tested_real' ? (
+            // Honest about how well the camera has been tested for this lift.
+            <Text style={{ color: T.amber, fontSize: 12, marginTop: 4 }} accessibilityLabel={cameraLabel(movement)}>
+              {analyzerFor(movement)?.status === 'experimental' ? 'Experimental counting' : 'Tested in simulation only'}
+            </Text>
+          ) : null}
         </TouchableOpacity>
         <View style={[st.glass, st.repsBox]}>
           <Text style={{ color: T.text, fontSize: 15, fontWeight: '600' }}>Reps</Text>
