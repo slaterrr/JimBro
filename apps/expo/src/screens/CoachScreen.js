@@ -1,11 +1,11 @@
 import { useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 
 import { useApp } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { MissionPanel } from '../components/Mission.js';
+import { PoseView } from '../components/PoseView.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
@@ -178,17 +178,7 @@ export function CoachScreen({ openLog }) {
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <Header live={ready && view.tracking === 'ok'} />
       <View style={[st.stage, { height: stageH }]}>
-        <WebView
-          ref={web}
-          source={{ html, baseUrl: 'https://localhost/' }}
-          originWhitelist={['*']}
-          onMessage={onMessage}
-          javaScriptEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          mediaCapturePermissionGrantType="grant"
-          style={{ backgroundColor: '#000' }}
-        />
+        <PoseView ref={web} html={html} onMessage={onMessage} style={{ backgroundColor: '#000' }} />
         <TouchableOpacity style={[st.glass, st.exerciseBox]} onPress={() => setSetup(true)} accessibilityLabel="Change exercise">
           <Text style={{ color: T.text, fontSize: 18, fontWeight: '700' }}>{exerciseName(movement)}</Text>
           <Text style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>Set {setNo} of {Math.max(sets, setNo)}</Text>
