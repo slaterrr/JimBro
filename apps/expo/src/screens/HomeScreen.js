@@ -8,6 +8,7 @@ import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
+import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
@@ -78,6 +79,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const talkRef = useRef(false);
   talkRef.current = talk;
   const persona = personaFor(settings.persona ?? settings.tone);
+  const health = healthSummary({ history, active, goals, plan });
 
   const push = (...m) => {
     setMessages((cur) => [...cur, ...m]);
@@ -183,6 +185,11 @@ export function HomeScreen({ openLog, openActivity, go }) {
       </View>
 
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, paddingBottom: 30, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}>
+          <Icon name="heart-pulse" size={22} color={T.accent} />
+          <Text style={st.healthText}>{health.text}</Text>
+          <Icon name="chevron-right" size={20} color={T.textMute} />
+        </TouchableOpacity>
         {!messages.length ? (
           <View style={{ alignItems: 'center', marginTop: 40 }}>
             <JimBars height={64} />
@@ -265,6 +272,8 @@ export function HomeScreen({ openLog, openActivity, go }) {
 }
 
 const st = StyleSheet.create({
+  health: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: R.md, borderWidth: 1, borderColor: T.border, backgroundColor: T.card },
+  healthText: { flex: 1, color: T.textDim, fontSize: 14, lineHeight: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   goals: { flexDirection: 'row', gap: 12, marginTop: 40, alignSelf: 'stretch' },
   goal: { flex: 1, alignItems: 'center', paddingVertical: 18, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8 },

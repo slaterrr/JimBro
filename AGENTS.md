@@ -69,6 +69,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Real AI Jim (Claude via proxy, tools, proposals → confirm cards, offline fallback, Talk mode) | 🧪 PR #26 | `server/jim-proxy`, `lib/jimAI.js`, HomeScreen | 13 app + 15 proxy tests (SDK mocked) | **live API smoke test** (needs `ANTHROPIC_API_KEY`); proxy auth secret |
 | Rest timer curated per exercise (lift, reps, RPE) with reason shown; rest setting removed | 🧪 feat/rest-and-compare | `lib/rest.js`, `Sheets.js` RestTimer | 6 unit tests | device check |
 | Progress History tab: full list, workout-to-workout, month/year comparisons | 🧪 feat/rest-and-compare | `lib/compare.js`, ProgressScreen History tab | 8 unit tests on demo fixture (hand-computed) | device check; 6 tabs on small phones; bodyweight lifts have no volume/e1RM |
+| First-run Beginner / Comeback setup (3 questions → Zen persona, starter plan, consistency goal; pain → safety text, no plan), re-open from bell | 🧪 feat/beginner-health | `lib/onboarding.js`, `components/Onboarding.js`, `App.jsx` | 7 unit tests + wiring checks, web screenshot | device tap-through |
+| Home weekly health card (sessions · camera-verified reps · consistency x/y · next step) → Progress | 🧪 feat/beginner-health | `lib/healthSummary.js`, `HomeScreen.js` | 5 unit tests on demo fixture (hand-computed) | device check |
 | Integration of #21–#26 | ✅ | `feat/integration-v2` | 148 + 15 + 15 tests, Android + iOS bundles, real replay unchanged | merge decision (human) |
 
 ## Waiting to be implemented (priority order)

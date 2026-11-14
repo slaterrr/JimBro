@@ -186,7 +186,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
 }
 
 /** The bell: what happened lately, plus settings and data controls. */
-export function ActivitySheet({ visible, onClose }) {
+export function ActivitySheet({ visible, onClose, openSetup }) {
   const { settings, update, history, allSets, exportJSON, eraseAll, importData } = useApp();
   const [pasted, setPasted] = useState('');
   const [msg, setMsg] = useState(null);
@@ -217,6 +217,7 @@ export function ActivitySheet({ visible, onClose }) {
       ))}
 
       <Text style={[type.h2, { marginTop: 24, marginBottom: 6 }]}>Settings</Text>
+      {openSetup ? <PrimaryButton secondary onPress={openSetup}>Beginner / comeback setup</PrimaryButton> : null}
       <Text style={[type.label, { marginVertical: 8 }]}>Jim's persona</Text>
       <PersonaPicker />
       <Text style={[type.label, { marginVertical: 8 }]}>Spoken replies</Text>

@@ -31,12 +31,26 @@ const WIRING = {
     [/Review form/, 'form review entry'],
     [/restFor\(/, 'per-exercise rest timer'],
     [/<PersonaPicker/, 'persona picker in settings'],
+    [/openSetup|Beginner \/ comeback setup/, 'setup re-openable from the Activity sheet'],
     [/setReport\(/, 'set report built after a camera set'],
   ],
   'screens/HomeScreen.js': [
     [/askJim\(/, 'AI Jim chat with offline fallback'],
     [/Talk/, 'Talk mode'],
     [/HOME_OPTIONS|homeActions/, 'Start a Workout / Create a New Plan / Review My Progress'],
+    [/healthSummary\(/, 'weekly health summary card'],
+    [/go\?\.\('Progress'\)/, 'health summary opens Progress'],
+  ],
+  'components/Onboarding.js': [
+    [/onboardingResult\(/, 'beginner/comeback setup effects'],
+    [/ONBOARDING_QUESTIONS/, 'three setup questions'],
+    [/r\.safety|result\.safety/, 'pain answer shows the safety message'],
+    [/Skip/, 'setup is skippable'],
+    [/onboarded: true/, 'setup shown once'],
+  ],
+  '../App.jsx': [
+    [/<Onboarding\b/, 'first-run setup mounted'],
+    [/isOnboarded|settings\.onboarded/, 'setup only when not onboarded'],
   ],
   'lib/homeActions.js': [
     [/Your AI gym bro\. Tell me what you want to work on today\./, 'team subtitle'],
@@ -54,6 +68,7 @@ const WIRING = {
     [/enableAudio\(/, 'iOS silent-mode playback (sound bug)'],
     [/migrateGoals/, 'goals persisted'],
     [/updateSet/, 'Jim can correct sets'],
+    [/onboarded: isOnboarded\(/, 'onboarded flag migrated (old saves with history skip setup)'],
   ],
   'lib/live.js': [
     [/torsoInFrame/, 'framing gate (gesture false reps)'],
