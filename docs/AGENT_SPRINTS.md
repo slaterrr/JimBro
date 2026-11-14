@@ -13,10 +13,10 @@ Source: research report (2026-11-14), summarized here. Context: `docs/AGENTIC_JI
 ## In-flight team PRs — build on these, do not duplicate (checked 2026-11-14)
 | PR | Covers | Use it for |
 |---|---|---|
-| #43 `feat/workout-mission` → main | "I have 20 minutes, help me finish chest day": on-phone plan (`lib/mission.js`), explain, ask, run hands-free, check at end | **S3** (orchestrator should call `mission.js`, not re-implement planning) |
-| #44 camera performance engine (stacked on #43) | analyzer registry, pull-up/deadlift (experimental), fatigue, weight recommendations | S4 cue sources |
-| #46 `feat/engines` (stacked on #44) / #47 | versioned event contract `lib/events.js` + `events.d.ts` (14 types), vision + coach engine APIs, proxy hardening | **S1**: if #46 merges first, use its event types and map the session reducer onto them instead of a new `agentEvents.js`; **S5** proxy auth may already be there |
-| #41 `codex/shared-session-context` → main | ephemeral camera summary shared with Jim (no frames/landmarks) | S1 perception adapter input |
+| ✅ merged (#47) — `lib/mission.js` | "I have 20 minutes, help me finish chest day": on-phone plan (`lib/mission.js`), explain, ask, run hands-free, check at end | **S3** (orchestrator should call `mission.js`, not re-implement planning) |
+| ✅ merged (#47) — performance engine | analyzer registry, pull-up/deadlift (experimental), fatigue, weight recommendations | S4 cue sources |
+| ✅ merged (#47) — `lib/events.js` | versioned event contract `lib/events.js` + `events.d.ts` (14 types), vision + coach engine APIs, proxy hardening | **S1**: if #46 merges first, use its event types and map the session reducer onto them instead of a new `agentEvents.js`; **S5** proxy auth may already be there |
+| ✅ merged (#55) — `useLiveCamera` | ephemeral camera summary shared with Jim (no frames/landmarks) | S1 perception adapter input |
 
 Before starting a sprint: `git fetch` and check whether these merged; if they did, rebase the sprint on them and adjust file names below.
 
