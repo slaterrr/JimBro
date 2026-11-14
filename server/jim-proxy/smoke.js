@@ -1,7 +1,7 @@
 // Live smoke test against the real Claude API, through the proxy's own handleChat.
 // Run:  cd server/jim-proxy && npm ci && ANTHROPIC_API_KEY=... npm run smoke
 // (or after `ant auth login`, without the env var). Costs a few cents. Prints no key or bodies.
-// Exit code 0 only when all three checks pass.
+// Exit code 0 only when all checks pass. `npm run smoke -- --one` makes a single call (connectivity only).
 import Anthropic from '@anthropic-ai/sdk';
 
 import { handleChat, MODEL } from './jim.js';
@@ -37,9 +37,10 @@ const checks = [
   { name: 'write tool -> proposal', ask: 'Log 3 sets of 10 curls at 25 pounds.', ok: (r) => r.proposals.length === 1 && r.proposals[0].type === 'log' && r.proposals[0].sets.length === 3 },
 ];
 
+const run = process.argv.includes('--one') ? checks.slice(0, 1) : checks;
 let failed = 0;
 console.log(`model ${MODEL}, fallbacks ${process.env.JIM_FALLBACKS === '0' ? 'off' : 'on'}`);
-for (const c of checks) {
+for (const c of run) {
   log.length = 0;
   const t0 = Date.now();
   try {
