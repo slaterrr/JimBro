@@ -33,3 +33,25 @@ jobs:
         run: mypy backend/jimbro
       - name: Unit + API tests (coverage gate)
         run: pytest --cov=backend/jimbro --cov-report=term-missing --cov-fail-under=90
+
+  mobile-quality:
+    name: mobile-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc -b
+      - name: Unit + component tests
+        run: npm test
+      - name: Production build
+        run: npx vite build
