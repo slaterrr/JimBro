@@ -14,6 +14,7 @@ const DAY = 86400000;
 const RECENT_DAYS = 14;
 const MAX_SETS = 10;
 const HISTORY_TURNS = 10;
+const LIVE_CAMERA_MAX_AGE_MS = 5 * 60 * 1000;
 export const TIMEOUT_MS = 12000;
 const EXERCISE_IDS = new Set(EXERCISES.map((e) => e.id));
 const UNITS = new Set(['lb', 'kg']);
@@ -47,8 +48,28 @@ export function buildContext(state, now = new Date()) {
     const r = setReport({ movement: cam.exercise, reps: cam.reps_detail, quality: cam.camera_quality ?? null, rpe: cam.rpe ?? null, target: cam.target ?? null });
     lastSetReport = { ...pick(r, ['movement', 'counted', 'target', 'rpe', 'partials', 'trackingPct', 'tempo']), suggestions: r.suggestions.map(({ text, evidence }) => ({ text, evidence })) };
   }
+  const active = state.active ?? null;
+  const activeSession = active ? {
+    startedAt: active.startedAt ?? null,
+    setCount: (active.sets ?? []).length,
+    exercises: [...new Set((active.sets ?? []).map((s) => s.exercise).filter(Boolean))],
+  } : null;
+  const camera = active?.cameraSnapshot;
+  const cameraUpdatedAt = camera?.updatedAt ? new Date(camera.updatedAt).getTime() : NaN;
+  const cameraAge = t - cameraUpdatedAt;
+  const liveCamera = Number.isFinite(cameraUpdatedAt) && cameraAge >= 0 && cameraAge <= LIVE_CAMERA_MAX_AGE_MS
+    ? {
+      updatedAt: camera.updatedAt,
+      ...(typeof camera.exercise === 'string' ? { exercise: camera.exercise } : {}),
+      ...(Number.isInteger(camera.reps) && camera.reps >= 0 ? { reps: camera.reps } : {}),
+      ...(Number.isFinite(camera.trackingPct) ? { trackingPct: Math.max(0, Math.min(100, Math.round(camera.trackingPct))) } : {}),
+    }
+    : null;
+  if (activeSession && liveCamera?.exercise && !activeSession.exercises.includes(liveCamera.exercise)) {
+    activeSession.exercises.push(liveCamera.exercise);
+  }
   const settings = state.settings ?? {};
-  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, lastSetReport };
+  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, activeSession, liveCamera, lastSetReport };
 }
 
 const isCount = (n) => Number.isInteger(n) && n >= 1 && n <= 1000;
