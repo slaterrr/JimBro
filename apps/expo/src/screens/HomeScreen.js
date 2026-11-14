@@ -5,12 +5,14 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp } from '../AppState.js';
 import { ImportSheet } from '../components/ImportSheet.js';
+import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
+import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
 import { buildPlan } from '../lib/plans.js';
 import { R, T, type } from '../theme.js';
 
@@ -69,7 +71,8 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan } = useApp();
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission } = useApp();
+  const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [source, setSource] = useState(PROXY_URL ? 'ai' : 'offline');
@@ -100,6 +103,15 @@ export function HomeScreen({ openLog, openActivity, go }) {
     setText('');
     const prior = historyFor(messages);
     push({ me: true, text: message });
+    // Workout Mission: a time-boxed session request is planned on the phone (no AI call), then confirmed.
+    const ask = parseMission(message);
+    if (ask.recognized) {
+      const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
+      const intro = `Here's a ${mission.minutes}-minute ${(FOCUS_LABEL[mission.focus] ?? '').toLowerCase()} session, about ${mission.estMinutes} minutes with rests. I picked it from your history. Start when you're ready.`.replace('  ', ' ');
+      push({ me: false, text: intro }, { kind: 'mission', mission });
+      speak(intro);
+      return;
+    }
     setThinking(true);
     const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
     setThinking(false);
@@ -206,10 +218,28 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 </TouchableOpacity>
               ))}
             </View>
+            <Text style={[type.label, { marginTop: 22 }]}>Short on time? Give Jim a mission</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+              {MISSION_CHIPS.map((c) => (
+                <TouchableOpacity key={c} accessibilityRole="button" onPress={() => send(c)} style={{ borderWidth: 1, borderColor: T.accent, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
+                  <Text style={{ color: T.accentText, fontWeight: '600', fontSize: 13 }}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         ) : (
           messages.map((m, i) => {
             if (m.kind === 'plan') return <PlanCard key={i} />;
+            if (m.kind === 'mission') {
+              return (
+                <MissionCard
+                  key={i}
+                  mission={m.mission}
+                  onStart={() => { startMission(m.mission); go?.('Coach'); }}
+                  onCancel={() => setMessages((cur) => cur.filter((_, j) => j !== i))}
+                />
+              );
+            }
             if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} onDone={speak} />;
             if (m.kind === 'confirm') {
               return (

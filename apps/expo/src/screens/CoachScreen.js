@@ -5,12 +5,14 @@ import { WebView } from 'react-native-webview';
 
 import { useApp } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
+import { MissionPanel } from '../components/Mission.js';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
 import { liveCue } from '../lib/cues.js';
 import { estimateEffort } from '../lib/effort.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { LiveSession } from '../lib/live.js';
+import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { switchPlan } from '../lib/switchExercise.js';
 import { R, T, type } from '../theme.js';
@@ -26,7 +28,9 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog }) {
-  const { active, settings, voice: jim } = useApp();
+  const { active, settings, voice: jim, mission, stepMission } = useApp();
+  const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
+  const [lastRepAt, setLastRepAt] = useState(0);
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
@@ -74,6 +78,15 @@ export function CoachScreen({ openLog }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movement]);
 
+  // Mission mode: the mission decides the lift and the target; the camera follows.
+  useEffect(() => {
+    if (!mt) return;
+    if (mt.camera && mt.exercise !== movement) setMovement(mt.exercise);
+    setTarget(mt.reps);
+    setSets(mt.sets);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mt?.exercise, mt?.reps, mt?.sets]);
+
   const onMessage = (e) => {
     let m;
     try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
@@ -107,6 +120,7 @@ export function CoachScreen({ openLog }) {
       caughtTimer.current = setTimeout(() => setCaught(null), CAUGHT_MS);
       if (voice) jim.cue(`Not counted — ${words}.`, { force: true });
     }
+    if (out.rep) setLastRepAt(Date.now());
     if (out.rep && voice) jim.cue(String(out.count), { force: true });
   };
 
@@ -122,6 +136,11 @@ export function CoachScreen({ openLog }) {
     if (id === 'keep' || !next) return;
     if (id === 'log') {
       openLog({ exercise: next });
+      return;
+    }
+    if (mt) {
+      stepMission({ type: 'switch', exercise: next }); // the mission swaps the lift; the effect above follows it
+      resetSet(next);
       return;
     }
     if (plan?.logFirst) stop(); // log the reps already counted for the current lift, as Stop does
@@ -223,11 +242,23 @@ export function CoachScreen({ openLog }) {
         </View>
       </View>
 
+      {mt ? (
+        <MissionPanel
+          count={view.count}
+          lastRepAt={lastRepAt}
+          tracking={ready ? view.tracking : 'lost'}
+          repsDetail={() => session.current.repsDetail()}
+          resetCounter={() => resetSet()}
+          voiceOn={voice}
+        />
+      ) : null}
       <View style={st.controls}>
         <IconButton icon={voice ? 'microphone-outline' : 'microphone-off'} label="Voice cues" onPress={() => setVoice((v) => !v)} />
-        <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
-          <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
-        </IconButton>
+        {mt ? null : (
+          <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
+            <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
+          </IconButton>
+        )}
         <IconButton icon="camera-flip-outline" label="Flip camera" onPress={flip} />
       </View>
       <Text style={[type.small, { textAlign: 'center', marginTop: 12 }]}>

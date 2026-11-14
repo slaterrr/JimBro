@@ -1,0 +1,248 @@
+// Workout Mission UI. MissionCard: Jim's proposed session in the Home chat (confirm first).
+// MissionPanel: the Coach screen's hands-free runner (position -> set -> check -> rest -> summary).
+// All decisions come from lib/mission.js; this file only shows them and forwards events.
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+
+import { useApp } from '../AppState.js';
+import { estimateEffort } from '../lib/effort.js';
+import { exerciseName } from '../lib/exercises.js';
+import { cameraSwap, currentTarget, missionSummary } from '../lib/mission.js';
+import { T, type } from '../theme.js';
+import { Card, Chips, Field, PrimaryButton } from './kit.js';
+
+const CHECK_AUTO_MS = 8000; // the quick check confirms itself (hands-free) unless a weight is needed
+const RPES = [6, 7, 8, 9, 10];
+
+const load = (t) => (t.weight === null ? 'your weight' : t.weight > 0 ? `${t.weight} ${t.unit}` : 'bodyweight');
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
+
+/** What Jim says at the start of a set. */
+export const announce = (t) =>
+  `Set ${t.setNo} of ${t.sets}. ${exerciseName(t.exercise)}, ${t.weight === null ? '' : t.weight > 0 ? `${t.weight} ${t.unit === 'lb' ? 'pounds' : 'kilos'}, ` : ''}${t.reps} reps.${t.camera ? '' : ' Tap plus for each rep.'}`;
+
+export function MissionCard({ mission, onStart, onCancel }) {
+  return (
+    <Card style={{ marginTop: 10, borderColor: T.accent }}>
+      <Text style={type.title}>Mission: {mission.title} · {mission.minutes} min</Text>
+      <Text style={type.small}>About {mission.estMinutes} min with warm-up and rests</Text>
+      {mission.items.map((i, k) => (
+        <View key={k} style={{ marginTop: 10 }}>
+          <Text style={[type.body, { color: T.text, fontWeight: '700' }]}>
+            {exerciseName(i.exercise)} · {i.sets} × {i.reps} · {load(i)} {i.camera ? '📷' : '✋'}
+          </Text>
+          <Text style={type.small}>{i.why}</Text>
+        </View>
+      ))}
+      <View style={{ marginTop: 10, gap: 4 }}>
+        {mission.reasons.map((r, k) => <Text key={k} style={type.small}>• {r}</Text>)}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <PrimaryButton style={{ flex: 1 }} onPress={onStart}>Start mission</PrimaryButton>
+        <PrimaryButton secondary style={{ flex: 1 }} onPress={onCancel}>Not now</PrimaryButton>
+      </View>
+    </Card>
+  );
+}
+
+/**
+ * Runs the mission on the Coach screen. Props come from the camera counter:
+ * `count`, `lastRepAt` (ms), `tracking` ('ok'|...), `repsDetail()` and `resetCounter()`.
+ */
+export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCounter, voiceOn }) {
+  const { mission, stepMission, endMission, logSet, finishWorkout, voice } = useApp();
+  const s = mission.state;
+  const t = currentTarget(s);
+  const [taps, setTaps] = useState(0);
+  const [rpe, setRpe] = useState(null);
+  const [reps, setReps] = useState(0);
+  const [weight, setWeight] = useState('');
+  const [restLeft, setRestLeft] = useState(0);
+  const [effort, setEffort] = useState(null);
+  const okSince = useRef(null);
+  const say = (line) => voiceOn && line && voice.say(line, { force: true });
+
+  // Position: start the set once the camera has you (1.5 s of good tracking), or right away for tap lifts.
+  useEffect(() => {
+    if (s.phase !== 'position' || !t) return undefined;
+    if (!t.camera) {
+      const id = setTimeout(() => go(), 2500);
+      return () => clearTimeout(id);
+    }
+    const id = setInterval(() => {
+      if (tracking === 'ok') {
+        okSince.current ??= Date.now();
+        if (Date.now() - okSince.current >= 1500) go();
+      } else okSince.current = null;
+    }, 250);
+    return () => clearInterval(id);
+    function go() {
+      okSince.current = null;
+      resetCounter();
+      setTaps(0);
+      stepMission({ type: 'ready' });
+      say(announce(t));
+    }
+  }, [s.phase, s.i, s.setNo, tracking]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set: end it hands-free (target reached + pause, or a long pause).
+  useEffect(() => {
+    if (s.phase !== 'set' || !t?.camera) return undefined;
+    const id = setInterval(() => {
+      if (count > 0 && ((count >= t.reps && Date.now() - lastRepAt >= 2000) || Date.now() - lastRepAt >= 6000)) finishSet(count, repsDetail());
+    }, 300);
+    return () => clearInterval(id);
+  }, [s.phase, count, lastRepAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const finishSet = (n, detail = []) => {
+    const est = t.camera ? estimateEffort({ movement: t.exercise, reps: detail }) : null;
+    setEffort(est);
+    setRpe(est?.rpe != null ? Math.min(10, Math.max(6, Math.round(est.rpe))) : null);
+    setReps(n);
+    setWeight(t.weight === null ? '' : String(t.weight));
+    stepMission({ type: 'set_done', reps: n, reps_detail: detail });
+    say(`${n} reps. How hard was that?${est?.rpe != null ? ` I'd guess about RPE ${Math.round(est.rpe)}.` : ''}`);
+  };
+
+  const needsWeight = s.phase === 'check' && t?.weight === null;
+  const confirm = () => {
+    const w = t.weight === null ? Number(weight) : t.weight;
+    if (!(w >= 0)) return;
+    const pending = s.pending;
+    logSet({
+      exercise: t.exercise, weight: w, unit: t.unit, reps, rpe,
+      source: t.camera && pending?.reps_detail?.length === reps ? 'camera' : 'manual',
+      reps_detail: t.camera && pending?.reps_detail?.length === reps ? pending.reps_detail : [],
+      target: t.reps,
+    }, `Mission: ${s.mission.title}`);
+    stepMission({ type: 'confirm', rpe });
+  };
+
+  // Check: confirms itself after a few seconds (with the estimated or chosen RPE).
+  useEffect(() => {
+    if (s.phase !== 'check' || needsWeight) return undefined;
+    const id = setTimeout(confirm, CHECK_AUTO_MS);
+    return () => clearTimeout(id);
+  }, [s.phase, rpe, reps, needsWeight]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rest: count down, say what changes next, then go back to position.
+  useEffect(() => {
+    if (s.phase !== 'rest' || !t) return undefined;
+    setRestLeft(t.rest_s);
+    say(`${s.note ?? ''} Rest ${clock(t.rest_s)}. Next: ${exerciseName(t.exercise)}, ${load(t)}, ${t.reps} reps.`);
+    const id = setInterval(() => setRestLeft((x) => x - 1), 1000);
+    return () => clearInterval(id);
+  }, [s.phase, s.i, s.setNo]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (s.phase === 'rest' && restLeft <= 0 && t) stepMission({ type: 'rest_done' });
+    if (s.phase === 'rest' && restLeft === 10) say('10 seconds.');
+  }, [restLeft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Done: check the result against the plan and say it.
+  const [summary, setSummary] = useState(null);
+  useEffect(() => {
+    if (s.phase !== 'done') return;
+    const r = missionSummary(s.mission, s.log, { startedAt: mission.startedAt, endedAt: Date.now() });
+    setSummary(r);
+    say(`Mission complete. ${r.lines.join(' ')}`);
+  }, [s.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const header = (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Text style={[type.label, { color: T.accent }]}>MISSION · {s.mission.title.toUpperCase()} · {s.mission.minutes} MIN</Text>
+      {s.phase !== 'done' ? (
+        <TouchableOpacity accessibilityRole="button" onPress={() => stepMission({ type: 'end' })}>
+          <Text style={{ color: T.textDim, fontWeight: '700' }}>End</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
+  if (s.phase === 'done') {
+    return (
+      <Card style={{ marginTop: 14, borderColor: T.green }}>
+        {header}
+        <Text style={[type.title, { marginTop: 6 }]}>Mission complete</Text>
+        {(summary?.lines ?? []).map((l, k) => <Text key={k} style={[type.body, { marginTop: 4 }]}>{l}</Text>)}
+        {s.changes.map((c, k) => <Text key={`c${k}`} style={type.small}>• {c}</Text>)}
+        {summary?.nextTime?.length ? (
+          <>
+            <Text style={[type.label, { marginTop: 10 }]}>Next time</Text>
+            {summary.nextTime.map((n, k) => <Text key={k} style={type.small}>• {n}</Text>)}
+          </>
+        ) : null}
+        <PrimaryButton onPress={() => { finishWorkout(); endMission(); }}>Finish workout</PrimaryButton>
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ marginTop: 14, borderColor: T.accent }}>
+      {header}
+      <Text style={[type.title, { marginTop: 6 }]}>
+        {exerciseName(t.exercise)} · set {t.setNo} of {t.sets}
+      </Text>
+      <Text style={type.body}>{t.reps} reps · {load(t)} {t.camera ? '· camera counts' : '· tap to count'}</Text>
+
+      {s.phase === 'position' ? (
+        <Text style={[type.small, { marginTop: 8 }]}>
+          {t.camera ? (tracking === 'ok' ? 'Got you. Starting…' : 'Get into frame, side-on. The set starts when I can see you.') : 'Get set up. Starting in a moment…'}
+        </Text>
+      ) : null}
+
+      {s.phase === 'set' && !t.camera ? (
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+          <PrimaryButton style={{ flex: 2 }} onPress={() => setTaps((n) => n + 1)}>+1 rep ({taps})</PrimaryButton>
+          <PrimaryButton secondary style={{ flex: 1 }} onPress={() => finishSet(taps)}>Done</PrimaryButton>
+        </View>
+      ) : null}
+      {s.phase === 'set' && t.camera ? (
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 10 }}>
+          <Text style={[type.small, { flex: 1 }]}>The set ends by itself when you finish. {count}/{t.reps}</Text>
+          <PrimaryButton secondary onPress={() => finishSet(count, repsDetail())}>Done</PrimaryButton>
+        </View>
+      ) : null}
+
+      {s.phase === 'check' ? (
+        <View style={{ marginTop: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text style={type.label}>Reps</Text>
+            <PrimaryButton secondary onPress={() => setReps((n) => Math.max(0, n - 1))}>−</PrimaryButton>
+            <Text style={[type.title, { minWidth: 30, textAlign: 'center' }]}>{reps}</Text>
+            <PrimaryButton secondary onPress={() => setReps((n) => n + 1)}>+</PrimaryButton>
+          </View>
+          {needsWeight ? <Field label={`Weight used (${t.unit})`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" /> : null}
+          <Text style={[type.label, { marginVertical: 6 }]}>
+            How hard? {effort?.rpe != null ? `(estimate from rep speed: ~RPE ${Math.round(effort.rpe)}, ${effort.confidence} confidence)` : ''}
+          </Text>
+          <Chips options={RPES.map((n) => [n, String(n)])} value={rpe} onChange={setRpe} />
+          <PrimaryButton disabled={needsWeight && !(Number(weight) >= 0 && weight !== '')} onPress={confirm}>
+            {needsWeight ? 'Save set' : 'Save set (auto in a few seconds)'}
+          </PrimaryButton>
+        </View>
+      ) : null}
+
+      {s.phase === 'rest' ? (
+        <View style={{ alignItems: 'center', marginTop: 8 }}>
+          <Text style={{ color: T.text, fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(restLeft)}</Text>
+          {s.note ? <Text style={[type.small, { textAlign: 'center' }]}>{s.note}</Text> : null}
+          <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'stretch' }}>
+            <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setRestLeft((x) => x + 30)}>+30s</PrimaryButton>
+            <PrimaryButton secondary style={{ flex: 1 }} onPress={() => stepMission({ type: 'rest_done' })}>Skip rest</PrimaryButton>
+          </View>
+        </View>
+      ) : null}
+
+      {!t.camera && cameraSwap(t.exercise) && (s.phase === 'position' || s.phase === 'set') ? (
+        <PrimaryButton secondary onPress={() => { say(`Switching to ${exerciseName(cameraSwap(t.exercise)).toLowerCase()}, so the camera can count it.`); stepMission({ type: 'switch', exercise: cameraSwap(t.exercise) }); }}>
+          {`Switch to ${exerciseName(cameraSwap(t.exercise))} (camera counts it)`}
+        </PrimaryButton>
+      ) : null}
+      {s.phase !== 'check' ? (
+        <TouchableOpacity accessibilityRole="button" onPress={() => stepMission({ type: 'skip' })} style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+          <Text style={{ color: T.textDim, fontWeight: '600' }}>Skip {exerciseName(t.exercise).toLowerCase()} →</Text>
+        </TouchableOpacity>
+      ) : null}
+    </Card>
+  );
+}

@@ -6,6 +6,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { applyDelete, applyUpdate } from './lib/intents.js';
 import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
 import { migrateGoals } from './lib/goals.js';
+import { missionPlanned, missionStart, missionStep } from './lib/mission.js';
 import { isOnboarded } from './lib/onboarding.js';
 import { migrateSettings } from './lib/personas.js';
 import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
@@ -95,6 +96,18 @@ export function AppProvider({ children }) {
     return merged.length - data.history.length;
   };
 
+  // Workout Mission (lib/mission.js): a confirmed, time-boxed session that the Coach screen
+  // runs hands-free. Its state lives here so it survives switching tabs.
+  const startMission = (planned) =>
+    setData((d) => ({
+      ...d,
+      active: d.active ?? { id: newId(), name: `Mission: ${planned.title}`, startedAt: new Date().toISOString(), sets: [], planned: missionPlanned(planned) },
+      mission: { state: missionStart(planned), startedAt: Date.now() },
+    }));
+  const stepMission = (event) =>
+    setData((d) => (d.mission ? { ...d, mission: { ...d.mission, state: missionStep(d.mission.state, event) } } : d));
+  const endMission = () => setData((d) => ({ ...d, mission: null }));
+
   const savePlan = (plan) => setData((d) => ({ ...d, plan }));
   // Goals: measurable targets checked against logged history (see lib/goals.js).
   const addGoal = (goal) => setData((d) => ({ ...d, goals: [...(d.goals ?? []), { id: newId(), createdAt: new Date().toISOString(), ...goal }] }));
@@ -104,6 +117,7 @@ export function AppProvider({ children }) {
 
   const value = {
     goals: data.goals ?? [], addGoal, removeGoal,
+    mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice,
     active: data.active, history: data.history, plan: data.plan, allSets,
     startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
