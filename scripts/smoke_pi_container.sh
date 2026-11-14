@@ -16,7 +16,8 @@ export MSYS_NO_PATHCONV=1
 docker run --rm --platform linux/arm64 -v "$(cd "$BUNDLE" && pwd -W 2>/dev/null || pwd):/usb:ro" \
   debian:bookworm bash -euc '
 apt-get update -qq >/dev/null
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 python3-venv openssl curl ca-certificates >/dev/null
+# Mirror Raspberry Pi OS Lite: no python3-venv / ensurepip, no desktop.
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3 openssl curl ca-certificates avahi-daemon >/dev/null
 cat > /usr/local/bin/systemctl <<"EOF"
 #!/bin/sh
 # Stand-in for systemd inside the container: start jimbro.service on enable/restart.
@@ -35,7 +36,10 @@ EOF
 chmod +x /usr/local/bin/systemctl
 printf "#!/bin/sh\nexit 0\n" > /usr/local/bin/hostnamectl; chmod +x /usr/local/bin/hostnamectl
 cp -R /usb /tmp/bundle
-bash /tmp/bundle/install.sh --no-kiosk --no-button 2>&1 | grep -v "^\s*$" | tail -8
+bash /tmp/bundle/install.sh --headless --no-button > /tmp/install.log 2>&1 || { cat /tmp/install.log; exit 1; }
+grep -v "^\s*$" /tmp/install.log | tail -8
+if grep -q "trying the internet" /tmp/install.log; then echo "FAIL: offline install fell back to the internet"; exit 1; fi
+test ! -e /home/*/.config/autostart/jimbro-station.desktop && echo "headless: no kiosk installed"
 echo "--- checks"
 B=https://127.0.0.1
 curl -fsk $B/health; echo
@@ -56,5 +60,22 @@ async def main():
 asyncio.run(main())
 PY
 test -s /var/lib/jimbro/jimbro.db && echo "db persisted at /var/lib/jimbro/jimbro.db"
+echo "--- nightly backup + mdns"
+set -a; . /etc/jimbro/jimbro.env; set +a
+cmd=$(sed -n "s/^ExecStart=//p" /etc/systemd/system/jimbro-backup.service)
+su -s /bin/sh jimbro -c "PYTHONPATH=/opt/jimbro/app/backend JIMBRO_DB=$JIMBRO_DB $cmd" >/dev/null
+ls /var/lib/jimbro/backups/jimbro-*.db >/dev/null && echo "nightly backup command works"
+grep -q "<port>443</port>" /etc/avahi/services/jimbro.service && echo "mdns service advertised"
+echo "--- usb stick hook"
+mkdir -p /tmp/stick && cp -R /usb /tmp/stick/jimbro-usb
+bash /opt/jimbro/app/usb-hook.sh --mounted /tmp/stick > /tmp/hook1.log 2>&1
+ls /tmp/stick/jimbro-backups/jimbro-*.db >/dev/null && echo "stick: backup written"
+grep -q "\"ok\":true" /tmp/stick/jimbro-status.txt && echo "stick: status file says healthy"
+grep -q "updating" /tmp/hook1.log && { echo "FAIL: same version must not reinstall"; exit 1; }
+echo smoke-newer > /tmp/stick/jimbro-usb/VERSION; echo smoke-newer > /tmp/stick/jimbro-usb/app/VERSION
+bash /opt/jimbro/app/usb-hook.sh --mounted /tmp/stick > /tmp/hook2.log 2>&1
+grep -q "update ok" /tmp/hook2.log && [ "$(cat /opt/jimbro/app/VERSION)" = smoke-newer ] && echo "stick: newer bundle auto-installed"
+curl -fsk $B/v1/status | grep -q "smoke-newer" && echo "status reports new version"
+curl -fsk $B/v1/sessions/$sid/summary >/dev/null && echo "data survived the update"
 echo SMOKE_OK
 '

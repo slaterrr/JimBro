@@ -3,7 +3,8 @@
 JimBro is a hackathon exercise tracker: your **phone** watches you lift and counts reps,
 a **Raspberry Pi** stores your workouts and shows live reps on a station display, and
 **Jim**, the coach, suggests your next set in one of four tones. See the
-[feature register](docs/FEATURES.md) for what is built vs. planned.
+[feature register](docs/FEATURES.md) for what is built vs. planned, and
+[docs/API.md](docs/API.md) for the API contract the app uses.
 
 ## What works
 - **Live rep counting** for curl, squat and shoulder press: pose detection on the phone
@@ -63,6 +64,36 @@ Update by rebuilding and re-running `install.sh` (data and settings are kept). R
 `sudo bash uninstall.sh` (`--purge` also deletes data). Logs: `journalctl -u jimbro -f`.
 `scripts/smoke_pi_container.sh` verifies a bundle on emulated arm64 bookworm via Docker.
 
+## Headless Pi (no monitor, keyboard or SSH)
+Works on **Raspberry Pi OS Lite**; nothing on the Pi needs internet.
+
+**Zero-touch first boot.** In Raspberry Pi Imager pick 64-bit Raspberry Pi OS (Lite), open
+*Edit settings* and set username, Wi-Fi and SSH, then write the card. Leave it in your
+computer and run:
+```bash
+scripts/build_usb.sh
+python scripts/prepare_sd.py E:\ --hostname jimbro      # the card's "bootfs" drive
+```
+Put the card in the Pi and power on. A few minutes later open **https://jimbro.local**
+(first-boot log: `/var/log/jimbro-firstboot.log`).
+
+**The USB stick is the remote control.** Plug in a stick at any time and the Pi will:
+- install a newer `jimbro-usb/` bundle if the stick has one (data and settings kept),
+- back up the workout database to `jimbro-backups/` (keeps 30),
+- write `jimbro-status.txt`: the phone address, version and health; read it on any laptop,
+- join Wi-Fi from `jimbro-wifi.txt` (`SSID=...` / `PASSWORD=...`), then delete that file.
+
+The stick unmounts itself when done (watch the `jimbro-status.txt` timestamp). Also on the Pi:
+nightly backups to `/var/lib/jimbro/backups` (keeps 14), mDNS advertising, and
+`https://jimbro.local/v1/status` for a health check from your phone. The station display
+works from any browser at `/station`. Disable stick auto-updates with
+`JIMBRO_USB_AUTOUPDATE=0` in `/etc/jimbro/jimbro.env`. Anyone with physical access can update
+the Pi this way, the same as swapping its SD card.
+
+Restore a backup over SSH:
+`sudo -u jimbro PYTHONPATH=/opt/jimbro/app/backend /opt/jimbro/venv/bin/python -m jimbro.backup restore <snapshot.db> /var/lib/jimbro/jimbro.db`,
+then `sudo systemctl restart jimbro`.
+
 ## Develop
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -78,6 +109,8 @@ camera on `localhost`; for a phone in dev use the Pi or an HTTPS tunnel.
 ## Threat model and privacy
 - Raw video never leaves the phone and is never stored. Only joint angles, confidence and
   workout records reach the Pi. Traces are exported only when you press *Export*.
+- `GET /v1/export` and `DELETE /v1/athletes/me?confirm=true` let each athlete take or erase
+  their data.
 - The API is meant for a trusted home LAN: `X-Athlete-Id` separates household members but is
   **not authentication**. Don't expose port 443 to the internet.
 - TLS is self-signed: it encrypts traffic on the LAN, but phones can't verify the Pi's

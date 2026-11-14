@@ -1,0 +1,9 @@
+[Unit]
+Description=JimBro nightly database backup
+
+[Service]
+Type=oneshot
+User=jimbro
+EnvironmentFile=/etc/jimbro/jimbro.env
+Environment=PYTHONPATH=/opt/jimbro/app/backend
+ExecStart=/bin/sh -c '/opt/jimbro/venv/bin/python -m jimbro.backup backup "$JIMBRO_DB" "$(dirname "$JIMBRO_DB")/backups" --keep 14'
