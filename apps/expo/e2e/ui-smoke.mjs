@@ -100,6 +100,7 @@ const ROUTES = [
   ['home', []],
   ['muscles', ['Muscles']],
   ['coach', ['Coach']],
+  ['coach-short', ['Coach'], { height: 568 }], // iPhone SE height: camera card + controls must still fit/scroll
   ['start-workout', ['Start a Workout']],
   ['log-set-sheet', ['Log a set']],
   ['activity-sheet', ['Activity and settings']],
@@ -123,12 +124,12 @@ async function run() {
   const failures = [];
   try {
     for (const width of WIDTHS) {
-      for (const [route, steps] of ROUTES) {
+      for (const [route, steps, opts = {}] of ROUTES) {
         const page = await browser.newPage();
         const errors = [];
         page.on('pageerror', (e) => errors.push(`page error: ${e.message}`));
         page.on('console', (m) => { if (m.type() === 'error') errors.push(`console error: ${m.text().slice(0, 200)}`); });
-        await page.setViewport({ width, height: 800, deviceScaleFactor: 1 });
+        await page.setViewport({ width, height: opts.height ?? 800, deviceScaleFactor: 1 });
         await page.evaluateOnNewDocument((seed) => { localStorage.setItem('jimbro.data.v2', seed); }, SEED);
         await page.goto(url, { waitUntil: 'networkidle0' });
         await settle(1200);
