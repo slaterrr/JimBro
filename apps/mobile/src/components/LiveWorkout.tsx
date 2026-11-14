@@ -1,6 +1,7 @@
 import { type ComponentType, useCallback, useEffect, useRef, useState } from "react";
 import { athleteId } from "../api/client";
 import { LiveClient, type LiveEvent, type LiveStatus, liveUrl } from "../live/client";
+import { download, TraceRecorder, traceFilename } from "../live/trace";
 import { movementAngle, type Movement } from "../pose/angles";
 import { CameraView, type PoseFrame } from "./CameraView";
 
@@ -42,6 +43,10 @@ export function LiveWorkout({ connect = defaultConnect, camera: Camera = CameraV
   const [partials, setPartials] = useState(0);
   const [phase, setPhase] = useState("rest");
   const clientRef = useRef<Client | null>(null);
+  const traceRef = useRef(new TraceRecorder());
+  const [trueReps, setTrueReps] = useState("");
+  const [side, setSide] = useState("front");
+  const [light, setLight] = useState("normal");
   const onRepsRef = useRef(onRepsChange);
   onRepsRef.current = onRepsChange;
 
@@ -68,13 +73,17 @@ export function LiveWorkout({ connect = defaultConnect, camera: Camera = CameraV
   const onFrame = useCallback(
     (frame: PoseFrame) => {
       const m = movementAngle(frame.pose, movement);
-      if (m) clientRef.current?.sendSample(frame.timestampMs, m.angle, m.confidence);
+      if (m) {
+        clientRef.current?.sendSample(frame.timestampMs, m.angle, m.confidence);
+        traceRef.current.add(frame.timestampMs, m.angle, m.confidence);
+      }
     },
     [movement],
   );
 
   const reset = () => {
     clientRef.current?.reset();
+    traceRef.current.clear();
     setReps([]);
     setPartials(0);
   };
@@ -120,6 +129,24 @@ export function LiveWorkout({ connect = defaultConnect, camera: Camera = CameraV
           </tbody>
         </table>
       )}
+      <details className="card">
+        <summary>Evidence: export this set's angle trace</summary>
+        <p className="muted small">
+          Count the reps yourself (or from a video), then export. Traces contain joint angles
+          only. Run <code>python -m jimbro.evaluate traces/</code> to measure accuracy.
+        </p>
+        <div className="grid2">
+          <label>True reps<input type="number" min={0} value={trueReps} onChange={(e) => setTrueReps(e.target.value)} /></label>
+          <label>Camera side<input value={side} onChange={(e) => setSide(e.target.value)} /></label>
+          <label>Lighting<input value={light} onChange={(e) => setLight(e.target.value)} /></label>
+        </div>
+        <button
+          disabled={trueReps === ""}
+          onClick={() => download(traceFilename(movement, Number(trueReps), { side, light }), traceRef.current.csv())}
+        >
+          Export trace ({traceRef.current.size} samples)
+        </button>
+      </details>
     </section>
   );
 }
