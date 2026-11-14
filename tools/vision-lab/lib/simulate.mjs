@@ -374,3 +374,21 @@ function repSet(at, { reps = 8, repMs = 2400, slowdown = 0, rom = 1, restMs = 50
 export const simulateDeadlifts = (o = {}) => repSet(deadliftAt, { seed: 91, ...o });
 /** Pull-up set from a dead hang. */
 export const simulatePullups = (o = {}) => repSet(pullupAt, { seed: 101, ...o });
+
+/**
+ * Adversarial: walking across the frame, side view. The near knee bends to ~140° in swing and the
+ * body travels in x. Zero true squats (or any reps).
+ */
+export function simulateWalk({ steps = 10, stepMs = 550, fps = 20, seed = 111, noise = 0.003, fromX = 0.25, toX = 0.75 } = {}) {
+  const r = rng(seed);
+  const frames = [];
+  const dur = 1000 + steps * stepMs + 1000;
+  for (let t = 0; t <= dur; t += 1000 / fps) {
+    const u = Math.min(1, Math.max(0, (t - 1000) / (steps * stepMs)));
+    const phase = ((t - 1000) / stepMs) * Math.PI;
+    const swing = t > 1000 && u < 1 ? Math.max(0, Math.sin(phase)) : 0;
+    const pose = body({ knee: 175 - 35 * swing, upperArm: 15 * Math.sin(phase), elbow: 160, cx: fromX + (toX - fromX) * u });
+    frames.push({ t: Math.round(t), pose: jitter(pose, r, noise, 0) });
+  }
+  return { frames, trueEnds: [] };
+}

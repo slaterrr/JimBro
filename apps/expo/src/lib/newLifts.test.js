@@ -87,3 +87,15 @@ describe('guidance for the new lifts names the right exercise', () => {
     assert.match(cameraGuidance('exercise_change', 'shoulder_press', 'curl'), /so curl counting is paused/);
   });
 });
+
+describe('walking is not a rep in any mode', () => {
+  it('walking across the frame counts nothing in squat, deadlift, lunge-adjacent or arm modes', async () => {
+    const { simulateWalk } = await import('../../../../tools/vision-lab/lib/simulate.mjs');
+    for (const seed of [111, 112, 113]) {
+      const { frames } = simulateWalk({ seed, steps: 12 });
+      for (const mode of ['squat', 'deadlift', 'curl', 'shoulder_press', 'push_up']) {
+        assert.equal(run(mode, frames).s.count, 0, `${mode} seed ${seed}`);
+      }
+    }
+  });
+});
