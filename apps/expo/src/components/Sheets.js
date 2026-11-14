@@ -6,6 +6,7 @@ import { suggestNext } from '../lib/coach.js';
 import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { streak, weeklyProgress } from '../lib/progress.js';
 import { setReport } from '../lib/sessionReport.js';
+import { spokenReport } from '../lib/speech.js';
 import { plateBreakdown } from '../lib/tools.js';
 import { T, type } from '../theme.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
@@ -46,10 +47,16 @@ const ISSUE_LABEL = { arm_swing: 'arm swing', tracking: 'tracking uncertain', im
 
 /** Evidence-backed post-set camera report. */
 export function SetReportCard({ report }) {
+  const { say } = useApp();
   const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
   return (
     <Card style={{ marginTop: 12 }}>
-      <Text style={type.title}>Set report</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={type.title}>Set report</Text>
+        <TouchableOpacity onPress={() => say(spokenReport(report))} accessibilityRole="button" accessibilityLabel="Hear report" hitSlop={8}>
+          <Text style={[type.small, { color: T.violetText, fontWeight: '700' }]}>🔊 Hear report</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={type.body}>
         {report.counted} rep{report.counted === 1 ? '' : 's'} counted{report.target ? ` of ${report.target}` : ''}
         {report.partials ? ` · ${report.partials} partial` : ''}
@@ -108,7 +115,9 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     const report = fromCamera
       ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
       : null;
-    say(isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
+    say(report
+      ? `${isPR ? 'New record! ' : ''}${spokenReport(report)}`
+      : isPR ? `New record! ${r} ${exerciseName(exercise)}.` : `${r} ${exerciseName(exercise)} logged.`);
     setSaved({ isPR, report, text: `${exerciseName(exercise)} · ${r} × ${w} ${unit}` });
   };
 
