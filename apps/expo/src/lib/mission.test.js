@@ -189,3 +189,15 @@ describe('cameraSwap', () => {
     assert.equal(cameraSwap('curl'), null); // already camera-counted
   });
 });
+
+describe('weight the user picks', () => {
+  it('uses the weight entered at the check for the log and progresses the next set from it', () => {
+    const m = { title: 'Chest', minutes: 20, estMinutes: 18, focus: 'chest', reasons: [],
+      items: [{ exercise: 'bench', sets: 2, reps: 8, weight: null, unit: 'lb', rest_s: 90, camera: false, why: '' }] };
+    let s = missionStep(missionStep(missionStart(m), { type: 'ready' }), { type: 'set_done', reps: 8 });
+    s = missionStep(s, { type: 'confirm', rpe: 7, weight: 95 });
+    assert.equal(s.log[0].weight, 95);
+    assert.ok(currentTarget(s).weight >= 95, `next set ${currentTarget(s).weight}`);
+    assert.doesNotMatch(s.note, /Pick your weight/);
+  });
+});
