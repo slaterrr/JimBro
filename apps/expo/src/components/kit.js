@@ -38,14 +38,14 @@ export function Pill({ children, active = false, onPress, style }) {
 }
 
 /** Segmented control like the Progression tabs (Overview / Strength / Volume / PRs). */
-export function Segmented({ options, value, onChange }) {
+export function Segmented({ options, value, onChange, singleLine = false }) {
   return (
     <View style={st.segment}>
       {options.map(([v, label]) => {
         const on = v === value;
         return (
           <TouchableOpacity key={v} onPress={() => onChange(v)} style={[st.segmentItem, on && st.segmentOn]}>
-            <Text style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
+            <Text numberOfLines={singleLine ? 1 : undefined} adjustsFontSizeToFit={singleLine} minimumFontScale={0.8} style={[st.segmentText, singleLine && { fontSize: 13 }, on && { color: T.onAccent }]}>{label}</Text>
           </TouchableOpacity>
         );
       })}

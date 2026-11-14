@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { Text } from 'react-native';
+import { DateDropdown } from './DateDropdown.js';
 import { Card, Chips, Segmented } from './kit.js';
 import { EXERCISES } from '../lib/exercises.js';
 import { periods, metrics } from '../lib/comparison.js';
@@ -19,10 +20,8 @@ export function Comparisons({ history, unit }) {
     <Segmented options={['workout','month','year'].map(x => [x, x[0].toUpperCase()+x.slice(1)])} value={mode} onChange={v => { setMode(v); setBefore(null); setAfter(null); }} />
     <Chips options={EXERCISES.map(e => [e.id,e.name])} value={exercise} onChange={setExercise} />
     {groups.length < 2 ? <Text style={type.body}>Complete workouts in two different {mode === 'workout' ? 'sessions' : mode+'s'} to compare.</Text> : <>
-      <Text style={type.label}>From</Text>
-      <ScrollView horizontal><Chips options={groups.map(g => [g.key,g.label])} value={a?.key} onChange={setBefore} /></ScrollView>
-      <Text style={type.label}>To</Text>
-      <ScrollView horizontal><Chips options={groups.map(g => [g.key,g.label])} value={b?.key} onChange={setAfter} /></ScrollView>
+      <DateDropdown label="From" options={groups} value={a?.key} onChange={setBefore} />
+      <DateDropdown label="To" options={groups} value={b?.key} onChange={setAfter} />
       {['strength','volume'].map(key => <Text key={key} style={type.body}>
         {key === 'strength' ? 'Best estimated 1RM' : 'Total volume'} ({unit}{key === 'volume' ? ' × reps' : ''}): {display(old[key])} → {display(current[key])}
         {old[key] > 0 && current[key] !== null ? ` (${((current[key]-old[key])/old[key]*100).toFixed(1)}%)` : ''}

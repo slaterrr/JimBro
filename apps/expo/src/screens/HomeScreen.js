@@ -169,9 +169,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Icon name="arm-flex" size={30} color={T.accent} />
-          <Text style={type.h2}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
+          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
           <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
             <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
           </View>
@@ -180,8 +180,8 @@ export function HomeScreen({ openLog, openActivity, go }) {
           <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
           <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityLabel="Activity and settings" onPress={openActivity}>
-          <Icon name="bell" size={24} color={T.textDim} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={{ flexShrink: 0, padding: 10 }}>
+          <Icon name="cog-outline" size={24} color={T.textDim} />
         </TouchableOpacity>
       </View>
 

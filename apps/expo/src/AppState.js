@@ -11,6 +11,7 @@ import { migrateSettings } from './lib/personas.js';
 import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
+import { chronologicalHistory } from './lib/historyOrder.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
@@ -32,7 +33,7 @@ export function AppProvider({ children }) {
       .then((raw) => {
         if (!raw) return;
         const saved = JSON.parse(raw);
-        setData({ ...EMPTY, ...saved, settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
+        setData({ ...EMPTY, ...saved, history: chronologicalHistory(saved.history ?? []), settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
       })
       .catch(() => setNotice('Phone storage unavailable; data will not be kept.'))
       .finally(() => setReady(true));
@@ -82,7 +83,7 @@ export function AppProvider({ children }) {
     setData((d) => {
       if (!d.active) return d;
       if (!d.active.sets.length) return { ...d, active: null }; // nothing logged: discard
-      return { ...d, active: null, history: [...d.history, { ...d.active, finishedAt: new Date().toISOString() }] };
+      return { ...d, active: null, history: chronologicalHistory([...d.history, { ...d.active, finishedAt: new Date().toISOString() }]) };
     });
 
   const deleteWorkout = (id) => setData((d) => ({ ...d, history: d.history.filter((w) => w.id !== id) }));
