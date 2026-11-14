@@ -17,3 +17,4 @@ apps/mobile/dist/
 *.db
 *.sqlite3
 models/
+data/
