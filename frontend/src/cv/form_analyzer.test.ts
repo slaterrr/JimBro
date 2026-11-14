@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { bicepCurl, pushup, shoulderPress, squat } from "./exercises";
+import { bicepCurl, deadlift, pushup, shoulderPress, squat } from "./exercises";
 import {
   analyzeRep,
   assessCameraView,
   cameraViewFlag,
   describeRejection,
   median,
+  personalFlags,
+  sessionInsights,
   spokenFor,
+  withEvidence,
   stdDev,
   summarizeSession,
   toRepEvent,
@@ -50,17 +53,17 @@ describe("analyzeRep", () => {
       ["UNEVEN_TEMPO", "estimated"],
       ["RANGE_VARIES", "estimated"],
     ]);
-    expect(flags[1]!.message).toMatch(/less range/);
+    expect(flags[1]!.message).toMatch(/squat depth decreased compared with your previous reps/);
   });
 
   it("knows 'less range' means a lower angle for presses", () => {
     const prev = [rep(1, 2000, 170), rep(2, 2000, 170), rep(3, 2000, 168)];
     const flags = analyzeRep(shoulderPress, rep(4, 2000, 150), prev);
-    expect(flags.find((f) => f.code === "RANGE_VARIES")!.message).toMatch(/less range/);
+    expect(flags.find((f) => f.code === "RANGE_VARIES")!.message).toMatch(/lockout decreased/);
   });
 
   it("includes exercise-specific form checks", () => {
-    const flags = analyzeRep(bicepCurl, rep(1, 2000, 50), [], { elbowDrift: { min: 5, max: 60 } });
+    const flags = analyzeRep(bicepCurl, rep(1, 2000, 50), [], { elbowDrift: { min: 5, max: 60, coverage: 1 } });
     expect(flags.map((f) => f.code)).toContain("ELBOW_DRIFT");
   });
 });
@@ -98,7 +101,8 @@ describe("summarizeSession", () => {
   });
 
   it("marks average duration as measured and consistency as estimated", () => {
-    const s = summarizeSession([rep(1, 2000, 80), rep(2, 2200, 90), rep(3, 1800, 85), rep(4, 2000, 85), rep(5, 2000, 85)], 0.9)!;
+    const s = summarizeSession([rep(1, 2000, 80), rep(2, 2200, 90), rep(3, 1800, 85), rep(4, 2000, 85), rep(5, 2000, 85)], 0.9, squat)!;
+    expect(s.insights).toEqual([]);
     expect(s.totalReps).toBe(5);
     expect(s.avgRepDurationMs).toEqual({ value: 2000, unit: "ms", source: "measured" });
     expect(s.tempoConsistency).toMatchObject({ unit: "%", source: "estimated", confidence: 0.9 });
@@ -136,6 +140,11 @@ describe("assessCameraView", () => {
     expect(cameraViewFlag(side, "side")).toBeNull();
   });
 
+  it("accepts an exercise's other supported views", () => {
+    const front = assessCameraView(upright(0.25));
+    expect(cameraViewFlag(front, "side", ["front"])).toBeNull();
+  });
+
   it("returns unknown when lying horizontal (push-ups) or not visible", () => {
     const lying = upright(0.03).map((p, i) =>
       i === L.LEFT_HIP || i === L.RIGHT_HIP ? { ...p, x: 0.9, y: 0.32 } : p,
@@ -151,5 +160,70 @@ describe("stats helpers", () => {
     expect(median([4, 1, 2, 3])).toBe(2.5);
     expect(stdDev([2, 4, 4, 4, 5, 5, 7, 9])).toBe(2);
     expect(stdDev([5])).toBe(0);
+  });
+});
+
+describe("personal baseline", () => {
+  const lean = (range: number) => ({ torsoLean: { min: 20, max: 20 + range, coverage: 1 } });
+
+  it("compares with the user's own earlier reps, not a fixed angle", () => {
+    // This user's torso always changes ~40°: normal for them, no flag.
+    const history = [lean(40), lean(42), lean(38)];
+    expect(personalFlags(squat.personalChecks, lean(45), history)).toEqual([]);
+    // 60° is 20° more than their usual.
+    const flags = personalFlags(squat.personalChecks, lean(60), history);
+    expect(flags.map((f) => [f.code, f.source])).toEqual([["TORSO_SHIFT", "estimated"]]);
+    expect(flags[0]!.message).toMatch(/about 20°/);
+  });
+
+  it("waits for enough earlier reps where the signal was seen", () => {
+    expect(personalFlags(squat.personalChecks, lean(80), [lean(40), lean(40)])).toEqual([]);
+    expect(personalFlags(squat.personalChecks, lean(80), [lean(40), {}, lean(40), {}])).toEqual([]);
+  });
+
+  it("is applied by analyzeRep with history", () => {
+    const flags = analyzeRep(squat, rep(4, 2000, 84), [], lean(60), { history: [lean(40), lean(40), lean(40)] });
+    expect(flags.map((f) => f.code)).toContain("TORSO_SHIFT");
+  });
+});
+
+describe("withEvidence", () => {
+  it("drops signals seen in too few of the rep's frames", () => {
+    const stats = {
+      a: { min: 0, max: 1, coverage: 0.9 },
+      b: { min: 0, max: 99, coverage: 0.3 },
+    };
+    expect(Object.keys(withEvidence(stats))).toEqual(["a"]);
+    expect(Object.keys(withEvidence(stats, 0.2))).toEqual(["a", "b"]);
+  });
+
+  it("means a check never fires from a few frames", () => {
+    const stats = withEvidence({ "kneeRatio@returning": { min: 0.3, max: 1, coverage: 0.2 } });
+    expect(squat.formChecks({} as never, stats, "front")).toEqual([]);
+  });
+});
+
+describe("sessionInsights", () => {
+  it("reports inconsistent depth", () => {
+    const reps = [rep(1, 2000, 70), rep(2, 2000, 95), rep(3, 2000, 72), rep(4, 2000, 98)];
+    const out = sessionInsights(squat, reps);
+    expect(out.map((f) => [f.code, f.source])).toEqual([["RANGE_INCONSISTENT", "estimated"]]);
+    expect(out[0]!.message).toMatch(/squat depth was inconsistent/);
+  });
+
+  it("reports range lost and reps slowing over a set", () => {
+    const reps = [70, 71, 72, 80, 85, 86, 87].map((p, i) => rep(i + 1, i < 4 ? 2000 : 3200, p));
+    const codes = sessionInsights(squat, reps).map((f) => f.code);
+    expect(codes).toContain("RANGE_DECLINED");
+    expect(codes).toContain("TEMPO_SLOWED");
+  });
+
+  it("knows lost range means a lower angle for lockout exercises", () => {
+    const reps = [175, 174, 175, 165, 160, 160].map((p, i) => rep(i + 1, 2000, p));
+    expect(sessionInsights(deadlift, reps).map((f) => f.code)).toContain("RANGE_DECLINED");
+  });
+
+  it("says nothing with too few reps", () => {
+    expect(sessionInsights(squat, [rep(1, 2000, 60), rep(2, 2000, 110)])).toEqual([]);
   });
 });

@@ -7,7 +7,7 @@
 import type { FormFlag } from "../../../../shared/types";
 import { calculateAngle } from "../angle_calculator";
 import { POSE_LANDMARKS as L, pickSide, vis } from "../pose_detection";
-import type { ExerciseDefinition } from "./types";
+import type { ExerciseDefinition, ExerciseReading } from "./types";
 
 const SIDES = {
   left: { shoulder: L.LEFT_SHOULDER, elbow: L.LEFT_ELBOW, wrist: L.LEFT_WRIST, hip: L.LEFT_HIP },
@@ -24,6 +24,7 @@ export const bicepCurl: ExerciseDefinition = {
   name: "Bicep curl",
   primaryJoint: "elbow",
   cameraView: "side",
+  rangeNoun: "curl range",
   setupInstructions:
     "Stand side on to the camera, with the arm you're curling nearest to it, and your upper body in view. " +
     "Then let that arm hang straight to begin.",
@@ -48,7 +49,7 @@ export const bicepCurl: ExerciseDefinition = {
   calibrationGuide: "Half curl ≈ 90–100°; full curl ≈ 40–60°.",
 
   read(landmarks, { aspectRatio, minVisibility, preferredSide }) {
-    const none = {
+    const none: ExerciseReading = {
       visible: false,
       primaryAngle: null,
       progress: null,
@@ -56,6 +57,7 @@ export const bicepCurl: ExerciseDefinition = {
       side: null,
       highlight: [],
       positionHint: null,
+      view: "side",
     };
     if (!landmarks || landmarks.length < 33) return none;
     const side = pickSide(
@@ -91,6 +93,7 @@ export const bicepCurl: ExerciseDefinition = {
       side,
       highlight: [i.shoulder, i.elbow, i.wrist],
       positionHint: null,
+      view: "side",
     };
   },
 
@@ -120,6 +123,17 @@ export const bicepCurl: ExerciseDefinition = {
     }
     return flags;
   },
+  personalChecks: [
+    {
+      signal: "elbowDrift",
+      stat: "max",
+      worse: "higher",
+      tolerance: 12,
+      code: "ELBOW_DRIFT_VS_USUAL",
+      message: (d) => `Your elbow moved about ${Math.round(d)}° further forward than on your usual reps.`,
+    },
+  ],
+
   spoken: {
     FAST_LOWERING: "Lower the weight slowly.",
     ELBOW_DRIFT: "Keep your elbow by your side.",

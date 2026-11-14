@@ -11,6 +11,14 @@ import type { PoseLandmarker, PoseLandmarkerResult } from "@mediapipe/tasks-visi
 // ---- landmarks -----------------------------------------------------------
 
 /** Minimal landmark shape (matches MediaPipe's NormalizedLandmark). */
+/** A 3D landmark from the model's world output: metres, origin between the hips. */
+export interface WorldLandmarkLike {
+  x: number;
+  y: number;
+  z: number;
+  visibility?: number;
+}
+
 export interface LandmarkLike {
   x: number;
   y: number;
@@ -268,8 +276,14 @@ export async function createPoseLandmarker(options: Partial<DetectorOptions> = {
 
 /**
  * Runs detection once per new video frame via requestAnimationFrame. Frames
- * the camera hasn't updated are skipped, so the model never runs twice on the
+ * the video hasn't updated are skipped, so the model never runs twice on the
  * same image and the loop idles when the tab is hidden.
+ *
+ * `clock` decides the timestamp handed to `onResult`:
+ *   - "wall": performance.now() (live camera)
+ *   - "media": the video's own playback time in ms (uploaded videos), so rep
+ *     timings stay true to the recording even if frames are skipped.
+ * MediaPipe itself always gets a strictly increasing wall-clock timestamp.
  */
 export class PoseLoop {
   private rafId: number | null = null;
@@ -280,6 +294,7 @@ export class PoseLoop {
     private readonly video: HTMLVideoElement,
     private readonly landmarker: PoseLandmarker,
     private readonly onResult: (result: PoseLandmarkerResult, timestamp: number) => void,
+    private readonly clock: "wall" | "media" = "wall",
   ) {}
 
   get running(): boolean {
@@ -297,7 +312,7 @@ export class PoseLoop {
       const now = Math.max(performance.now(), this.lastTimestamp + 1);
       this.lastTimestamp = now;
       const result = this.landmarker.detectForVideo(v, now);
-      this.onResult(result, now);
+      this.onResult(result, this.clock === "media" ? v.currentTime * 1000 : now);
     };
     this.rafId = requestAnimationFrame(tick);
   }

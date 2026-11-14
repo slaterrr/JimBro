@@ -39,6 +39,7 @@ class FakeTracker implements CoachableTracker {
       peakAngle: { value: 85, unit: "deg", source: "measured" },
       fullRange: true,
       formFlags: flags,
+      view: "side",
     };
     this.r.forEach((l) => l(e));
   }
@@ -92,6 +93,13 @@ describe("VoiceCoach", () => {
       { code: "UNEVEN_TEMPO", message: "y", source: "estimated" },
     ]);
     expect(speaker.said.slice(-2)).toEqual(["1", "Slow down on the way down."]);
+  });
+
+  it("speaks an estimated tip only when the exercise gives it a spoken form", () => {
+    const { tracker, speaker } = setup();
+    tracker.set({ status: "tracking", landmarksVisible: true, armed: true });
+    tracker.rep(1, [{ code: "KNEES_CAVING", message: "x", source: "estimated" }]);
+    expect(speaker.said.slice(-2)).toEqual(["1", "Push your knees out."]);
   });
 
   it("explains why a rep didn't count", () => {
@@ -177,6 +185,26 @@ describe("VoiceCoach", () => {
       summary: null,
     });
     expect(speaker.said).toEqual(["Session ended. No reps counted."]);
+  });
+
+  it("adds the first set-level insight to the summary", () => {
+    const { coach, speaker } = setup();
+    const m = { value: 0, unit: "ms", source: "measured" as const };
+    coach.announceSession({
+      id: "s",
+      exercise: "squat",
+      startedAt: "",
+      endedAt: "",
+      reps: [],
+      summary: {
+        totalReps: 6,
+        avgRepDurationMs: m,
+        tempoConsistency: m,
+        rangeConsistency: m,
+        insights: [{ code: "RANGE_DECLINED", message: "Your range of motion dropped over the set.", source: "estimated" }],
+      },
+    });
+    expect(speaker.said).toEqual(["Nice work. 6 reps. Your range of motion dropped over the set."]);
   });
 
   it("stays silent when disabled, and after detach", () => {

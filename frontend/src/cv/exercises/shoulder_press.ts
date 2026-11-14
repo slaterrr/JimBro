@@ -8,7 +8,7 @@
 import type { FormFlag } from "../../../../shared/types";
 import { calculateAngle } from "../angle_calculator";
 import { POSE_LANDMARKS as L, distance, vis } from "../pose_detection";
-import type { ExerciseDefinition } from "./types";
+import type { ExerciseDefinition, ExerciseReading } from "./types";
 
 /** Arms differing by more than this at any point in a rep are flagged. */
 const UNEVEN_MAX_DEG = 25;
@@ -18,6 +18,7 @@ export const shoulderPress: ExerciseDefinition = {
   name: "Shoulder press",
   primaryJoint: "elbow",
   cameraView: "front",
+  rangeNoun: "lockout",
   setupInstructions:
     "Face the camera, about two metres back, with your head, arms and hips in view. " +
     "Then bring the weights up to your shoulders to begin.",
@@ -44,7 +45,7 @@ export const shoulderPress: ExerciseDefinition = {
   calibrationGuide: "At shoulders ≈ 80–100° and 30–50%; locked out ≈ 160–175° and 85%+.",
 
   read(landmarks, { aspectRatio, minVisibility }) {
-    const none = {
+    const none: ExerciseReading = {
       visible: false,
       primaryAngle: null,
       progress: null,
@@ -52,6 +53,7 @@ export const shoulderPress: ExerciseDefinition = {
       side: null,
       highlight: [],
       positionHint: null,
+      view: "front",
     };
     if (!landmarks || landmarks.length < 33) return none;
     const idx = [L.LEFT_SHOULDER, L.LEFT_ELBOW, L.LEFT_WRIST, L.RIGHT_SHOULDER, L.RIGHT_ELBOW, L.RIGHT_WRIST];
@@ -84,6 +86,7 @@ export const shoulderPress: ExerciseDefinition = {
       side: "both",
       highlight: idx,
       positionHint: null,
+      view: "front",
     };
   },
 
@@ -111,6 +114,8 @@ export const shoulderPress: ExerciseDefinition = {
     }
     return flags;
   },
+  personalChecks: [],
+
   spoken: {
     FAST_LOWERING: "Lower the weights slowly.",
     UNEVEN_ARMS: "Press both arms evenly.",

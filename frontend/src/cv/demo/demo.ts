@@ -13,6 +13,9 @@ const startBtn = $<HTMLButtonElement>("start");
 const pauseBtn = $<HTMLButtonElement>("pause");
 const stopBtn = $<HTMLButtonElement>("stop");
 const voiceBtn = $<HTMLButtonElement>("voice");
+const fileInput = $<HTMLInputElement>("file");
+const fileLabel = $("fileLabel");
+const stage = $("stage");
 const picker = $("picker");
 const msg = $("msg");
 const log = $("log");
@@ -148,16 +151,21 @@ function render(s: TrackerState) {
       ? s.positionHint ??
         (s.landmarksVisible ? (s.armed ? `phase: ${s.phaseLabel}` : ex.startPrompt) : "Can't see the joints I need")
       : s.status;
+  if (s.videoProgress) {
+    $("status").textContent += ` · video ${s.videoProgress.current.toFixed(1)} / ${s.videoProgress.duration.toFixed(1)} s`;
+  }
 
-  const rows = [row(`${ex.primaryJoint === "knee" ? "Knee" : "Elbow"} angle`, fmt(s.liveAngle, "°"), "measured")];
+  const joint = ex.primaryJoint[0]!.toUpperCase() + ex.primaryJoint.slice(1);
+  const rows = [row(`${joint} angle`, fmt(s.liveAngle, "°"), "measured")];
   if (ex.progress) {
     rows.push(row(`${ex.progress.label} (need ${Math.round(c.minProgress * 100)}%)`, pct(s.liveProgress), "measured"));
   }
   rows.push(
     row("Last rep time", s.lastRep ? `${(s.lastRep.durationMs / 1000).toFixed(2)} s` : "–", "measured"),
     row("Last rep range", s.lastRep ? fmt(s.lastRep.peakAngle.value, "°") : "–", "measured"),
+    row("Measured from", `${s.measuredView} view${s.measuredView === "front" && ex.cameraView === "side" ? " (3D estimate)" : ""}`, "measured"),
     row(
-      `Camera view (want ${ex.cameraView})`,
+      `Camera view (want ${[ex.cameraView, ...(ex.otherViews ?? [])].join(" or ")})`,
       `${s.cameraView.view}${s.cameraView.confidence ? ` (${Math.round(s.cameraView.confidence * 100)}%)` : ""}`,
       "estimated",
     ),
@@ -172,6 +180,8 @@ function render(s: TrackerState) {
   stopBtn.disabled = s.status !== "tracking" && s.status !== "paused";
   const locked = busy || s.status === "paused";
   for (const b of pickerButtons.values()) b.disabled = locked;
+  fileInput.disabled = locked;
+  fileLabel.setAttribute("aria-disabled", String(locked));
 }
 
 // Furthest angle of the current (or last) attempt, held until the next attempt
@@ -221,21 +231,49 @@ voiceBtn.addEventListener("click", () => {
 });
 
 // ---- controls ------------------------------------------------------------
-startBtn.addEventListener("click", () => {
+function attachCoach() {
   // Browsers only allow speech after a click, so the coach starts here.
   if (!coachAttached) {
     coach.attach();
     coachAttached = true;
   }
+}
+
+startBtn.addEventListener("click", () => {
+  attachCoach();
+  // Start = camera, unless a paused video is waiting to resume.
+  if (tracker.getState().status !== "paused") stage.classList.remove("recorded");
   void tracker.start();
 });
-pauseBtn.addEventListener("click", () => tracker.pause());
-stopBtn.addEventListener("click", () => {
-  const session = tracker.stop();
-  coach.announceSession(session);
-  addLog(`session ended:\n${JSON.stringify(session.summary, null, 2)}`);
-  console.info("WorkoutSession", session);
+
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files?.[0];
+  fileInput.value = ""; // allow picking the same file again
+  if (!file) return;
+  attachCoach();
+  stage.classList.add("recorded");
+  log.textContent = "";
+  addLog(`analysing ${file.name}`);
+  void tracker.startFile(file);
 });
+
+function logSession(session: ReturnType<typeof tracker.stop>) {
+  coach.announceSession(session);
+  const summary = session.summary;
+  if (!summary) {
+    addLog("session ended: no reps counted");
+  } else {
+    const { insights, ...rest } = summary;
+    addLog(
+      `session ended:\n${JSON.stringify(rest, null, 2)}` +
+        (insights.length ? `\n${insights.map((f) => `• ${f.message} (${f.source})`).join("\n")}` : ""),
+    );
+  }
+  console.info("WorkoutSession", session);
+}
+tracker.onSessionEnd(logSession);
+pauseBtn.addEventListener("click", () => tracker.pause());
+stopBtn.addEventListener("click", () => logSession(tracker.stop()));
 
 renderVoiceButton();
 setupExerciseUi();

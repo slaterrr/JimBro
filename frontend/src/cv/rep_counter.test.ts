@@ -3,6 +3,8 @@ import { pushup } from "./exercises/pushup";
 import { shoulderPress } from "./exercises/shoulder_press";
 import { squat } from "./exercises/squat";
 import { bicepCurl } from "./exercises/bicep_curl";
+import { deadlift } from "./exercises/deadlift";
+import { lunge } from "./exercises/lunge";
 import { BaselineDropMeter, RepCounter, type RepCounterConfig, type RepCounterEvent } from "./rep_counter";
 import { hold, sequence, squat as dip, type Sample } from "./test_utils";
 
@@ -270,5 +272,61 @@ describe("BaselineDropMeter", () => {
     expect(m.update(null, 0.4, false)).toBeNull();
     m.reset();
     expect(m.update(0.6, 0.4, false)).toBeNull();
+  });
+});
+
+describe("RepCounter (deadlift thresholds: start at the floor, peak at lockout)", () => {
+  /** Hip from set-up (`low`) to lockout (`high`) and back; shoulders rise with it. */
+  function pull(t0: number, ms: number, high: number, low = 90, riseTop = 0.6) {
+    return dip(t0, ms, -high, -low).map((s) => {
+      const hip = -(s.knee as number);
+      return { t: s.t, knee: hip, progress: ((hip - low) / (high - low)) * riseTop };
+    });
+  }
+  const setUp = (t: number, ms: number) => hold(t, ms, 90).map((s) => ({ ...s, progress: 0 }));
+
+  it("counts each pull when the bar is back on the floor", () => {
+    const { reps } = run(
+      sequence((t) => setUp(t, 600), (t) => pull(t, 3000, 175), (t) => setUp(t, 800), (t) => pull(t, 3000, 172), (t) => setUp(t, 500)),
+      new RepCounter(deadlift.counter),
+    );
+    expect(reps.map((r) => r.repNumber)).toEqual([1, 2]);
+    expect(reps[0]!.peakAngle).toBeCloseTo(175, 0);
+  });
+
+  it("rejects a pull that stops short of lockout", () => {
+    const { reps, rejected } = run(
+      sequence((t) => setUp(t, 600), (t) => pull(t, 3000, 150, 90, 0.4), (t) => setUp(t, 500)),
+      new RepCounter(deadlift.counter),
+    );
+    expect(reps).toEqual([]);
+    expect(rejected.map((r) => r.reason)).toEqual(["PARTIAL_RANGE"]);
+  });
+
+  it("doesn't count standing around before setting up", () => {
+    const standing = (t: number, ms: number) => hold(t, ms, 175).map((s) => ({ ...s, progress: null }));
+    const { events, counter } = run(sequence((t) => standing(t, 3000)), new RepCounter(deadlift.counter));
+    expect(events).toEqual([]);
+    expect(counter.armed).toBe(false);
+  });
+});
+
+describe("RepCounter (lunge thresholds)", () => {
+  const withDrop = (samples: Sample[], top: number) =>
+    samples.map((s) => ({ ...s, progress: (((175 - (s.knee as number)) / (175 - 95)) * top) }));
+
+  it("counts a full lunge and rejects a half one", () => {
+    const { reps, rejected } = run(
+      sequence(
+        (t) => withDrop(hold(t, 500, 175), 0.4),
+        (t) => withDrop(dip(t, 2000, 95), 0.4),
+        (t) => withDrop(hold(t, 300, 175), 0.4),
+        (t) => withDrop(dip(t, 2000, 125), 0.4),
+        (t) => withDrop(hold(t, 300, 175), 0.4),
+      ),
+      new RepCounter(lunge.counter),
+    );
+    expect(reps).toHaveLength(1);
+    expect(rejected.map((r) => r.reason)).toEqual(["PARTIAL_RANGE"]);
   });
 });
