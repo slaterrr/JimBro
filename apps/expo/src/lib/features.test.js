@@ -134,6 +134,9 @@ const WIRING = {
     [/assessFatigue\(/, 'fatigue and metrics stored with logged sets'],
     [/recommendNext\(/, 'next-time suggestion after logging a set'],
   ],
+  'screens/CoachScreen.js#trust': [
+    [/cameraLabel\(movement\)/, 'experimental / sim-only camera lifts are labelled on the camera screen'],
+  ],
   'screens/CoachScreen.js#perf': [
     [/liveSlowdownCue\(/, 'one short live slowdown cue'],
     [/setQuality=/, 'camera set quality reaches the mission check'],
