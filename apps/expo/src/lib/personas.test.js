@@ -79,3 +79,19 @@ describe('persona voice', () => {
     samePersonaContract((p) => restText(p, 90, 2));
   });
 });
+
+describe('persona settings', () => {
+  it('migrates a legacy tone to a persona and keeps other settings', async () => {
+    const { migrateSettings } = await import('./personas.js');
+    assert.deepEqual(migrateSettings({ tone: 'hard', unit: 'kg' }), { persona: 'drill', unit: 'kg' });
+    assert.deepEqual(migrateSettings({ tone: 'friendly', persona: 'zen' }), { persona: 'zen' });
+    assert.deepEqual(migrateSettings({ persona: 'bogus' }), { persona: 'coach' });
+    assert.deepEqual(migrateSettings(undefined), { persona: 'coach' });
+  });
+  it('gives speech options from the persona voice', async () => {
+    const { speechOptions } = await import('./personas.js');
+    assert.deepEqual(speechOptions('hype'), { rate: 1.1, pitch: 1.2 });
+    assert.deepEqual(speechOptions('silly'), { rate: 1.1, pitch: 1.2 });
+    assert.deepEqual(speechOptions(undefined), { rate: 1.0, pitch: 1.0 });
+  });
+});
