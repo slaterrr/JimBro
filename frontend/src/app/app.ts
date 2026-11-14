@@ -329,7 +329,16 @@ function renderReport(r: VideoReport) {
   $("vid-summary-body").innerHTML = summary.join("");
   $("vid-summary").hidden = false;
 
-  $("vid-issues-body").innerHTML = r.issues.length
+  const notCounted = r.notCounted.length
+    ? `<p class="note" style="margin-top:8px">Not counted:</p>` +
+      r.notCounted
+        .map(
+          (n) =>
+            `<div class="row"><span><button data-seek="${Math.max(0, n.t - 2)}">▶ ${t2(Math.max(0, n.t - 2))}</button></span><span>${esc(n.flag.message)}</span></div>`,
+        )
+        .join("")
+    : "";
+  $("vid-issues-body").innerHTML = (r.issues.length
     ? r.issues
         .map(
           (i) =>
@@ -337,7 +346,7 @@ function renderReport(r: VideoReport) {
             `<span>${esc(i.flag.message)} <span class="tag ${i.flag.source === "measured" ? "m" : "e"}">${i.flag.source}</span></span></div>`,
         )
         .join("")
-    : `<p class="note">No form observations in this video.</p>`;
+    : `<p class="note">No form observations in this video.</p>`) + notCounted;
   $("vid-issues").hidden = false;
 
   $("vid-reps-body").innerHTML = r.reps.length
@@ -352,7 +361,11 @@ function renderReport(r: VideoReport) {
       `</tbody></table>`
     : `<p class="note">No full reps were counted.</p>`;
   $("vid-reps").hidden = false;
-  vidStatus(`Analysed ${r.reps.length} rep${r.reps.length === 1 ? "" : "s"}. Click a time to jump to it.`);
+  vidStatus(
+    `Analysed ${r.reps.length} rep${r.reps.length === 1 ? "" : "s"}` +
+      (r.notCounted.length ? `, ${r.notCounted.length} attempt${r.notCounted.length === 1 ? "" : "s"} not counted` : "") +
+      ". Click a time to jump to it.",
+  );
 }
 
 document.addEventListener("click", (e) => {

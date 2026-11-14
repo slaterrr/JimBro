@@ -17,6 +17,7 @@ import { facingSign, kneeAnkleRatio, torsoLean } from "../body_metrics";
 import { POSE_LANDMARKS as L, pickSide, distance, vis, type LandmarkLike, type WorldLandmarkLike } from "../pose_detection";
 import squatModelJson from "../ml/models/squat_uiprmd.json";
 import { QualityModel, type QualityModelJson } from "../ml/quality_model";
+import { validateSquat } from "../movement_validation";
 import type { ExerciseDefinition, ExerciseReading } from "./types";
 
 /** Trained on UI-PRMD deep squats (public domain); see ml/uiprmd/REPORT.md. */
@@ -77,6 +78,10 @@ export const squat: ExerciseDefinition = {
       ? readFront(landmarks, world, aspectRatio, minVisibility, none)
       : readSide(landmarks, aspectRatio, minVisibility, preferredSide, none);
   },
+
+  // A lunge or a step bends the knee and drops the hips too; this checks the
+  // whole rep looked like a squat (both feet planted, level, hips symmetric).
+  validateMovement: validateSquat,
 
   rejections: {
     PARTIAL_RANGE: {

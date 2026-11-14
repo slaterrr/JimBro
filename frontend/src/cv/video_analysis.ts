@@ -128,6 +128,8 @@ export interface VideoReport {
   /** Every form observation with the time it happened, in order. */
   issues: VideoIssue[];
   session: WorkoutSession;
+  /** Attempts that weren't counted (too shallow, wrong movement, can't confirm...), with times. */
+  notCounted: Array<{ t: number; flag: FormFlag }>;
   /** Fraction of frames with a person found, and with the counting joints visible. */
   coverage: { personFound: number; jointsVisible: number };
 }
@@ -146,7 +148,7 @@ export function analyzeRecording(rec: Recording, exercise: ExerciseId | "auto"):
     ex = exercise;
   }
 
-  const { session, frames } = replayRecording(rec, ex);
+  const { session, frames, rejections } = replayRecording(rec, ex);
   const reps: VideoRep[] = session.reps.map((r) => ({
     repNumber: r.repNumber,
     start: r.startedAt / 1000,
@@ -168,6 +170,7 @@ export function analyzeRecording(rec: Recording, exercise: ExerciseId | "auto"):
     reps,
     issues,
     session,
+    notCounted: rejections.map((r) => ({ t: r.t / 1000, flag: r.flag })),
     coverage: {
       personFound: rec.frames.filter((f) => f.lm).length / n,
       jointsVisible: frames.filter((f) => f.visible).length / n,

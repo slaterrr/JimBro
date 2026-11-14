@@ -9,6 +9,7 @@ import type { ExerciseId, FormFlag, Metric, PrimaryJoint, RepEvent, RepPhase } f
 import type { CameraView } from "../form_analyzer";
 import type { BodySide, LandmarkLike, WorldLandmarkLike } from "../pose_detection";
 import type { QualityModel } from "../ml/quality_model";
+import type { MovementFeatures, MovementVerdict } from "../movement_validation";
 import type { CompletedRep, RejectionReason, RepCounterConfig } from "../rep_counter";
 
 /** How the progress signal is measured each frame. */
@@ -122,6 +123,12 @@ export interface ExerciseDefinition {
    * (e.g. back-knee depth for lunges). Reported as numbers, not judged.
    */
   repMetrics?: (stats: FormStats, series: FormSeries) => Record<string, Metric>;
+  /**
+   * Whole-rep check that the movement matches this exercise (see
+   * movement_validation.ts). Reps that don't match, or can't be confirmed,
+   * aren't counted.
+   */
+  validateMovement?: (features: MovementFeatures) => MovementVerdict;
   /** Exercise-specific set-level observations from the counted reps (e.g. curl style). */
   sessionInsights?: (reps: readonly RepEvent[]) => FormFlag[];
   /** Exercise-specific wording for PARTIAL_RANGE and PROGRESS_NOT_MET. */

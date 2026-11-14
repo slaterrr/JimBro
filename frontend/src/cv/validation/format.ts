@@ -86,6 +86,12 @@ export interface RepAnnotation {
   frontLeg?: "left" | "right";
   /** Curls: which arm(s) did this rep. */
   arm?: "left" | "right" | "both";
+  /**
+   * What the person actually did on this attempt, if it wasn't the annotated
+   * exercise (e.g. a lunge in a squat set, to test the app doesn't count it).
+   * Such attempts must NOT be counted. Omitted = the annotated exercise.
+   */
+  performed?: ExerciseId | "walking" | "bending" | "other";
 }
 
 export interface AngleCheck {

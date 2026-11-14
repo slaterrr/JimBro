@@ -272,3 +272,23 @@ describe("evaluate: 2D vs 3D angle error under camera yaw", () => {
     expect(turned.angles.groundTruth3d.meanAbsError!).toBeLessThan(0.5);
   });
 });
+
+describe("evaluate: wrong-movement attempts", () => {
+  it("scores attempts of a different movement separately from real reps", async () => {
+    const { AVERAGE, lungeMove, recordMovements, squatMove, stand } = await import("../test_bodies");
+    const pad = { move: stand, ms: 800 };
+    const rec = recordMovements(
+      [pad, { move: squatMove(1.05), ms: 2400 }, pad, { move: lungeMove("left", "forward", 1.2), ms: 3200 }, pad, { move: squatMove(1.05), ms: 2400 }, pad],
+      90,
+      AVERAGE,
+    );
+    const at = (from: number, ms: number) => ({ start: from, end: from + ms });
+    const squat1 = at(800, 2400);
+    const lungeSpan = at(800 + 2400 + 800, 3200);
+    const squat2 = at(lungeSpan.end + 800, 2400);
+    const e = evaluate(rec, annotation({ reps: [squat1, { ...lungeSpan, performed: "lunge" }, squat2] }));
+    expect(e.reps).toMatchObject({ annotated: 2, matched: 2, missed: 0, falsePositives: 0, wrongMovement: { annotated: 1, accepted: 0 } });
+    const [s] = summarize([e]);
+    expect(s!.wrongMovement).toEqual({ annotated: 1, accepted: 0 });
+  });
+});

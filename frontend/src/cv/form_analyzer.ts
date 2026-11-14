@@ -29,6 +29,7 @@
 import type { FormFlag, Metric, RepEvent, WorkoutSession } from "../../../shared/types";
 import type { ExerciseDefinition, FormStats, PersonalCheck } from "./exercises/types";
 import { POSE_LANDMARKS, type LandmarkLike } from "./pose_detection";
+import type { MovementVerdict } from "./movement_validation";
 import type { CompletedRep, RejectedRep } from "./rep_counter";
 
 export interface FormAnalyzerConfig {
@@ -197,6 +198,29 @@ const GENERIC_REJECTIONS = {
   },
 } as const;
 
+/** Flag for a rep that failed movement validation (not the selected exercise, or unconfirmed). */
+export function movementRejection(exercise: ExerciseDefinition, v: MovementVerdict): FormFlag {
+  const name = exercise.name.toLowerCase();
+  if (v.verdict === "mismatch") {
+    const like = v.looksLike === "stepping" ? "a step" : v.looksLike === "other" ? "a different movement" : `a ${v.looksLike.replace("_", " ")}`;
+    return {
+      code: "WRONG_MOVEMENT",
+      message: `Not counted: movement doesn't match ${name}. It looked like ${like} (${v.reasons.join("; ")}). Carry on when ready.`,
+      source: "estimated",
+    };
+  }
+  return {
+    code: "UNCONFIRMED_MOVEMENT",
+    message: `Not counted: couldn't confirm that was a ${name} (${v.reasons.join("; ")}). Keep both legs in view.`,
+    source: "estimated",
+  };
+}
+
+const MOVEMENT_SPOKEN: Record<string, string> = {
+  WRONG_MOVEMENT: "Not counted. That didn't match the exercise.",
+  UNCONFIRMED_MOVEMENT: "Not counted. I couldn't see both legs clearly.",
+};
+
 /** User-facing explanation for a rep that was not counted. Always measured. */
 export function describeRejection(exercise: ExerciseDefinition, rejected: RejectedRep): FormFlag {
   const t = exercise.rejections[rejected.reason] ?? GENERIC_REJECTIONS[rejected.reason];
@@ -208,7 +232,7 @@ export function spokenFor(exercise: ExerciseDefinition, code: string): string | 
   for (const t of [...Object.values(exercise.rejections), ...Object.values(GENERIC_REJECTIONS)]) {
     if (t && t.code === code) return t.spoken;
   }
-  return exercise.spoken[code] ?? null;
+  return exercise.spoken[code] ?? MOVEMENT_SPOKEN[code] ?? null;
 }
 
 /**

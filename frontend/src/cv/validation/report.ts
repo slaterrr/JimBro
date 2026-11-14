@@ -41,6 +41,8 @@ export interface GroupSummary {
   recordings: number;
   subjects: number;
   reps: { annotated: number; precision: number | null; recall: number | null; exactCountRate: number | null; verdict: Verdict };
+  /** Attempts of a different movement (e.g. lunges in a squat set): how many, and how many were wrongly counted. */
+  wrongMovement: { annotated: number; accepted: number };
   angles: { n: number; mae: number | null; verdict: Verdict; n3d: number; mae3d: number | null };
   legRoles: { n: number; accuracy: number | null; uncertainRate: number | null; verdict: Verdict } | null;
   arms: { n: number; accuracy: number | null; verdict: Verdict } | null;
@@ -85,9 +87,12 @@ export function summarize(evals: readonly Evaluation[]): GroupSummary[] {
     const verdict = (n: number, ok: boolean, minN: number): Verdict =>
       n === 0 ? "not validated" : subjects < EVIDENCE.minSubjects || n < minN ? "insufficient evidence" : ok ? "validated" : "below target";
 
+    const wrongAnnotated = sum((e) => e.reps.wrongMovement.annotated);
+    const wrongAccepted = sum((e) => e.reps.wrongMovement.accepted);
     return {
       exercise,
       view,
+      wrongMovement: { annotated: wrongAnnotated, accepted: wrongAccepted },
       recordings: new Set(es.map((e) => e.recordingId)).size,
       subjects,
       reps: {
@@ -95,7 +100,9 @@ export function summarize(evals: readonly Evaluation[]): GroupSummary[] {
         precision,
         recall,
         exactCountRate: exact,
-        verdict: annotated === 0 ? "not validated" : !enough ? "insufficient evidence" : repsOk ? "validated" : "below target",
+        // Any wrong movement counted as this exercise fails the target outright.
+        verdict:
+          annotated === 0 ? "not validated" : !enough ? "insufficient evidence" : repsOk && wrongAccepted === 0 ? "validated" : "below target",
       },
       angles: {
         n: angleN,
@@ -148,13 +155,13 @@ export function renderMarkdown(summaries: readonly GroupSummary[], generatedAt =
     return lines.join("\n");
   }
   lines.push(
-    "| Exercise | View | People | Reps | Rep precision / recall | Exact count | Rep verdict | Angle MAE 2D (n) | Angle MAE 3D (n) | Angle verdict (2D) | Leg/arm accuracy (n) | Leg/arm verdict | Recognition |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| Exercise | View | People | Reps | Real reps counted | Wrong movements counted | Rep precision / recall | Exact count | Rep verdict | Angle MAE 2D (n) | Angle MAE 3D (n) | Angle verdict (2D) | Leg/arm accuracy (n) | Leg/arm verdict | Recognition |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   );
   for (const s of summaries) {
     const la = s.legRoles ?? s.arms;
     lines.push(
-      `| ${s.exercise} | ${s.view} | ${s.subjects} | ${s.reps.annotated} | ${pct(s.reps.precision)} / ${pct(s.reps.recall)} | ${pct(s.reps.exactCountRate)} | ${s.reps.verdict} | ${s.angles.mae === null ? "–" : `${num(s.angles.mae)}°`} (${s.angles.n}) | ${s.angles.mae3d === null ? "–" : `${num(s.angles.mae3d)}°`} (${s.angles.n3d}) | ${s.angles.verdict} | ${la ? `${pct(la.accuracy)} (${la.n})` : "–"} | ${la ? la.verdict : "–"} | ${pct(s.recognition.accuracy)} (${s.recognition.n}) |`,
+      `| ${s.exercise} | ${s.view} | ${s.subjects} | ${s.reps.annotated} | ${pct(s.reps.recall)} (${s.reps.recall === null ? 0 : Math.round(s.reps.recall * s.reps.annotated)}/${s.reps.annotated}) | ${s.wrongMovement.accepted}/${s.wrongMovement.annotated} | ${pct(s.reps.precision)} / ${pct(s.reps.recall)} | ${pct(s.reps.exactCountRate)} | ${s.reps.verdict} | ${s.angles.mae === null ? "–" : `${num(s.angles.mae)}°`} (${s.angles.n}) | ${s.angles.mae3d === null ? "–" : `${num(s.angles.mae3d)}°`} (${s.angles.n3d}) | ${s.angles.verdict} | ${la ? `${pct(la.accuracy)} (${la.n})` : "–"} | ${la ? la.verdict : "–"} | ${pct(s.recognition.accuracy)} (${s.recognition.n}) |`,
     );
   }
   lines.push("", "Landmark quality and latency:", "", "| Exercise | View | No person | Joints not visible | Glitches rejected | Suspected knee swaps /1000 frames | Detect p95 | Pipeline p95 |", "|---|---|---|---|---|---|---|---|");

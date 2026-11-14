@@ -206,7 +206,11 @@ function renderReps() {
       const sel = roleOptions
         ? `<select data-role="${i}">${roleOptions.map((o) => `<option ${o === cur ? "selected" : ""} value="${o}">${o || "–"}</option>`).join("")}</select>`
         : "–";
-      return `<tr><td>${i + 1}</td><td>${sec(r.start)}–${sec(r.end)}</td><td>${sel}</td><td><button class="secondary" data-del="${i}">✕</button></td></tr>`;
+      const performedOpts = ["", ...EXERCISE_IDS.filter((id) => id !== ex), "walking", "bending", "other"];
+      const performed = `<select data-performed="${i}" title="What was actually performed">${performedOpts
+        .map((o) => `<option value="${o}" ${o === (r.performed ?? "") ? "selected" : ""}>${o === "" ? "(this exercise)" : o}</option>`)
+        .join("")}</select>`;
+      return `<tr><td>${i + 1}</td><td>${sec(r.start)}–${sec(r.end)}</td><td>${sel}</td><td>${performed}</td><td><button class="secondary" data-del="${i}">✕</button></td></tr>`;
     })
     .join("");
   $<HTMLSelectElement>("trait-rep").innerHTML =
@@ -214,6 +218,11 @@ function renderReps() {
 }
 $("reps").addEventListener("change", (e) => {
   const el = e.target as HTMLSelectElement;
+  if (el.dataset.performed !== undefined) {
+    const r = reps[Number(el.dataset.performed)];
+    if (r) r.performed = (el.value || undefined) as RepAnnotation["performed"];
+    return;
+  }
   const i = Number(el.dataset.role);
   const rep = reps[i];
   if (!rep) return;

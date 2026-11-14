@@ -150,6 +150,45 @@ Rough angle guides (side-on): half squat ≈ 100–110°, parallel ≈ 60–75°
 lunge ≈ 80–100°; deadlift set-up ≈ 60–110°, lockout ≈ 165–180°; half push-up ≈
 110–120°; half curl ≈ 90–100°; press lockout ≈ 160–175°.
 
+### Exercise validation: only the selected exercise is counted
+
+Pipeline: camera → pose → reader (angles) → rep counter → **movement
+validation** → count + form feedback (`movement_validation.ts`, used by live
+and video modes alike, through `ExerciseTracker`).
+
+The counter only knows "the counting joint bent and straightened through
+full range". So before a rep is counted, the whole rep (plus a second before
+it) is checked against the selected exercise using several cues, never one
+angle:
+
+| Cue | Squat | Lunge |
+|---|---|---|
+| Front-to-back foot split at the bottom (÷ leg length; 3D, so any camera angle) | small | large |
+| Hip-angle difference at the bottom | small | large (front hip folds, back hip open) |
+| Change in the foot-to-foot gap during the rep (a step) | none | yes for forward/reverse lunges |
+
+- **Squat** is rejected as "looked like a lunge" only with two cues together
+  (or a big step on its own), so a staggered stance alone doesn't reject it.
+- **Lunge** needs a split stance or clearly asymmetric hips; feet level and
+  hips symmetric = "looked like a squat".
+- Too little two-leg evidence (e.g. a leg hidden for most of the rep) =
+  **uncertain**: not counted, "keep both legs in view".
+- A rejected rep is taken back off the counter before it's shown, gets no
+  form feedback for the wrong exercise, and the next rep counts normally.
+  Rejections appear as "not counted" (live feed, voice, video report).
+
+Thresholds (`VALIDATION_THRESHOLDS`) are a first, explainable baseline from
+movement geometry. They must be calibrated on recorded reps: in the
+validation lab, mark wrong-movement attempts with "actually performed" and
+the report shows how many were wrongly counted.
+
+Synthetic results (3D test bodies, 3 builds, 5 camera angles, natural
+variation; **not real-world evidence**): at typical landmark noise, 30/30
+varied squats counted and 0/30 lunges counted as squats in the test suite
+(60/60 and 0/60 in a larger exploratory run). At heavy noise (1.2–2.2% of
+frame height, more in 3D depth) squats dropped to 52/60 counted, mostly
+front-on and diagonal views, while lunges stayed at 0/60.
+
 ### Lunges: front and back legs
 
 The front leg is the foot further in the direction you face (from heel→toe and

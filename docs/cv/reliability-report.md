@@ -6,7 +6,7 @@ Status 14 Nov 2026, branch `feat/cv-validation`.
 
 | | What it shows | Current state |
 |---|---|---|
-| **Unit tests** (`npm test`, 185 passing) | The code does what it was designed to do on **synthetic** input: geometry, state machines, filters, the evaluation maths, the training gates | All pass |
+| **Unit tests** (`npm test`, 256 passing) | The code does what it was designed to do on **synthetic** input: geometry, state machines, filters, the evaluation maths, the training gates | All pass |
 | **Real-world accuracy** (validation lab → report) | How close the app's output is to what reviewers marked on **recorded people** | **Not measured yet: no annotated recordings exist.** Every measurement below is unvalidated until they do |
 
 A green test suite never means a measurement is accurate on people.
@@ -27,6 +27,36 @@ on one person's camera during development, with no annotation.
 | Push-up | Rep count; body line | Synthetic only | Unvalidated |
 | All | Joint angles (2D vs 3D sagittal) | Synthetic: 2D degrades with camera yaw (≈ 12° off at 40°), 3D doesn't; real MediaPipe depth noise untested | Unvalidated |
 | Squat | UI-PRMD movement-pattern score | Held-out mocap AUC 0.88, but known domain gap | Recorded only, never shown |
+
+## Exercise validation (squat vs lunge)
+
+Bug reported from live use: with Squat selected, deliberate lunges were
+counted. Cause: the squat reader judged only the camera-nearest leg's knee
+and hip drop, which a deep lunge also passes; nothing checked the other leg,
+foot placement or stepping. The same gap let squats count as lunges.
+
+Fix: a movement-validation layer between the counter and the count (see the
+CV README). Evidence so far is **synthetic only**:
+
+| Test (synthetic 3D bodies, noise ≈ 0.5% of frame) | Result |
+|---|---|
+| Without validation, deep lunges with Squat selected | counted (bug reproduced) |
+| Squats, 3 builds × 5 camera angles | all counted |
+| Lunges, forward/reverse/alternating, with Squat selected | none counted ("doesn't match") |
+| Walking, bending forward, partial squats with Squat selected | none counted |
+| Squats with Lunge selected | none counted |
+| One leg hidden through a squat | not counted ("couldn't confirm") |
+| Squat → lunge → squat | 2 counted, numbered 1 and 2 |
+| 30 varied squats / 30 varied lunges | 30/30 squats counted, 0/30 lunges |
+| Heavy noise (1.2–2.2%), 60 each | 52/60 squats counted (front/diagonal views suffer), 0/60 lunges |
+
+**Not yet measured on real people:** how many real squats are wrongly
+rejected, and how many real lunges get through. To measure it, record squat
+sets with deliberate lunges, walking and bends mixed in. Annotate every attempt
+in the lab, setting "actually performed" on the non-squats, and run Evaluate.
+The report then shows "real reps counted" and "wrong movements counted"
+per view. A rep verdict can't be "validated" if any wrong movement was
+counted.
 
 ## What's needed before anything is shown to users
 

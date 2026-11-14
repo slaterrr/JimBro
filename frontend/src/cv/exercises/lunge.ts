@@ -15,6 +15,7 @@
 import type { FormFlag } from "../../../../shared/types";
 import { torsoLean } from "../body_metrics";
 import { LegRoleTracker, type LegRoles } from "../leg_roles";
+import { validateLunge } from "../movement_validation";
 import { POSE_LANDMARKS as L, vis, type LandmarkLike } from "../pose_detection";
 import type { ExerciseDefinition, ExerciseReading, ReadOptions } from "./types";
 
@@ -123,6 +124,10 @@ export const lunge: ExerciseDefinition = {
     const tracker = new LegRoleTracker();
     return (landmarks, options) => readWith(tracker, landmarks, options);
   },
+
+  // A squat bends both knees too; this checks the rep had a split stance or
+  // clearly asymmetric hips.
+  validateMovement: validateLunge,
 
   rejections: {
     PARTIAL_RANGE: {

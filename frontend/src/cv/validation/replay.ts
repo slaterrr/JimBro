@@ -3,7 +3,7 @@
  * reader, filter, counter and analyzer the app uses, with no camera or model.
  */
 
-import type { ExerciseId, WorkoutSession } from "../../../../shared/types";
+import type { ExerciseId, FormFlag, WorkoutSession } from "../../../../shared/types";
 import { ExerciseTracker, type ExerciseTrackerOptions } from "../exercise_tracker";
 import type { BodySide } from "../pose_detection";
 import { toLandmarks, toWorld, type Recording } from "./format";
@@ -23,6 +23,8 @@ export interface ReplayResult {
   /** Time to process each frame in the tracker (excludes pose detection), ms. */
   pipelineMs: number[];
   trackingQuality: { visible: number; glitches: number; bridged: number };
+  /** Attempts that weren't counted, with the recording time they were judged. */
+  rejections: Array<{ t: number; flag: FormFlag }>;
 }
 
 export function replayRecording(
@@ -37,8 +39,12 @@ export function replayRecording(
   const frames: ReplayFrame[] = [];
   const pipelineMs: number[] = [];
 
+  const rejections: ReplayResult["rejections"] = [];
+  let frameT = 0;
+  tracker.onRejected((flag) => rejections.push({ t: frameT, flag }));
   tracker.beginReplay(rec.source.width / rec.source.height);
   for (const f of rec.frames) {
+    frameT = f.t;
     const t0 = now();
     tracker.ingest(toLandmarks(f.lm), toWorld(f.world), f.t);
     pipelineMs.push(now() - t0);
@@ -55,5 +61,5 @@ export function replayRecording(
   const trackingQuality = tracker.getState().trackingQuality;
   const session = tracker.endReplay();
   tracker.dispose();
-  return { session, frames, pipelineMs, trackingQuality };
+  return { session, frames, pipelineMs, trackingQuality, rejections };
 }

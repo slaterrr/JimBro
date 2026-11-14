@@ -13,6 +13,7 @@ import type { Landmark, NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { createDetector } from "./detector";
 import type { ExerciseId, FormFlag, Metric, PoseFrame, RepEvent, RepPhase, WorkoutSession } from "../../../shared/types";
 import { repFeatures, type RepFrame } from "./ml/rep_features";
+import { movementFeatures, type MovementFrame, type MovementVerdict } from "./movement_validation";
 import { ANGLE_FILTER, POSITION_FILTER, SignalFilter, type SignalFilterOptions } from "./signal_filter";
 import { getExercise } from "./exercises";
 import type { ExerciseDefinition, FormSeries, FormStats } from "./exercises/types";
@@ -22,6 +23,7 @@ import {
   cameraViewFlag,
   classifyViewRatio,
   describeRejection,
+  movementRejection,
   summarizeSession,
   toRepEvent,
   withEvidence,
@@ -106,6 +108,8 @@ export interface TrackerState {
   liveForm: Record<string, number | null>;
   /** Live performance: pose results per second, detection latency, skipped frames, where it runs. */
   performance: { fps: number; detectMs: number; skipped: number; threading: "main" | "worker"; delegate: "GPU" | "CPU" } | null;
+  /** Verdict on the last completed rep's movement (match, mismatch or uncertain), with reasons. */
+  lastValidation: Pick<MovementVerdict, "verdict" | "reasons"> | null;
 }
 
 export interface ExerciseTrackerOptions {
@@ -124,6 +128,12 @@ export interface ExerciseTrackerOptions {
   counter?: Partial<Record<ExerciseId, Partial<RepCounterConfig>>>;
   analyzer?: Partial<FormAnalyzerConfig>;
   detector?: Partial<DetectorOptions>;
+  /**
+   * Check each completed rep's movement matches the selected exercise before
+   * counting it (default true). Turn off only to compare against the old
+   * behaviour.
+   */
+  validateMovement?: boolean;
   /**
    * Run pose detection in a Web Worker so the camera view stays smooth
    * (default true). Falls back to the main thread if a worker can't start.
@@ -162,6 +172,7 @@ export function initialTrackerState(exercise: ExerciseId = "squat"): TrackerStat
     trackingQuality: { visible: 0, glitches: 0, bridged: 0 },
     liveForm: {},
     performance: null,
+    lastValidation: null,
   };
 }
 
@@ -186,6 +197,8 @@ export class ExerciseTracker {
   private lastTs = -Infinity;
   /** Recent per-frame measurements for the learned quality check (about 15 s). */
   private trace: RepFrame[] = [];
+  /** Recent landmarks for movement validation (about 15 s). */
+  private movement: MovementFrame[] = [];
   private lastForm: Record<string, number | null> = {};
 
   private stream: MediaStream | null = null;
@@ -559,6 +572,7 @@ export class ExerciseTracker {
     this.prevPhase = "start";
     this.lastTs = -Infinity;
     this.trace = [];
+    this.movement = [];
     this.lastForm = {};
     this.reader = this.makeReader();
   }
@@ -622,6 +636,8 @@ export class ExerciseTracker {
     const event = this.counter.update(ts, angle, progress);
     this.recordForm(reading.form, ts);
     this.recordTrace(ts, angle, progress);
+    this.movement.push({ t: ts, phase: this.counter.phase, angle, lm, world, aspectRatio: aspect });
+    while (this.movement.length > 0 && ts - this.movement[0]!.t > 15_000) this.movement.shift();
 
     const frame: PoseFrame = {
       timestamp: ts,
@@ -655,6 +671,24 @@ export class ExerciseTracker {
     };
 
     if (event?.type === "rep") {
+      // Exercise validation: does the whole rep look like the selected exercise?
+      const verdict = this.validateRep(event.rep.startedAt, event.rep.endedAt);
+      if (verdict && verdict.verdict !== "match") {
+        this.counter.revokeLastRep();
+        const flag = movementRejection(ex, verdict);
+        this.setState(
+          {
+            ...patch,
+            lastRejection: flag,
+            lastValidation: { verdict: verdict.verdict, reasons: verdict.reasons },
+            lastAttempt: { counted: false, peakAngle: round1(event.rep.peakAngle), progress: round2(event.rep.maxProgress), code: flag.code },
+          },
+          true,
+        );
+        this.rejectionListeners.forEach((l) => l(flag));
+        return;
+      }
+      if (verdict) patch.lastValidation = { verdict: verdict.verdict, reasons: verdict.reasons };
       const stats = withEvidence(this.finalFormStats(), this.opts.analyzer?.minEvidence);
       const flags = analyzeRep(ex, event.rep, this.reps, stats, {
         config: this.opts.analyzer,
@@ -747,6 +781,14 @@ export class ExerciseTracker {
       drop,
     });
     while (this.trace.length > 0 && t - this.trace[0]!.t > 15_000) this.trace.shift();
+  }
+
+  /** Movement validation over the rep plus a second of context before it. null if the exercise has none. */
+  private validateRep(startedAt: number, endedAt: number): MovementVerdict | null {
+    const validate = this.exercise.validateMovement;
+    if (!validate || this.opts.validateMovement === false) return null;
+    const frames = this.movement.filter((f) => f.t >= startedAt - 1000 && f.t <= endedAt);
+    return validate(movementFeatures(frames, this.exercise.counter.direction));
   }
 
   /** Learned movement-quality check for a counted rep, if this exercise has one. */

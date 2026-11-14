@@ -40,6 +40,12 @@ export interface Evaluation {
     /** Annotated reps the app didn't count. */
     missed: number;
     matches: RepMatch[];
+    /**
+     * Attempts annotated as a DIFFERENT movement than the selected exercise
+     * (performed ≠ exercise): how many there were and how many the app
+     * wrongly counted. Not included in the numbers above.
+     */
+    wrongMovement: { annotated: number; accepted: number };
   };
   angles: {
     /** Only goniometer / mocap references count as ground truth; on-screen ones are reported separately. */
@@ -84,8 +90,15 @@ const OVERLAP_MIN = 0.3;
 export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult): Evaluation {
   const r = replay ?? replayRecording(rec, ann.exercise);
   const predicted = r.session.reps;
-  const matches = matchReps(ann, predicted);
+  // Match counted reps against ALL annotated attempts, then split: real reps
+  // of the selected exercise vs. attempts of a different movement.
+  const allMatches = matchReps(ann, predicted);
+  const isTarget = (i: number) => (ann.reps[i]!.performed ?? ann.exercise) === ann.exercise;
+  const matches = allMatches.filter((_, i) => isTarget(i));
+  const wrongMatches = allMatches.filter((_, i) => !isTarget(i));
   const matched = matches.filter((m) => m.predicted).length;
+  const wrongAccepted = wrongMatches.filter((m) => m.predicted).length;
+  const targetReps = matches.length;
   const swap = (s: "left" | "right") => (rec.source.mirrored ? (s === "left" ? "right" : "left") : s);
 
   // Front/back legs: majority side the app reported while the matched rep was at depth.
@@ -95,7 +108,7 @@ export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult)
     ann.reps.forEach((rep, i) => {
       if (!rep.frontLeg) return;
       legRoles!.checked += 1;
-      const span = matches[i]!.predicted ?? rep;
+      const span = allMatches[i]!.predicted ?? rep;
       const sides = r.frames
         .filter((f) => f.t >= span.start && f.t <= span.end && f.visible && (f.activeSide === "left" || f.activeSide === "right"))
         .map((f) => swap(f.activeSide as "left" | "right"));
@@ -112,7 +125,7 @@ export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult)
   let arms: Evaluation["arms"] = null;
   if (ann.exercise === "bicep_curl" && ann.reps.some((x) => x.arm)) {
     arms = { checked: 0, correct: 0 };
-    matches.forEach((m, i) => {
+    allMatches.forEach((m, i) => {
       const want = ann.reps[i]!.arm;
       if (!want) return;
       arms!.checked += 1;
@@ -169,13 +182,14 @@ export function evaluate(rec: Recording, ann: Annotation, replay?: ReplayResult)
     variation: ann.variation,
     view: ann.view,
     reps: {
-      annotated: ann.reps.length,
+      annotated: targetReps,
       predicted: predicted.length,
-      countError: predicted.length - ann.reps.length,
+      countError: predicted.length - targetReps,
       matched,
       falsePositives: predicted.length - matched,
-      missed: ann.reps.length - matched,
+      missed: targetReps - matched,
       matches,
+      wrongMovement: { annotated: wrongMatches.length, accepted: wrongAccepted },
     },
     angles: {
       groundTruth: angleErr((m) => m === "goniometer" || m === "mocap"),
