@@ -28,6 +28,7 @@ export interface LandmarkLike {
 
 /** BlazePose landmark indices used by Jim Bro. */
 export const POSE_LANDMARKS = {
+  NOSE: 0,
   LEFT_SHOULDER: 11,
   RIGHT_SHOULDER: 12,
   LEFT_ELBOW: 13,

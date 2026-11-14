@@ -1,25 +1,84 @@
 /**
- * Lunge (forward, reverse or split squat), side view. Counted on the knee angle
- * of the leg the camera sees best (both knees bend to about 90° at the bottom),
- * plus hip drop below standing height. Also checks the step is long enough to
- * be a lunge and that the torso stays upright.
+ * Lunge, side view. Supported variations: forward lunge, reverse lunge,
+ * alternating lunges, static split squat and walking lunge, all filmed side on.
+ * Side (lateral) lunges and front-on filming aren't supported.
+ *
+ * Both legs are tracked, and their roles come from LegRoleTracker (see
+ * leg_roles.ts): the front leg is the one whose foot is further in the
+ * direction the user faces, locked for the whole rep and re-decided when the
+ * feet come together, so alternating reps are handled. Counting uses the
+ * FRONT knee angle; the back knee is measured separately. If the roles can't be
+ * determined (a leg out of view, facing unclear) the reading is uncertain: no
+ * angle, a position hint, and no feedback.
  */
 
 import type { FormFlag } from "../../../../shared/types";
-import { calculateAngle } from "../angle_calculator";
 import { torsoLean } from "../body_metrics";
-import { POSE_LANDMARKS as L, distance, pickSide, vis } from "../pose_detection";
-import type { ExerciseDefinition, ExerciseReading } from "./types";
-
-const LEGS = {
-  left: { shoulder: L.LEFT_SHOULDER, hip: L.LEFT_HIP, knee: L.LEFT_KNEE, ankle: L.LEFT_ANKLE },
-  right: { shoulder: L.RIGHT_SHOULDER, hip: L.RIGHT_HIP, knee: L.RIGHT_KNEE, ankle: L.RIGHT_ANKLE },
-} as const;
+import { LegRoleTracker, type LegRoles } from "../leg_roles";
+import { POSE_LANDMARKS as L, vis, type LandmarkLike } from "../pose_detection";
+import type { ExerciseDefinition, ExerciseReading, ReadOptions } from "./types";
 
 /** Feet closer than this (fraction of leg length) at the bottom = more of a squat than a lunge. */
 export const MIN_STEP_RATIO = 0.45;
 /** Torso tilting more than this from vertical during a lunge is flagged. */
 export const LUNGE_TORSO_MAX_DEG = 25;
+
+function readWith(tracker: LegRoleTracker, landmarks: readonly LandmarkLike[] | undefined, o: ReadOptions): ExerciseReading {
+  const none: ExerciseReading = {
+    visible: false,
+    primaryAngle: null,
+    progress: null,
+    form: { torsoLean: null, stepRatio: null, frontKnee: null, backKnee: null },
+    side: null,
+    highlight: [],
+    positionHint: null,
+    view: "side",
+  };
+  if (o.view === "front") {
+    return { ...none, positionHint: "Turn side on so I can tell your front leg from your back leg." };
+  }
+  const roles: LegRoles = tracker.update(landmarks, { minVisibility: o.minVisibility, aspectRatio: o.aspectRatio });
+  if (roles.status === "uncertain" || !landmarks) {
+    return { ...none, positionHint: roles.status === "uncertain" ? roles.reason : null };
+  }
+
+  const ar = o.aspectRatio;
+  const legs = roles.status === "split" ? [roles.front, roles.back] : roles.legs;
+  const hipY = (legs[0]!.hip.y + legs[1]!.hip.y) / 2;
+  const legLength = (Math.hypot((legs[0]!.hip.x - legs[0]!.ankle.x) * ar, legs[0]!.hip.y - legs[0]!.ankle.y) +
+    Math.hypot((legs[1]!.hip.x - legs[1]!.ankle.x) * ar, legs[1]!.hip.y - legs[1]!.ankle.y)) / 2;
+  const ls = landmarks[L.LEFT_SHOULDER];
+  const rs = landmarks[L.RIGHT_SHOULDER];
+  const shoulder = ls && rs ? (vis(ls) >= vis(rs) ? ls : rs) : null;
+  const midHip = { x: (legs[0]!.hip.x + legs[1]!.hip.x) / 2, y: hipY };
+  const lean = shoulder && vis(shoulder) >= o.minVisibility ? Math.abs(torsoLean(shoulder, midHip, ar)) : null;
+  const progress = legLength > 1e-6 ? ({ kind: "drop", y: hipY, refLength: legLength } as const) : null;
+
+  if (roles.status === "together") {
+    // Standing or mid-step: no front/back yet. Both knees should be straight
+    // here, so the straighter one stands in for the counting angle at the top.
+    return {
+      ...none,
+      visible: true,
+      primaryAngle: Math.max(roles.legs[0].kneeAngle, roles.legs[1].kneeAngle),
+      progress,
+      form: { torsoLean: lean, stepRatio: roles.split, frontKnee: null, backKnee: null },
+      side: "both",
+      highlight: [...roles.legs[0].indices, ...roles.legs[1].indices],
+    };
+  }
+
+  return {
+    ...none,
+    visible: true,
+    primaryAngle: roles.front.kneeAngle,
+    progress,
+    form: { torsoLean: lean, stepRatio: roles.split, frontKnee: roles.front.kneeAngle, backKnee: roles.back.kneeAngle },
+    // Which MediaPipe leg is in front, for display.
+    side: roles.front.label,
+    highlight: roles.front.indices,
+  };
+}
 
 export const lunge: ExerciseDefinition = {
   id: "lunge",
@@ -28,8 +87,8 @@ export const lunge: ExerciseDefinition = {
   cameraView: "side",
   rangeNoun: "lunge depth",
   setupInstructions:
-    "Stand side on to the camera, about two to three metres back, with your whole body in view and room to step. " +
-    "Then stand up tall to begin.",
+    "Stand side on to the camera, about two to three metres back, with your whole body, both feet included, in view " +
+    "and room to step. Forward, reverse, alternating or split-squat lunges all work. Then stand up tall to begin.",
   startPrompt: "Stand up tall to begin.",
   readyPrompt: "Ready. Start lunging.",
   phaseLabels: { start: "standing", toward_peak: "lowering", peak: "bottom", returning: "rising" },
@@ -49,57 +108,15 @@ export const lunge: ExerciseDefinition = {
   },
   loweringPhase: "toPeak",
   progress: { label: "Hips dropped", hint: "% of leg length" },
-  calibrationGuide: "Half lunge ≈ 120–130° and 15%; full lunge ≈ 80–100° and 35%+.",
+  calibrationGuide: "Front knee: half lunge ≈ 120–130° and 15%; full lunge ≈ 80–100° and 35%+.",
 
-  read(landmarks, { aspectRatio, minVisibility, preferredSide }) {
-    const none: ExerciseReading = {
-      visible: false,
-      primaryAngle: null,
-      progress: null,
-      form: { torsoLean: null, stepRatio: null },
-      side: null,
-      highlight: [],
-      positionHint: null,
-      view: "side",
-    };
-    if (!landmarks || landmarks.length < 33) return none;
-    const side = pickSide(
-      landmarks,
-      { left: [L.LEFT_HIP, L.LEFT_KNEE, L.LEFT_ANKLE], right: [L.RIGHT_HIP, L.RIGHT_KNEE, L.RIGHT_ANKLE] },
-      minVisibility,
-      preferredSide,
-    );
-    if (!side) return none;
-    const i = LEGS[side];
-    const hip = landmarks[i.hip]!;
-    const knee = landmarks[i.knee]!;
-    const ankle = landmarks[i.ankle]!;
-    const shoulder = landmarks[i.shoulder];
-    const kneeAngle = calculateAngle(hip, knee, ankle, aspectRatio);
-    const legLength = distance(hip, ankle, aspectRatio);
-    const otherHip = landmarks[side === "left" ? L.RIGHT_HIP : L.LEFT_HIP];
-    const hipY = otherHip ? (hip.y + otherHip.y) / 2 : hip.y;
-
-    // Step length: horizontal gap between the ankles (the far one may be
-    // partly hidden, so accept a lower visibility for it).
-    const otherAnkle = landmarks[side === "left" ? L.RIGHT_ANKLE : L.LEFT_ANKLE];
-    const stepRatio =
-      otherAnkle && vis(otherAnkle) >= minVisibility * 0.7 && legLength > 1e-6
-        ? (Math.abs(ankle.x - otherAnkle.x) * aspectRatio) / legLength
-        : null;
-    // Unsigned: in a lunge any lean, forward or back, is off upright.
-    const lean = shoulder && vis(shoulder) >= minVisibility ? Math.abs(torsoLean(shoulder, hip, aspectRatio)) : null;
-
-    return {
-      visible: kneeAngle !== null,
-      primaryAngle: kneeAngle,
-      progress: legLength > 1e-6 ? { kind: "drop", y: hipY, refLength: legLength } : null,
-      form: { torsoLean: lean, stepRatio },
-      side,
-      highlight: [i.hip, i.knee, i.ankle],
-      positionHint: null,
-      view: "side",
-    };
+  read(landmarks, options) {
+    // Stateless, single-frame use: roles from this frame alone.
+    return readWith(new LegRoleTracker(), landmarks, options);
+  },
+  createReader() {
+    const tracker = new LegRoleTracker();
+    return (landmarks, options) => readWith(tracker, landmarks, options);
   },
 
   rejections: {
@@ -134,6 +151,18 @@ export const lunge: ExerciseDefinition = {
       });
     }
     return flags;
+  },
+
+  // Measured per rep, not judged: there's no validated label set for what a
+  // "wrong" back-knee depth is, so these are reported, never flagged.
+  repMetrics(stats) {
+    const out: Record<string, { value: number; unit: string; source: "measured" }> = {};
+    if (stats.frontKnee) out.frontKneeMin = { value: Math.round(stats.frontKnee.min), unit: "deg", source: "measured" };
+    if (stats.backKnee) out.backKneeMin = { value: Math.round(stats.backKnee.min), unit: "deg", source: "measured" };
+    if (stats["stepRatio@peak"]) {
+      out.stepLength = { value: Math.round(stats["stepRatio@peak"].max * 100), unit: "% leg", source: "measured" };
+    }
+    return out;
   },
 
   personalChecks: [],

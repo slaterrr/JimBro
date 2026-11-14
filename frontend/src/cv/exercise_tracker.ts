@@ -155,6 +155,7 @@ export class ExerciseTracker {
   private readonly opts: Required<Pick<ExerciseTrackerOptions, "minVisibility" | "uiUpdateHz">> &
     ExerciseTrackerOptions;
   private exercise: ExerciseDefinition;
+  private reader: ExerciseDefinition["read"];
   private counter: RepCounter;
   private state: TrackerState;
   private readonly angleFilter: SignalFilter;
@@ -203,6 +204,7 @@ export class ExerciseTracker {
   ) {
     this.opts = { minVisibility: 0.6, uiUpdateHz: 10, ...options };
     this.exercise = getExercise(options.exercise ?? "squat");
+    this.reader = this.makeReader();
     this.counter = this.makeCounter();
     this.state = initialTrackerState(this.exercise.id);
     this.angleFilter = new SignalFilter({ ...ANGLE_FILTER, ...options.filter });
@@ -226,6 +228,7 @@ export class ExerciseTracker {
     if (this.state.status === "tracking") throw new Error("Pause or stop tracking before switching exercise.");
     if (id === this.exercise.id) return;
     this.exercise = getExercise(id);
+    this.reader = this.makeReader();
     this.counter = this.makeCounter();
     this.resetSignals();
     this.sessionId = null;
@@ -484,6 +487,11 @@ export class ExerciseTracker {
     }
   }
 
+  private makeReader(): ExerciseDefinition["read"] {
+    const ex = this.exercise;
+    return ex.createReader ? ex.createReader() : (lm, o) => ex.read(lm, o);
+  }
+
   private makeCounter(): RepCounter {
     return new RepCounter({ ...this.exercise.counter, ...this.opts.counter?.[this.exercise.id] });
   }
@@ -501,6 +509,7 @@ export class ExerciseTracker {
     this.lastTs = -Infinity;
     this.trace = [];
     this.lastForm = {};
+    this.reader = this.makeReader();
   }
 
   private beginSession(): void {
@@ -530,7 +539,7 @@ export class ExerciseTracker {
     const aspect = this.video.videoWidth && this.video.videoHeight ? this.video.videoWidth / this.video.videoHeight : 1;
     const ex = this.exercise;
 
-    const reading = ex.read(lm, {
+    const reading = this.reader(lm, {
       aspectRatio: aspect,
       minVisibility: this.opts.minVisibility,
       preferredSide: this.state.activeSide === "left" || this.state.activeSide === "right" ? this.state.activeSide : null,
@@ -598,7 +607,7 @@ export class ExerciseTracker {
       });
       const quality = this.judgeQuality(event.rep, reading.view);
       if (quality.flag) flags.push(quality.flag);
-      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric);
+      const repEvent = toRepEvent(ex, event.rep, flags, reading.view, quality.metric, ex.repMetrics?.(stats) ?? {});
       this.reps.push(event.rep);
       this.repStats.push(stats);
       this.repEvents.push(repEvent);

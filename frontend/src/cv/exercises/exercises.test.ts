@@ -281,32 +281,14 @@ describe("deadlift.read", () => {
   });
 });
 
-describe("lunge.read", () => {
-  const pose = (backAnkleX: number, shoulderX = 0.5) =>
-    body({
-      [L.LEFT_SHOULDER]: [shoulderX, 0.2],
-      [L.LEFT_HIP]: [0.5, 0.5],
-      [L.LEFT_KNEE]: [0.68, 0.55],
-      [L.LEFT_ANKLE]: [0.65, 0.85],
-      [L.RIGHT_HIP]: [0.5, 0.5, 0.5],
-      [L.RIGHT_ANKLE]: [backAnkleX, 0.85, 0.5],
-    });
-
-  it("reads the knee angle, step length and torso lean", () => {
-    const r = lunge.read(pose(0.25), opts);
-    expect(r.side).toBe("left");
-    expect(r.primaryAngle!).toBeLessThan(110);
-    expect(r.form.stepRatio!).toBeGreaterThan(0.9);
-    expect(r.form.torsoLean!).toBeCloseTo(0, 0);
-  });
-
+describe("lunge form checks", () => {
+  // Leg-role reading is tested in leg_roles.test.ts.
   it("flags a short step and a leaning torso", () => {
-    const r = lunge.read(pose(0.6, 0.35), opts);
-    expect(r.form.stepRatio!).toBeLessThan(0.45);
     const flags = lunge.formChecks({} as never, {
-      "stepRatio@peak": { min: r.form.stepRatio!, max: r.form.stepRatio!, coverage: 1 },
-      torsoLean: { min: 0, max: r.form.torsoLean!, coverage: 1 },
+      "stepRatio@peak": { min: 0.3, max: 0.3, coverage: 1 },
+      torsoLean: { min: 0, max: 32, coverage: 1 },
     });
     expect(flags.map((f) => f.code)).toEqual(["SHORT_STEP", "TORSO_LEAN"]);
   });
 });
+

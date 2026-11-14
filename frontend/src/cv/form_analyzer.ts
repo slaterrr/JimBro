@@ -151,10 +151,12 @@ export function toRepEvent(
   formFlags: FormFlag[],
   view: "side" | "front" = "side",
   movementQuality: Metric | null = null,
+  metrics: Record<string, Metric> = {},
 ): RepEvent {
   return {
     view,
     movementQuality,
+    metrics,
     exercise: exercise.id,
     repNumber: rep.repNumber,
     startedAt: rep.startedAt,

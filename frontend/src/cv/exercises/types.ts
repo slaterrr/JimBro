@@ -5,7 +5,7 @@
  * entry in exercises/index.ts. No changes to the tracker, counter or UI.
  */
 
-import type { ExerciseId, FormFlag, PrimaryJoint, RepPhase } from "../../../../shared/types";
+import type { ExerciseId, FormFlag, Metric, PrimaryJoint, RepPhase } from "../../../../shared/types";
 import type { CameraView } from "../form_analyzer";
 import type { BodySide, LandmarkLike, WorldLandmarkLike } from "../pose_detection";
 import type { QualityModel } from "../ml/quality_model";
@@ -106,6 +106,17 @@ export interface ExerciseDefinition {
   calibrationGuide: string;
 
   read(landmarks: readonly LandmarkLike[] | undefined, options: ReadOptions): ExerciseReading;
+  /**
+   * For exercises whose reading needs memory across frames (e.g. which leg is
+   * in front during a lunge): returns a fresh stateful reader per session.
+   * The tracker uses it instead of `read` when present.
+   */
+  createReader?: () => (landmarks: readonly LandmarkLike[] | undefined, options: ReadOptions) => ExerciseReading;
+  /**
+   * Exercise-specific per-rep measurements from the recorded form signals
+   * (e.g. back-knee depth for lunges). Reported as numbers, not judged.
+   */
+  repMetrics?: (stats: FormStats) => Record<string, Metric>;
   /** Exercise-specific wording for PARTIAL_RANGE and PROGRESS_NOT_MET. */
   rejections: Partial<Record<RejectionReason, RejectionText>>;
   /** Exercise-specific per-rep form flags from the recorded form signals. */

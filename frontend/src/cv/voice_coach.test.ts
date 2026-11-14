@@ -41,6 +41,7 @@ class FakeTracker implements CoachableTracker {
       formFlags: flags,
       view: "side",
       movementQuality: null,
+      metrics: {},
     };
     this.r.forEach((l) => l(e));
   }

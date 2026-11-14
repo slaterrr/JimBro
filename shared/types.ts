@@ -71,6 +71,11 @@ export interface RepEvent {
    * dataset's incorrect examples. Always estimated. null when not judged.
    */
   movementQuality: Metric | null;
+  /**
+   * Exercise-specific measurements for this rep, e.g. { backKneeMin, frontKneeMin }
+   * for lunges or { elbowDriftMax } for curls. Measurements only, not judgements.
+   */
+  metrics: Record<string, Metric>;
 }
 
 export interface FormFlag {
