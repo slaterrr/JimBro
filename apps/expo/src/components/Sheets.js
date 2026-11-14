@@ -155,7 +155,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
           <Text style={[type.label, { marginBottom: 8 }]}>Exercise</Text>
           <Chips options={EXERCISES.map((e) => [e.id, e.name])} value={exercise} onChange={setExercise} />
           {hint ? (
-            <TouchableOpacity onPress={() => { setWeight(String(hint.weight)); setReps(String(hint.reps)); }} style={{ marginTop: 12, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => { setWeight(String(hint.weight)); setReps(String(hint.reps)); }} style={{ marginTop: 4, minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <Icon name="lightning-bolt" size={16} color={T.purple} />
               <Text style={[type.small, { color: T.violetText }]}>Jim suggests {hint.weight} {hint.unit} × {hint.reps}. Tap to use.</Text>
             </TouchableOpacity>

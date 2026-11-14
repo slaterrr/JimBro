@@ -169,9 +169,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
           <Icon name="arm-flex" size={30} color={T.accent} />
-          <Text style={type.h2}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
+          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }]}>Jim · {personaFor(settings.persona).name.replace(/s*Jims*/, '')}</Text>
           <View accessibilityLabel={source === 'ai' ? 'Jim is using Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, source === 'ai' && st.badgeAI]}>
             <Text style={[st.badgeText, source === 'ai' && { color: T.accentText }]}>{source === 'ai' ? 'AI' : 'offline'}</Text>
           </View>
@@ -286,7 +286,7 @@ const st = StyleSheet.create({
   badge: { borderWidth: 1, borderColor: T.border, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
   badgeAI: { borderColor: T.accent, backgroundColor: T.accentSoft },
   badgeText: { color: T.textMute, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14 },
+  talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14, flexShrink: 0 },
   talkOn: { backgroundColor: T.accent, borderColor: T.accent },
   jim: { alignSelf: 'flex-start', backgroundColor: T.card, borderColor: T.border },
 });
