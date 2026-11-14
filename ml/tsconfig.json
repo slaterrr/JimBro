@@ -2,7 +2,14 @@
   "extends": "../frontend/tsconfig.json",
   "compilerOptions": {
     "types": [],
-    "lib": ["ES2022", "DOM"]
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
   },
-  "include": ["uiprmd", "node-shim.d.ts"]
+  "include": [
+    "uiprmd",
+    "traits",
+    "node-shim.d.ts"
+  ]
 }

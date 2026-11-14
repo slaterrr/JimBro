@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "train:uiprmd": "rolldown ../ml/uiprmd/train.ts --platform node --format esm -o ../ml/data/build/train.mjs && node ../ml/data/build/train.mjs"
+    "train:uiprmd": "rolldown ../ml/uiprmd/train.ts --platform node --format esm -o ../ml/data/build/train.mjs && node ../ml/data/build/train.mjs",
+    "train:traits": "rolldown ../ml/traits/train.ts --platform node --format esm -d ../ml/data/build/traits && node ../ml/data/build/traits/train.js"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.1.1",
