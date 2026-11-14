@@ -8,7 +8,7 @@ import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { askJim, historyFor, proxyUrl } from '../lib/jimAI.js';
+import { askJim, historyFor, proxyKey, proxyUrl } from '../lib/jimAI.js';
 import { personaFor } from '../lib/personas.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
@@ -21,6 +21,7 @@ import { R, T, type } from '../theme.js';
 
 const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
+const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
@@ -126,7 +127,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       return;
     }
     setThinking(true);
-    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL });
+    const r = await askJim({ message, history: prior, state: { settings, history, active, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
     setThinking(false);
     if (r.source !== 'safety') setSource(r.source);
     // Never change data here: proposals become confirm cards and wait for the user.
@@ -255,7 +256,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 />
               );
             }
-            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} onDone={speak} />;
+            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={speak} />;
             if (m.kind === 'confirm') {
               return (
                 <Card key={i} style={{ marginTop: 10 }}>

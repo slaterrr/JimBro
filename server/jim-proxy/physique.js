@@ -79,7 +79,8 @@ export async function handlePhysique(body, client) {
   ].filter(Boolean).join(' ');
   const res = await client.messages.create({
     model: MODEL,
-    max_tokens: 800,
+    max_tokens: 2048, // room for default thinking on Sonnet 5.5
+    output_config: { effort: 'low' },
     system: PHYSIQUE_SYSTEM,
     tools: [EMPHASIS_TOOL],
     tool_choice: { type: 'auto' },

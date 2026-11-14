@@ -42,7 +42,7 @@ describe('system prompt', () => {
 describe('tools', () => {
   it('defines the write and read tools', () => {
     const names = TOOLS.map((t) => t.name).sort();
-    assert.deepEqual(names, ['correct_set', 'delete_set', 'get_goal_progress', 'get_last_set_report', 'get_recent_sets', 'get_weekly_checkin', 'log_sets'].sort());
+    assert.deepEqual(names, ['correct_set', 'delete_set', 'get_goal_progress', 'get_last_set_report', 'get_recent_sets', 'get_weekly_checkin', 'get_workout_context', 'log_sets'].sort());
     for (const t of TOOLS) assert.equal(t.input_schema.type, 'object');
   });
   it('answers read tools from the context snapshot only', () => {
@@ -95,7 +95,9 @@ describe('handleChat', () => {
     assert.deepEqual(r, { reply: 'Squat is at 225 for 5.', proposals: [] });
     assert.equal(client.calls.length, 2);
     assert.equal(client.calls[0].model, MODEL);
-    assert.ok(client.calls[0].max_tokens <= 400);
+    // Sonnet 5.5 thinks by default and thinking counts against max_tokens: room for it, but bounded.
+    // Reply length is kept short by the prompt (two sentences), not by truncation.
+    assert.ok(client.calls[0].max_tokens >= 1024 && client.calls[0].max_tokens <= 4096);
     assert.match(client.calls[0].system, /Data Jim/);
     const result = client.calls[1].messages.at(-1).content[0];
     assert.equal(result.type, 'tool_result');

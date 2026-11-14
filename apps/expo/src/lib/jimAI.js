@@ -3,6 +3,7 @@
 // against its own data before the confirm card shows. No URL, a timeout, an error or a bad
 // payload all fall back to the rule-based parseIntent/coachReply, so the demo never breaks.
 import { coachReply, SAFETY, SAFETY_TEXT } from './coach.js';
+import { answerContext } from './coachQA.js';
 import { EXERCISES } from './exercises.js';
 import { describeGoal, goalProgress, migrateGoals, weeklyCheckIn } from './goals.js';
 import { parseIntent } from './intents.js';
@@ -48,7 +49,14 @@ export function buildContext(state, now = new Date()) {
     lastSetReport = { ...pick(r, ['movement', 'counted', 'target', 'rpe', 'partials', 'trackingPct', 'tempo']), suggestions: r.suggestions.map(({ text, evidence }) => ({ text, evidence })) };
   }
   const settings = state.settings ?? {};
-  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, lastSetReport };
+  // Workout context for get_workout_context: the same deterministic answers the app gives.
+  const qa = { history: state.history ?? [], active: state.active ?? null, plan: state.plan ?? null, settings, profile: settings.profile ?? {} };
+  const workout = {
+    today: answerContext('what am I training today', qa),
+    setsLeft: answerContext('how many sets left', qa),
+    ...(settings.profile ? { profile: settings.profile } : {}),
+  };
+  return { unit: settings.unit ?? 'lb', persona: settings.persona ?? settings.tone ?? null, recentSets, prs, goals, weeklyCheckIn: weekly, lastSetReport, workout };
 }
 
 const isCount = (n) => Number.isInteger(n) && n >= 1 && n <= 1000;
@@ -82,6 +90,13 @@ export function proxyUrl(env = {}, extra = {}) {
   return url ? url.replace(/\/+$/, '') : null;
 }
 
+/** Shared secret for the proxy (X-Jim-Key), read like the URL. It keeps strangers on the network
+ * off the proxy; it is not a user credential (anyone with the app bundle can read it). */
+export function proxyKey(env = {}, extra = {}) {
+  return env.EXPO_PUBLIC_JIM_PROXY_KEY || extra?.jimProxyKey || null;
+}
+const headersFor = (key) => ({ 'Content-Type': 'application/json', ...(key ? { 'X-Jim-Key': key } : {}) });
+
 /** Chat bubbles -> the last HISTORY_TURNS text turns for Claude. Cards are skipped. */
 export function historyFor(messages) {
   return messages
@@ -103,7 +118,7 @@ function offline(message, state, reason) {
  * One chat turn. Returns { source: 'ai'|'offline'|'safety', reply, proposals, suggestion?, safety? }.
  * history: prior turns as [{role, content}] (see historyFor); message is the new user text.
  */
-export async function askJim({ message, history = [], state, url, fetchImpl = globalThis.fetch, timeoutMs = TIMEOUT_MS, now = new Date() }) {
+export async function askJim({ message, history = [], state, url, key = null, fetchImpl = globalThis.fetch, timeoutMs = TIMEOUT_MS, now = new Date() }) {
   if (SAFETY.test(message)) return { source: 'safety', reply: SAFETY_TEXT, proposals: [], suggestion: null, safety: true };
   if (!url || !fetchImpl) return offline(message, state, 'no proxy configured');
   const controller = new AbortController();
@@ -112,7 +127,7 @@ export async function askJim({ message, history = [], state, url, fetchImpl = gl
     const context = buildContext(state, now);
     const res = await fetchImpl(`${url}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headersFor(key),
       body: JSON.stringify({ messages: [...history, { role: 'user', content: message }], context, persona: context.persona }),
       signal: controller.signal,
     });
@@ -140,7 +155,7 @@ const NOT_PHYSIQUE = "I couldn't read a physique in that photo, so this plan is 
 const FALLBACK = "I couldn't analyse the photo right now, so this plan is built from your goal and history instead.";
 
 /** { image: { base64, mediaType } | null, consent, state, url } -> { source, reason?, message, emphasis, proposal } */
-export async function askPhysique({ image, consent, state = {}, url, fetchImpl = globalThis.fetch, timeoutMs = PHYSIQUE_TIMEOUT_MS }) {
+export async function askPhysique({ image, consent, state = {}, url, key = null, fetchImpl = globalThis.fetch, timeoutMs = PHYSIQUE_TIMEOUT_MS }) {
   const s = state.settings ?? {};
   const fitnessGoal = typeof s.fitnessGoal === 'string' ? s.fitnessGoal : 'general';
   const focusMuscles = Array.isArray(s.focusMuscles) ? s.focusMuscles : [];
@@ -157,7 +172,7 @@ export async function askPhysique({ image, consent, state = {}, url, fetchImpl =
   try {
     const res = await fetchImpl(`${url}/physique`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headersFor(key),
       body: JSON.stringify({ consent: true, image: { media_type: image.mediaType ?? 'image/jpeg', data: image.base64 }, fitnessGoal, physiqueGoal, focusMuscles }),
       signal: controller.signal,
     });

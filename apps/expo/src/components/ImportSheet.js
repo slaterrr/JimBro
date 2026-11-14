@@ -28,7 +28,7 @@ function forget(uri) {
   try { new File(uri).delete(); } catch { /* already gone or not deletable */ }
 }
 
-export function ImportSheet({ proxyUrl, onDone }) {
+export function ImportSheet({ proxyUrl, proxyKey = null, onDone }) {
   const { settings, history, active, importData, savePlan } = useApp();
   const [preview, setPreview] = useState(null); // { name, result }
   const [error, setError] = useState(null);
@@ -77,7 +77,7 @@ export function ImportSheet({ proxyUrl, onDone }) {
       forget(a.uri);
     }
     setBusy(true);
-    const out = await askPhysique({ image, consent: withPhoto && consent, state: { settings, history, active }, url: proxyUrl });
+    const out = await askPhysique({ image, consent: withPhoto && consent, state: { settings, history, active }, url: proxyUrl, key: proxyKey });
     image = null; // drop the only in-memory copy of the photo
     setBusy(false);
     setPlanOut(out);

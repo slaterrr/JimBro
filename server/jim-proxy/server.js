@@ -5,7 +5,7 @@ import http from 'node:http';
 
 import Anthropic from '@anthropic-ai/sdk';
 
-import { allowRequest, handleChat } from './jim.js';
+import { allowRequest, authorized, handleChat } from './jim.js';
 import { bodyLimitFor, handlePhysique } from './physique.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -16,11 +16,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
   process.exit(1);
 }
 const client = new Anthropic({ timeout: 30_000, maxRetries: 1 });
+if (!process.env.JIM_PROXY_KEY) console.warn('JIM_PROXY_KEY is not set: anyone on this network can use the proxy. Set it before exposing the proxy beyond your LAN.');
 
 const cors = {
   'Access-Control-Allow-Origin': ORIGIN,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Jim-Key',
 };
 const send = (res, status, body) => {
   res.writeHead(status, { ...cors, 'Content-Type': 'application/json' });
@@ -34,6 +35,7 @@ const server = http.createServer((req, res) => {
   const handler = ROUTES[req.url];
   if (req.method !== 'POST' || !handler) return send(res, 404, { error: 'not found' });
   const ip = req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress ?? 'unknown';
+  if (!authorized(req.headers)) return send(res, 401, { error: 'missing or wrong X-Jim-Key' });
   if (!allowRequest(ip)) return send(res, 429, { error: 'slow down' });
 
   const limit = bodyLimitFor(req.url);
