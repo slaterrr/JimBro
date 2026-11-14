@@ -34,7 +34,7 @@ export function TabBar({ tab, onChange }) {
 }
 
 const st = StyleSheet.create({
-  bar: { flexDirection: 'row', borderTopWidth: 1, borderColor: T.border, backgroundColor: '#0d0b12', paddingTop: 8, paddingBottom: 18, paddingHorizontal: 8 },
+  bar: { flexDirection: 'row', borderTopWidth: 1, borderColor: T.border, backgroundColor: T.surface, paddingTop: 8, paddingBottom: 18, paddingHorizontal: 8 },
   item: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: R.md },
   itemOn: { backgroundColor: T.accentSoft },
   label: { color: T.textDim, fontSize: 11, fontWeight: '600', marginTop: 3 },
