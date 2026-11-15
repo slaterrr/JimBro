@@ -11,11 +11,10 @@ describe('palette', () => {
     assert.equal(contrast('#000000', '#ffffff').toFixed(1), '21.0');
     assert.equal(contrast('#ffffff', '#ffffff'), 1);
   });
-  it('uses the mascot body blue and coordinated blue shades', () => {
-    assert.equal(ACCENT.accent, '#98ccea');
+  it('uses warm coral from the supplied red mascot', () => {
     for (const hex of [ACCENT.accent, ACCENT.accentDeep, ACCENT.accentText]) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-      assert.ok(b > g && g > r, `${hex} should be blue`);
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+      assert.ok(r > g && r > b && Math.abs(g - b) < 30, `${hex} should be warm coral`);
     }
   });
   it('accent text tokens pass AA (>= 4.5:1) on the background and cards', () => {
