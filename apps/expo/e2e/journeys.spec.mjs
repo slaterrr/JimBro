@@ -169,6 +169,7 @@ test('muscles: tapping a muscle opens its progress', async ({ page }) => {
   // drift while the conversation scroll animation finishes.
   await body.locator('path[d^="M99 76"]').first().click();
   await expect(page.getByText(/chest/i).locator('visible=true').last()).toBeVisible();
+  await expect(page.getByLabel('Hide keyboard', { exact: true })).toHaveCount(0);
   await tap(page, 'Progress');
   await expect(page.getByText('Chest progress', { exact: true })).toBeVisible();
   await expect(page.getByText('Show all progress', { exact: true })).toBeVisible();
