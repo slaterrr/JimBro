@@ -189,7 +189,10 @@ CREATE TABLE IF NOT EXISTS user_sync_state (
 );
 """
 
-MIGRATIONS: list[tuple[int, str, str]] = [(1, "v2 core schema", V1), (2, "per-user sync snapshots", V2)]
+MIGRATIONS: list[tuple[int, str, str]] = [
+    (1, "v2 core schema", V1),
+    (2, "per-user sync snapshots", V2),
+]
 
 
 def now_iso() -> str:
