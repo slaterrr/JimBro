@@ -16,6 +16,7 @@ test('disabled app voice blocks saved preferences and forced replies', async () 
   assert.equal(voice.say('forced', { force: true }), false);
   assert.equal(voice.cue('rep', { force: true }), false);
   await voice.enableAudio();
+  voice.stop();
   assert.deepEqual(engine.calls, []);
 });
 
