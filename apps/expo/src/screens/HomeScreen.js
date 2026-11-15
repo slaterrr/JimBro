@@ -383,8 +383,8 @@ export function HomeScreen({ openLog, openActivity }) {
         {!messages.length ? <View style={st.welcome}>
           <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
           <Text style={st.eyebrow}>YOUR SPACE TO GET STRONGER</Text>
-          <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Big goals.{"\n"}<Text style={{ color: T.accentText }}>One conversation.</Text></Text>
-          <Text testID="welcome-greeting" style={st.heroSubtitle}>{WELCOME_TEXT}</Text>
+          <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Hey, I'm Jim</Text>
+          <Text testID="welcome-greeting" style={st.heroSubtitle}>Your AI gym bro. Tell me what you want to hit today</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 }}>
             {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
