@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyCoachSet, coachSetBody, parseCoachReport } from './coachSetChat.js';
+import { answerCoachSet, applyCoachSet, coachSetBody, parseCoachReport } from './coachSetChat.js';
 import { missionStart, missionStep } from './mission.js';
 
 test('reads short contextual reports and effort without inventing RIR', () => {
@@ -55,4 +55,11 @@ test('commits the next standalone set once and records the rest deadline', () =>
   assert.equal(updated.active.sets.length, 1);
   assert.deepEqual(updated.active.coachRest, { exercise: 'push_up', until: 90500 });
   assert.equal(applyCoachSet(updated, request), updated);
+});
+
+test('next-set answer omits the set goal when the lift has no set target', () => {
+  const text = answerCoachSet("what's next", {
+    target: { exercise: 'deadlift', reps: 8, sets: null, setNo: 2, weight: 135, unit: 'lb' },
+  });
+  assert.equal(text, 'Deadlift · 8 reps · 135 lb.');
 });
