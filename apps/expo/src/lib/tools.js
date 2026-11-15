@@ -51,6 +51,15 @@ export function parseImport(text) {
     if (!w?.id || !w.startedAt || !Array.isArray(w.sets) || !w.sets.every(validSet)) {
       throw new Error(`The export is damaged: workout ${i + 1} has an invalid set.`);
     }
+    const validDate = value => {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(value) || !Number.isFinite(Date.parse(value))) return false;
+      const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+      const check = new Date(Date.UTC(year, month - 1, day));
+      return check.getUTCFullYear() === year && check.getUTCMonth() === month - 1 && check.getUTCDate() === day;
+    };
+    if (!validDate(w.startedAt) || (w.finishedAt != null && (!validDate(w.finishedAt) || Date.parse(w.finishedAt) < Date.parse(w.startedAt))) || w.sets.some(s => s.loggedAt != null && !validDate(s.loggedAt))) {
+      throw new Error(`The export is damaged: workout ${i + 1} has an invalid date or finishes before it starts.`);
+    }
   });
   return { history: data.history, plan: data.plan ?? null, settings: data.settings ?? {} };
 }
