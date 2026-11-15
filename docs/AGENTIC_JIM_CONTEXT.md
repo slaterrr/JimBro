@@ -23,7 +23,7 @@ User-facing features (all on `main`, https://github.com/slaterrr/JimBro):
 - **Set report** (counted / not counted + reasons, tempo, tracking quality, tips), spoken aloud.
 - **Form review:** skeleton replay of a bad rep vs. ideal, with why / fix / cue and a "how to do it" demo.
 - **Personas** with roles: Coach, Hype, Sergeant (drill), Zen, Data (analyst); each changes wording and voice rate/pitch, never the numbers.
-- **Setup:** fitness goal (strength / muscle / endurance / fat loss / general), "what you want to look like" (text + focus muscles), experience, pain → safety message.
+- **Setup:** fitness goal (strength / muscle / endurance / general), "what you want to look like" (text + focus muscles), experience, pain → safety message.
 - **Personalized rest timer** by goal, exercise, effort, experience, activity level, with the reason shown.
 - **Plans:** goal-based plans; import past workouts from CSV/Excel; optional reference photo → Claude suggests muscles to prioritise → weekly plan proposal (consent, photo never stored).
 - **Health:** activity level from an Apple Health export / CSV; weekly health card; measurable goals; weekly check-in; progress history with workout / month / year comparisons.

@@ -78,15 +78,14 @@ test('endurance goal: 30-60 s', () => {
   assert.equal(s('plank'), 30);
 });
 
-test('fat loss goal: short rests, shorter than general', () => {
+test('the removed fat-loss goal (old saves) uses the general rules', () => {
   for (const ex of ['squat', 'row', 'curl']) {
-    const fl = restFor({ exercise: ex, reps: 12, fitnessGoal: 'fat_loss' }).seconds;
-    assert.ok(fl <= 75 && fl < restFor({ exercise: ex, reps: 12 }).seconds, ex);
+    assert.equal(restFor({ exercise: ex, reps: 12, fitnessGoal: 'fat_loss' }).seconds, restFor({ exercise: ex, reps: 12 }).seconds, ex);
   }
 });
 
 test('every goal: hard set (RPE 9+) adds 30 s; beginners and sedentary users get +15 s', () => {
-  for (const fitnessGoal of ['strength', 'muscle', 'endurance', 'fat_loss', 'general']) {
+  for (const fitnessGoal of ['strength', 'muscle', 'endurance', 'general']) {
     const b = restFor({ exercise: 'bench', reps: 8, fitnessGoal }).seconds;
     assert.equal(restFor({ exercise: 'bench', reps: 8, rpe: 9, fitnessGoal }).seconds, b + 30, fitnessGoal);
     const easy = restFor({ exercise: 'bench', reps: 8, fitnessGoal, experience: 'new' });

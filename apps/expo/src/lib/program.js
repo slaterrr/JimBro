@@ -12,7 +12,7 @@ import { substitutes } from './substitute.js';
 export const PROGRAM_SCHEMA = 'jimbro.program.v1';
 export const EQUIPMENT = ['barbell', 'dumbbells', 'bench', 'cable', 'machine', 'pullup_bar', 'dip_bars', 'kettlebell'];
 const EQUIPMENT_LABEL = { barbell: 'Barbell + rack', dumbbells: 'Dumbbells', bench: 'Bench', cable: 'Cable station', machine: 'Machines', pullup_bar: 'Pull-up bar', dip_bars: 'Dip bars', kettlebell: 'Kettlebell' };
-export const GOALS = { powerbuilding: 'Strength + size (powerbuilding)', strength: 'Get stronger', muscle: 'Build muscle', general: 'General fitness', endurance: 'Muscular endurance', fat_loss: 'Fat-loss support' };
+export const GOALS = { powerbuilding: 'Strength + size (powerbuilding)', strength: 'Get stronger', muscle: 'Build muscle', general: 'General fitness', endurance: 'Improve endurance' };
 export const EXPERIENCE = { new: 'New to lifting', returning: 'Coming back after a break', experienced: 'Training regularly (1+ year)' };
 const PATTERNS = ['squat', 'hinge', 'lunge', 'horizontal_push', 'vertical_push', 'dip', 'horizontal_pull', 'vertical_pull', 'elbow_flexion', 'elbow_extension', 'shoulder_abduction'];
 const AREAS = { knees: ['squat', 'lunge'], lower_back: ['hinge'], shoulders: ['vertical_push', 'dip'] };
@@ -39,7 +39,6 @@ const num = (s) => {
 };
 function parseGoal(s) {
   if (/power ?building|strength (and|\+|&) (size|muscle)|size (and|\+|&) strength|\bboth\b/i.test(s)) return 'powerbuilding';
-  if (/fat|lean|weight loss|lose weight|\bcut\b/i.test(s)) return 'fat_loss';
   if (/endurance|stamina|conditioning/i.test(s)) return 'endurance';
   if (/muscle|size|hypertroph|bigger|bulk/i.test(s)) return 'muscle';
   if (/strong|strength/i.test(s)) return 'strength';
@@ -211,11 +210,12 @@ const SPLITS = { 2: ['fullA', 'fullB'], 3: ['fullA', 'fullB', 'fullC'], 4: ['upp
 // [sets, reps low, reps high, RPE low, RPE high, rest seconds]
 const SCHEME = {
   powerbuilding: { main: [4, 3, 5, 7, 8.5, 180], secondary: [3, 6, 8, 7, 8.5, 150], accessory: [3, 10, 15, 7, 9, 75] },
-  strength: { main: [5, 3, 5, 7, 8.5, 180], secondary: [3, 5, 8, 7, 8.5, 150], accessory: [2, 8, 12, 7, 8.5, 90] },
+  // Strength: most sets on compounds, long rests; main-lift reps drop each 4-week wave (see weekItems).
+  strength: { main: [5, 4, 6, 7, 8.5, 180], secondary: [4, 4, 6, 7, 8.5, 150], accessory: [2, 8, 12, 7, 8, 75] },
   muscle: { main: [3, 6, 10, 7, 8.5, 150], secondary: [3, 8, 12, 7, 9, 120], accessory: [3, 10, 15, 7.5, 9, 75] },
   general: { main: [3, 5, 8, 6.5, 8, 150], secondary: [3, 8, 12, 6.5, 8, 90], accessory: [2, 10, 15, 6.5, 8, 60] },
-  fat_loss: { main: [3, 6, 10, 6.5, 8, 120], secondary: [3, 8, 12, 6.5, 8, 75], accessory: [2, 12, 15, 6.5, 8, 45] },
-  endurance: { main: [3, 8, 12, 6, 7.5, 90], secondary: [2, 12, 15, 6, 7.5, 60], accessory: [2, 15, 20, 6, 8, 45] },
+  // Endurance: high reps; rest shortens 15 s per build week (density), never under 30 s.
+  endurance: { main: [3, 10, 15, 6, 7.5, 90], secondary: [3, 12, 15, 6, 7.5, 75], accessory: [2, 15, 20, 6, 8, 60] },
 };
 const WORK_MIN_PER_SET = 0.75;
 const TRANSITION_MIN = 1;
@@ -342,12 +342,17 @@ function weekItems(base, week, deload, history, intake) {
     const rpe_low = deload ? 5 : Math.min(hi, round(lo + 0.5 * k));
     const rpe_high = deload ? 6 : Math.min(hi, round(lo + 1 + 0.5 * k));
     const sets = deload ? Math.max(1, Math.round(b.sets * 0.6)) : b.sets + (withBump && b.role === 'accessory' ? 1 : 0);
+    // Strength: main lifts move to lower reps each wave (4–6, 3–5, 2–4); beginners stay at 5+.
+    const wave = Math.min(2, Math.floor((week - 1) / 4));
+    const shift = intake.goal === 'strength' && b.role === 'main' && !isBeginner(intake) && !deload ? wave : 0;
+    // Endurance: shorter rest each build week of the wave.
+    const rest_sec = intake.goal === 'endurance' && !deload ? Math.max(30, b.rest_sec - 15 * k) : b.rest_sec;
     const load = week === 1
       ? firstLoad(b.exercise, history, rpe_high)
       : deload ? { text: "Deload: about 90% of last week's working weight (or easy bodyweight reps).", from: null }
         : { text: "Progress from last week's result using the progression rules.", from: null };
     const { base_rpe, ...item } = b; // eslint-disable-line no-unused-vars
-    return { ...item, sets, rpe_low, rpe_high, load };
+    return { ...item, sets, reps_low: Math.max(2, b.reps_low - shift), reps_high: b.reps_high - shift, rest_sec, rpe_low, rpe_high, load };
   });
   const bumped = make(bump);
   return bump && sessionMinutes(bumped, intake.minutes) > intake.minutes ? make(false) : bumped;
@@ -366,9 +371,10 @@ function capVolume(sessions, limit) {
   }
 }
 
+const BLOCK_NOUN = { strength: 'strength', muscle: 'muscle-building', general: 'general fitness', endurance: 'muscular endurance' };
 const TEMPLATE_NAME = (i) => (i.daysPerWeek >= 4
-  ? (i.goal === 'powerbuilding' ? 'powerbuilding' : `upper/lower ${GOALS[i.goal].toLowerCase()}`)
-  : `full-body ${GOALS[i.goal].toLowerCase()}`);
+  ? (i.goal === 'powerbuilding' ? 'powerbuilding' : `upper/lower ${BLOCK_NOUN[i.goal]}`)
+  : `full-body ${BLOCK_NOUN[i.goal] ?? 'powerbuilding'}`);
 
 /** Build a validated program. Throws on an invalid intake instead of guessing. */
 export function buildProgram(intake, { history = [], unit = 'lb', id = `program-${Date.now().toString(36)}`, now = new Date().toISOString(), version = 1 } = {}) {
@@ -398,7 +404,9 @@ export function buildProgram(intake, { history = [], unit = 'lb', id = `program-
     intake: clean,
     weeks,
     progression: {
-      increase: `Every set reaches the top of the rep range at or below the target RPE: add the smallest step next session (about ${step[0]} upper body, ${step[1]} lower body).`,
+      increase: clean.goal === 'endurance'
+        ? `Every set reaches the top of the rep range at or below the target RPE: next session rest 15 s less (not under 30 s). Once rest is at the minimum, add the smallest load step (about ${step[0]} upper body, ${step[1]} lower body).`
+        : `Every set reaches the top of the rep range at or below the target RPE: add the smallest step next session (about ${step[0]} upper body, ${step[1]} lower body).${clean.goal === 'strength' ? ' Main lifts drop to fewer, heavier reps each 4-week wave.' : ''}`,
       hold: 'Reps inside the range at the target RPE: keep the weight and aim for one more rep per set.',
       reduce: 'Below the bottom of the range, RPE above 9 on a set meant to be easier, or reps slowing down a lot on camera: reduce the weight 5–10% next session.',
       stop: 'Sharp or unusual pain (not normal effort): stop that exercise, use a listed substitution and get it checked if it persists.',
