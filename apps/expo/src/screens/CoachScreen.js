@@ -175,7 +175,7 @@ export function CoachScreen({ openLog, initialExercise }) {
         ? 'The camera could not start. Allow camera access for Expo Go in Settings.'
         : 'The pose model could not load. The first run needs internet to download it.');
     }
-    if (m.type !== 'frame' || paused || restLeft > 0 || (mission && !['position', 'set'].includes(mission.state.phase))) return;
+    if (m.type !== 'frame' || paused || restLeft > 0 || (mission && (!mt?.camera || !['position', 'set'].includes(mission.state.phase)))) return;
     const out = session.current.frame(m.t, m.pose);
     const lastRep = session.current.reps[session.current.reps.length - 1] ?? null;
     setView((v) => {
@@ -217,7 +217,12 @@ export function CoachScreen({ openLog, initialExercise }) {
     const id = saveCoachSet({ set, expectedCount: active?.sets.length, restSeconds: rest.seconds });
     if (id) {
       resetSet();
-      if (voice) jim.say('Next: ' + exerciseName(movement) + ', ' + target + ' reps after rest.', { force: true });
+      if (voice) {
+        const next = doneSets + 1 < sets ? { exercise: movement, reps: target }
+          : nextPlanned && { exercise: nextPlanned.exercise, reps: nextPlanned.reps_high };
+        const summary = next ? 'Next: ' + exerciseName(next.exercise) + ', ' + next.reps + ' reps after rest.' : 'You reached your set target.';
+        jim.say(summary, { force: true });
+      }
     }
     return id;
   };

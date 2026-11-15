@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Keyboard, Text, View } from 'react-native';
 
 import { useApp } from '../AppState.js';
-import { answerCoachSet, coachPauseCommand, parseCoachReport } from '../lib/coachSetChat.js';
+import { answerCoachSet, coachLoadLabel, coachPauseCommand, parseCoachReport } from '../lib/coachSetChat.js';
 import { exerciseName } from '../lib/exercises.js';
 import { T, type } from '../theme.js';
 import { Card, Field, IconButton } from './kit.js';
@@ -72,6 +72,7 @@ export function CoachSetChat({ target, phase, slotKey, measured, paused, setPaus
   return (
     <Card style={{ marginTop: 10, padding: 12, gap: 8 }}>
       <Text style={type.label}>{paused ? 'Jim · paused' : 'Chat with Jim'}</Text>
+      {readyToLog ? <Text style={type.small}>Set {target.setNo} · {target.reps} target reps · {coachLoadLabel(target)}</Text> : null}
       {turn ? (
         <View accessible accessibilityLiveRegion="polite">
           <Text style={type.small}>You · {turn.text}</Text>
@@ -95,4 +96,3 @@ export function CoachSetChat({ target, phase, slotKey, measured, paused, setPaus
     </Card>
   );
 }
-
