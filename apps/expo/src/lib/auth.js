@@ -3,10 +3,31 @@
 // workout data (dataKeyFor), so a new sign-up starts fresh with the first-run setup.
 const ACCOUNTS = 'jimbro.accounts.v1';
 const SESSION = 'jimbro.session.v1';
+export const LEGACY_WORKOUT_KEY = 'jimbro.data.v2';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export const normalizeEmail = (e) => String(e ?? '').trim().toLowerCase();
-export const dataKeyFor = (email) => `jimbro.data.v2:${normalizeEmail(email)}`;
+export const dataKeyFor = (email) => `${LEGACY_WORKOUT_KEY}:${normalizeEmail(email)}`;
+
+/** Carry pre-login workouts forward only when a single local account can own them. */
+export async function loadWorkoutData(storage, storageKey) {
+  const saved = await storage.getItem(storageKey);
+  if (saved !== null || !storageKey.startsWith(LEGACY_WORKOUT_KEY + ':')) return saved;
+
+  const legacy = await storage.getItem(LEGACY_WORKOUT_KEY);
+  if (legacy === null) return null;
+
+  const emails = Object.keys(JSON.parse((await storage.getItem(ACCOUNTS)) ?? '{}'));
+  if (emails.length !== 1 || dataKeyFor(emails[0]) !== storageKey) return null;
+
+  // Read and validate before promoting the old snapshot. Keep the source for recovery.
+  const snapshot = JSON.parse(legacy);
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    throw new Error('Invalid pre-login workout data.');
+  }
+  await storage.setItem(storageKey, legacy);
+  return legacy;
+}
 
 /** null when fine, else a message to show under the form. */
 export function validateCredentials(email, password) {

@@ -205,3 +205,5 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+- Workout storage migration: when the first local account has no workout snapshot, recover the pre-login snapshot from the same app storage. Existing account snapshots remain authoritative. Device validation still needs an update over an existing install on the same Expo project or web origin.
