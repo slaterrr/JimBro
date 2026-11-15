@@ -418,7 +418,6 @@ export function HomeScreen({ openLog, openActivity }) {
           <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => { openChat(); send('Import my workouts'); }} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
 
         </View>
-        <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
         <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>
       </View>
     </View>
@@ -488,7 +487,6 @@ const st = StyleSheet.create({
   composerTools: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   toolDivider: { width: 1, height: 14, backgroundColor: T.borderStrong, marginHorizontal: 7 },
   send: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
-  reviewLabel: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 9, lineHeight: 14 },
   footer: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 10, lineHeight: 16 },
   mobileMenu: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 270, backgroundColor: T.chat.sidebar, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 30, elevation: 10 },
 });
