@@ -195,7 +195,8 @@ test('a server-originated camera tool offers a camera choice without silently lo
   await openCamera(page, 'Could you help me prepare?');
   await expect(page.locator('iframe[title="Camera and pose tracking"]')).toBeVisible();
   expect(allSets(await saved(page))).toHaveLength(0);
-  // Leaving the studio must release the mounted camera and return to chat.
+  // The workout screen returns to the camera/manual choice, then to chat.
+  await page.getByRole('button', { name: 'Back to previous page' }).click();
   await page.getByRole('button', { name: 'Back to previous page' }).click();
   await expect(page.getByLabel('Message Jim', { exact: true })).toBeVisible();
   await expect(page.locator('iframe[title="Camera and pose tracking"]')).toHaveCount(0);
@@ -241,6 +242,7 @@ test('recorded real squat landmarks count twice locally and save only when confi
   await openCamera(page);
   const iframe = page.locator('iframe[title="Camera and pose tracking"]');
   await expect(iframe).toBeVisible();
+  await expect(page.getByLabel('Change exercise')).toContainText('Squat');
   const modelCallsBeforeFrames = fixture.calls.length;
   const frames = squatRecording.frames.map(({ t, pose }) => ({
     t, pose: pose.map(([x, y, visibility]) => ({ x, y, visibility })),
@@ -252,7 +254,8 @@ test('recorded real squat landmarks count twice locally and save only when confi
       await new Promise(resolve => setTimeout(resolve, 1));
     }
   }, frames);
-  await expect(page.getByTestId('camera-rep-count')).toContainText('2');
+  // Match the measured count, never the target: "0 / 12" must not pass this check.
+  await expect(page.getByTestId('camera-rep-count')).toHaveAttribute('aria-label', '2 measured reps');
   expect(fixture.calls.length).toBe(modelCallsBeforeFrames);
   expect(allSets(await saved(page))).toHaveLength(0);
   await page.getByRole('button', { name: 'End set and log it', exact: true }).click();
