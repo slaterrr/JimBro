@@ -72,7 +72,8 @@ export function coachLoadLabel(target) {
 
 export function answerCoachSet(text, { target, phase, ...context }) {
   if (/(?:what(?:'s| is) next|what (?:set|exercise) (?:am i on|is next))/i.test(text) && target) {
-    return exerciseName(target.exercise) + ' · set ' + target.setNo + ' of ' + target.sets + ' · ' + target.reps + ' reps · ' + coachLoadLabel(target) + '.';
+    const setLabel = target.sets == null ? '' : ' · set ' + target.setNo + ' of ' + target.sets;
+    return exerciseName(target.exercise) + setLabel + ' · ' + target.reps + ' reps · ' + coachLoadLabel(target) + '.';
   }
   if (/what (?:other exercises|else|exercises) (?:do i have|are left)/i.test(text)) {
     return answerContext('How many sets are left?', context);

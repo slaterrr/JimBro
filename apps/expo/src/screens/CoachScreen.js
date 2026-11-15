@@ -103,7 +103,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   };
   const unit = settings.unit === 'kg' ? 'kg' : 'lb';
   const lastSet = (active?.sets ?? []).findLast((set) => set.exercise === movement && set.unit === unit);
-  const soloTarget = { exercise: movement, reps: target, sets, setNo, unit, weight: lastSet?.weight ?? (movement === 'push_up' ? 0 : null), camera: true };
+  const soloSets = showSetTarget(movement) ? sets : null;
+  const soloTarget = { exercise: movement, reps: target, sets: soloSets, setNo, unit, weight: lastSet?.weight ?? (movement === 'push_up' ? 0 : null), camera: true };
   const nextPlanned = active?.planned?.items?.find((item) => item.exercise !== movement
     && CAMERA_LIFTS.some(([id]) => id === item.exercise)
     && active.sets.filter((set) => set.exercise === item.exercise).length < item.sets);
@@ -218,7 +219,7 @@ export function CoachScreen({ openLog, initialExercise }) {
     if (id) {
       resetSet();
       if (voice) {
-        const next = doneSets + 1 < sets ? { exercise: movement, reps: target }
+        const next = (soloSets === null || doneSets + 1 < soloSets) ? { exercise: movement, reps: target }
           : nextPlanned && { exercise: nextPlanned.exercise, reps: nextPlanned.reps_high };
         const summary = next ? 'Next: ' + exerciseName(next.exercise) + ', ' + next.reps + ' reps after rest.' : 'You reached your set target.';
         jim.say(summary, { force: true });
@@ -380,13 +381,13 @@ export function CoachScreen({ openLog, initialExercise }) {
           {restLeft > 0 ? (
             <Card style={{ marginTop: 10, gap: 8 }} accessibilityLiveRegion="polite">
               <Text style={type.title}>Rest · {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}</Text>
-              <Text style={type.body}>{doneSets < sets
+              <Text style={type.body}>{(soloSets === null || doneSets < soloSets)
                 ? 'Next: ' + exerciseName(movement) + ' · ' + target + ' reps · ' + coachLoadLabel(soloTarget)
                 : nextPlanned ? 'Next: ' + exerciseName(nextPlanned.exercise) + ' · ' + nextPlanned.reps_high + ' reps'
                   : 'You reached your set target.'}</Text>
               <PrimaryButton secondary onPress={() => clearCoachRest(restDeadline)}>Skip rest</PrimaryButton>
             </Card>
-          ) : doneSets >= sets && nextPlanned ? (
+          ) : soloSets !== null && doneSets >= soloSets && nextPlanned ? (
             <PrimaryButton secondary onPress={() => setMovement(nextPlanned.exercise)}>Next: {exerciseName(nextPlanned.exercise)}</PrimaryButton>
           ) : null}
           <CoachSetChat
