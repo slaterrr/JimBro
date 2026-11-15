@@ -30,8 +30,10 @@ def test_account_sync_contract(tmp_path):
         assert first.status_code == 200
         assert first.json()["revision"] == 1
         assert client.put("/v2/sync", json=payload, headers=save_headers).json() == first.json()
-        assert client.put("/v2/sync", json=payload, headers={**headers_a, "Idempotency-Key": "other-op"}).status_code == 409
-        assert client.get("/v2/sync", headers=headers_a).json()["data"]["history"][0]["id"] == "alice-workout"
+        stale_headers = {**headers_a, "Idempotency-Key": "other-op"}
+        assert client.put("/v2/sync", json=payload, headers=stale_headers).status_code == 409
+        saved = client.get("/v2/sync", headers=headers_a).json()
+        assert saved["data"]["history"][0]["id"] == "alice-workout"
         assert client.get("/v2/sync", headers=headers_b).json()["data"] == {}
 
         assert client.post("/v2/auth/logout", headers=headers_a).status_code == 200
