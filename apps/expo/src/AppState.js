@@ -96,6 +96,13 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     () => settingsRef.current,
   ), []);
   useEffect(() => { voice.enableAudio(); }, [voice]);
+  // Device voices for the picker; until they load Jim uses the device default (lib/voices.js).
+  const [voices, setVoices] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    Speech.getAvailableVoicesAsync?.().then((raw) => { if (alive) setVoices(voice.setAvailableVoices(raw)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [voice]);
   const say = voice.say;
 
   /** All logged sets in order, including the workout in progress. */
@@ -167,7 +174,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     conversation: conversationRef.current,
     goals: data.goals ?? [], addGoal, removeGoal,
     mission: data.mission ?? null, startMission, stepMission, endMission,
-    ready, notice, setNotice, settings, update, say, voice,
+    ready, notice, setNotice, settings, update, say, voice, voices,
     active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
     startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
