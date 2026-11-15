@@ -121,3 +121,14 @@ describe('a new schedule never starts with missed days', () => {
     assert.equal(calendarMonth('2026-11', { schedule: fresh, program, today: '2026-11-14' }).days.filter((d) => d.status === 'missed').length, 0);
   });
 });
+
+describe('workouts outside the schedule', () => {
+  it('a workout before the schedule starts still shows as completed on that day', () => {
+    const fresh = createSchedule(program, { timeZone: 'UTC', now: new Date('2026-11-14T12:00:00Z') });
+    const early = { ...done('2026-11-14'), planned: { scheduledFor: '2026-11-16' } };
+    const ctx = { schedule: fresh, program, history: [early], today: '2026-11-14' };
+    assert.equal(planFor('2026-11-14', ctx).status, 'completed');
+    assert.equal(planFor('2026-11-16', ctx).status, 'completed'); // Monday's session was done early
+    assert.equal(planFor('2026-11-13', ctx).status, 'none');
+  });
+});
