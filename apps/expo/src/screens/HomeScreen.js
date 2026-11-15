@@ -9,6 +9,7 @@ import { MissionCard } from '../components/Mission.js';
 import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
+import { requestAIPlan } from '../lib/aiPlan.js';
 import { confirmedText, missionIntro, planIntro, staleText } from '../lib/homeReplies.js';
 import { proxyStatusLine } from '../lib/aiStatus.js';
 import { healthSummary } from '../lib/healthSummary.js';
@@ -43,14 +44,28 @@ function Glow() {
   );
 }
 
-function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
-  const { savePlan, startWorkout, active, plan: saved } = useApp();
+function PlanCard({ goal: initialGoal = 'hypertrophy', proxyUrl: aiUrl, proxyKey: aiKey }) {
+  const { savePlan, startWorkout, active, plan: saved, history } = useApp();
   const [goal, setGoal] = useState(initialGoal);
   const [days, setDays] = useState(3);
   const [minutes, setMinutes] = useState(45);
   const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const requested = useRef(false);
   const req = { goal, days_per_week: days, minutes_per_session: minutes, equipment };
-  const plan = equipment.length ? buildPlan(req) : null;
+  const localPlan = equipment.length ? buildPlan(req) : null;
+  const plan = aiResult && aiResult.requestKey === JSON.stringify(req) ? aiResult.plan : localPlan;
+  const personalize = async () => {
+    if (!localPlan || requested.current) return;
+    requested.current = true;
+    setAiBusy(true);
+    try {
+      const key = JSON.stringify(req);
+      const result = await requestAIPlan({ request: req, history, url: aiUrl, key: aiKey });
+      setAiResult({ requestKey: key, ...result });
+    } finally { requested.current = false; setAiBusy(false); }
+  };
   const isSaved = saved && JSON.stringify(saved.request) === JSON.stringify(req);
   return (
     <Card style={{ marginTop: 10 }}>
@@ -69,7 +84,9 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
           <Text style={type.small}>{d.items.map((i) => `${exerciseName(i.exercise)} ${i.sets}×${i.reps_low}–${i.reps_high}`).join(' · ')}</Text>
         </View>
       ))}
-      <PrimaryButton disabled={!plan} onPress={() => savePlan({ ...plan, request: req })}>{isSaved ? 'Saved ✓' : 'Save as my plan'}</PrimaryButton>
+      <PrimaryButton secondary disabled={!plan || aiBusy} onPress={personalize}>{aiBusy ? 'Personalizing…' : 'Personalize with Jim AI (optional)'}</PrimaryButton>
+      {aiResult?.requestKey === JSON.stringify(req) ? <Text style={type.small}>{aiResult.source === 'ai' ? 'AI suggested an exercise order. ' : 'Using the local plan. '}{aiResult.explanation}</Text> : null}
+      <PrimaryButton disabled={!plan || aiBusy} onPress={() => savePlan({ ...plan, request: req })}>{isSaved ? 'Saved ✓' : 'Save as my plan'}</PrimaryButton>
       {isSaved && !active ? (
         <PrimaryButton secondary onPress={() => startWorkout('Plan day 1', plan.days[0])}>Start day 1</PrimaryButton>
       ) : null}
@@ -276,7 +293,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
           </View>
         ) : (
           messages.map((m, i) => {
-            if (m.kind === 'plan') return <PlanCard key={i} />;
+            if (m.kind === 'plan') return <PlanCard key={i} proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} />;
             if (m.kind === 'mission') {
               return (
                 <MissionCard
