@@ -81,3 +81,9 @@ describe('physique request checks', () => {
     assert.ok(bodyLimitFor('/physique') < 8 * 1024 * 1024);
   });
 });
+
+import { test as t2 } from 'node:test';
+import { readFileSync } from 'node:fs';
+t2('the proxy no longer lists a fat-loss goal', () => {
+  assert.doesNotMatch(readFileSync(new URL('./physique.js', import.meta.url), 'utf8'), /fat_loss/);
+});
