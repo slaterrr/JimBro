@@ -25,6 +25,8 @@ Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 | Compare your training → Submit → dedicated comparison results page | 🧪 codex/compare-submit-page; distinct-period validation, back action; device check pending |
 
+**Coach workout chat (review):** Send a contextual set report in the live camera studio or a Mission. Both save through a workout-scoped state update; camera corrections keep manual provenance. Rest and next target appear on the Coach screen. Native microphone behavior still needs a device run.
+
 ## Rules for agents
 Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
 
