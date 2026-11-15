@@ -48,6 +48,12 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - Byte limits apply to UTF-8 request bytes, not string character count. Tests live in `httpSecurity.test.js`.
 - No change to offline coach, AI tools or user-confirmation semantics. Device verification and authenticated production rollout remain pending.
 
+## v2 account/snapshot sync recovery (draft PR #88)
+- Added a separate /v2 account API atop existing Store migrations: registration, login, logout, and revisioned snapshots with idempotency keys. Legacy Pi endpoints and Expo local auth are unchanged.
+- Tests exercise account isolation, revoked sessions, retries and stale-revision conflicts; do not claim CI success until verified.
+- **Not production-ready:** no Expo sync adapter, durable offline queue, per-record merge, TLS ingress/rate limiting, password reset or deployment. Unpushed local backend work cannot be recovered from GitHub.
+- See docs/V2_ACCOUNT_SYNC.md. Never merge without human approval.
+
 ## How to verify
 | What | Command |
 |---|---|

@@ -53,6 +53,9 @@ from .schemas import (
     SetIn,
     SetOut,
 )
+from .v2.accounts import Accounts
+from .v2.routes import router as v2_router
+from .v2.store import Store
 
 LOW_DISK_BYTES = 200 * 1024 * 1024
 VERSION_FILE = Path(__file__).resolve().parents[2] / "VERSION"
@@ -286,6 +289,7 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="JimBro", version="0.3.0")
     app.state.db = Database(db_path)
+    app.state.accounts = Accounts(Store(db_path))
     app.state.model = default_model() if model == "auto" else model
     app.state.bus = bus = EventBus()
     app.state.started = time.monotonic()
@@ -329,6 +333,7 @@ def create_app(
             bus.unsubscribe(queue)
 
     app.include_router(router)
+    app.include_router(v2_router)
     if static_dir is not None and (static_dir / "index.html").is_file():
         mount_pwa(app, static_dir)
     return app
