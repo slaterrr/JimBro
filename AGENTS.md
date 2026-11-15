@@ -54,6 +54,11 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - The former PR heads do not merge cleanly directly into current main. PR #89 is the integrated replacement. Run Expo tests, exports, and UI tests; physical-device behavior remains unverified. Do not merge unless CI green.
 - PR #88 (backend sync) and conflicting noncritical UI work remain separate.
 
+## Browser E2E repair (PR #90)
+- The old `e2e/chat-mvp.spec.mjs` suite expected camera/muscles to mount as inline chat panels; the shipped Home now uses dedicated screens and a camera/manual choice.
+- The seven failing scenarios were updated to navigate through the current UI and still assert no writes without confirmation, camera permission safety, measured-rep replay, clean camera unmount and cancellation of stale AI replies. No production UI changes.
+- Validate with `cd apps/expo && npm run test:ui`; compare with CI main's prior seven legacy failures. Do not claim a pass until a successful CI run.
+
 ## How to verify
 | What | Command |
 |---|---|
