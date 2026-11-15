@@ -8,6 +8,28 @@ const fakeEngine = () => {
   return { calls, speak: (text, opts) => calls.push(['speak', text, opts]), stop: () => calls.push(['stop']) };
 };
 
+test('disabled app voice blocks saved preferences and forced replies', async () => {
+  const engine = fakeEngine();
+  engine.setAudioMode = () => engine.calls.push(['audio']);
+  const voice = createVoice(engine, () => ({ speak: true }), { enabled: false });
+  assert.equal(voice.say('hello'), false);
+  assert.equal(voice.say('forced', { force: true }), false);
+  assert.equal(voice.cue('rep', { force: true }), false);
+  await voice.enableAudio();
+  assert.deepEqual(engine.calls, []);
+});
+
+test('CV coaching voice can speak form cues while general app voice stays disabled', () => {
+  const engine = fakeEngine();
+  const settings = () => ({ speak: false });
+  const chat = createVoice(engine, settings, { enabled: false });
+  const coach = createVoice(engine, settings);
+  assert.equal(chat.say('chat reply', { force: true }), false);
+  assert.equal(coach.cue('Keep your elbows still.', { force: true }), true);
+  assert.equal(engine.calls.filter(([kind]) => kind === 'speak').length, 1);
+  assert.equal(engine.calls.find(([kind]) => kind === 'speak')[1], 'Keep your elbows still.');
+});
+
 test('Jim speaks by default for new users', () => {
   assert.equal(migrateVoiceSettings(undefined).speak, true);
 });

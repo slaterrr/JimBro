@@ -17,7 +17,6 @@ import { T, type } from '../theme.js';
 import { FormReviewSheet } from './FormReview.js';
 import { Card, Chips, Field, Icon, PrimaryButton, Sheet } from './kit.js';
 import { PersonaPicker } from './PersonaPicker.js';
-import { VoicePicker } from './VoicePicker.js';
 
 const BARBELL = new Set(['squat', 'bench', 'deadlift', 'shoulder_press']);
 const RPE = [['', '–'], ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['10', '10']];
@@ -243,9 +242,6 @@ export function ActivitySheet({ visible, onClose, openSetup }) {
       {openSetup ? <PrimaryButton secondary onPress={openSetup}>Beginner / comeback setup</PrimaryButton> : null}
       <Text style={[type.label, { marginVertical: 8 }]}>Jim's persona</Text>
       <PersonaPicker />
-      <Text style={[type.label, { marginVertical: 8 }]}>Spoken replies</Text>
-      <Chips options={[[true, 'On'], [false, 'Off']]} value={settings.speak} onChange={(speak) => update({ speak })} />
-      <VoicePicker />
       <Text style={[type.label, { marginVertical: 8 }]}>Units</Text>
       <Chips options={[['lb', 'lb'], ['kg', 'kg']]} value={settings.unit} onChange={(unit) => update({ unit })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Weekly goal</Text>

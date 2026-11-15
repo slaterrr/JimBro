@@ -39,7 +39,7 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog, initialExercise }) {
-  const { active, settings, voice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
+  const { active, settings, coachVoice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
   // The Studio is embedded in a bounded chat panel. Keep the camera and composer visible together.
@@ -53,7 +53,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   const [sets, setSets] = useState(workoutTarget('sets', planned?.sets));
   const [setup, setSetup] = useState(false);
   const [howTo, setHowTo] = useState(false);
-  const [voice, setVoice] = useState(true);
+  const voice = true;
+  useEffect(() => () => jim.stop(), [jim]);
   const [paused, setPaused] = useState(false);
   const [clockMs, setClockMs] = useState(Date.now);
   const restDeadline = mission ? null : active?.coachRest?.until;
@@ -400,7 +401,6 @@ export function CoachScreen({ openLog, initialExercise }) {
         </>
       )}
       <View style={st.controls}>
-        <IconButton icon={voice ? 'microphone-outline' : 'microphone-off'} label="Voice cues" onPress={() => setVoice((v) => !v)} />
         {mission || paused || restLeft > 0 ? null : (
           <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
             <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />

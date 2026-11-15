@@ -55,7 +55,7 @@ export function MissionCard({ mission, onStart, onCancel }) {
  * `count`, `lastRepAt` (ms), `tracking` ('ok'|...), `repsDetail()` and `resetCounter()`.
  */
 export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCounter, setQuality, voiceOn, paused, setPaused }) {
-  const { mission, stepMission, endMission, saveCoachSet, finishWorkout, voice, history } = useApp();
+  const { mission, stepMission, endMission, saveCoachSet, finishWorkout, coachVoice: voice, history } = useApp();
   const s = mission.state;
   const t = currentTarget(s);
   const [chatFocused, setChatFocused] = useState(false);
