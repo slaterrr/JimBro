@@ -16,7 +16,17 @@ export const GOALS = { powerbuilding: 'Strength + size (powerbuilding)', strengt
 export const EXPERIENCE = { new: 'New to lifting', returning: 'Coming back after a break', experienced: 'Training regularly (1+ year)' };
 const PATTERNS = ['squat', 'hinge', 'lunge', 'horizontal_push', 'vertical_push', 'dip', 'horizontal_pull', 'vertical_pull', 'elbow_flexion', 'elbow_extension', 'shoulder_abduction'];
 const AREAS = { knees: ['squat', 'lunge'], lower_back: ['hinge'], shoulders: ['vertical_push', 'dip'] };
-const LIMITS = { days: [2, 5], minutes: [30, 120], weeks: [4, 16] };
+const LIMITS = { days: [2, 6], minutes: [30, 120], weeks: [4, 16] };
+// Named splits and the days each supports. 'auto' picks by days: full body (2-3), upper/lower (4),
+// upper/lower plus arms & shoulders (5).
+export const SPLIT_TEMPLATES = {
+  auto: { label: 'Best fit for my days', days: [2, 3, 4, 5] },
+  full_body: { label: 'Full body', days: [2, 3] },
+  upper_lower: { label: 'Upper / lower', days: [4] },
+  ppl: { label: 'Push / pull / legs', days: [3, 6] },
+  bro: { label: 'Bro split', days: [5] },
+};
+export const splitOf = (i) => (i?.split && SPLIT_TEMPLATES[i.split] ? i.split : 'auto');
 const MAX_WEEKLY_SETS_PER_MUSCLE = 20;
 
 export const INTAKE_FIELDS = [
@@ -104,15 +114,20 @@ export function answerIntake(intake, field, input) {
   else if (field === 'minutes') {
     const n = text != null ? (/(\d+(\.\d+)?)\s*(h|hour)/i.test(text) ? Math.round(Number(/(\d+(\.\d+)?)/.exec(text)[1]) * 60) : num(text)) : input;
     value = inRange(n, LIMITS.minutes) ? n : null;
-  } else if (field === 'daysPerWeek' || field === 'weeks') {
+  } else if (field === 'daysPerWeek') {
     const n = text != null ? num(text) : input;
-    value = inRange(n, field === 'weeks' ? LIMITS.weeks : LIMITS.days) ? n : null;
+    const allowed = SPLIT_TEMPLATES[splitOf(intake)].days;
+    if (!allowed.includes(n)) return { ok: false, error: `Pick ${allowed.slice(0, -1).join(', ')}${allowed.length > 1 ? ' or ' : ''}${allowed.at(-1)} days a week${splitOf(intake) !== 'auto' ? ` for the ${SPLIT_TEMPLATES[splitOf(intake)].label.toLowerCase()} split` : ''}.` };
+    value = n;
+  } else if (field === 'weeks') {
+    const n = text != null ? num(text) : input;
+    value = inRange(n, LIMITS.weeks) ? n : null;
   } else return { ok: false, error: 'Unknown question.' };
   if (value == null) return { ok: false, error: ERRORS[field] };
   return { ok: true, intake: { ...intake, [field]: value } };
 }
 
-const REQUEST = /\b(program|programme|training block|mesocycle|powerbuilding)\b|\b\d+[- ]?weeks?\b.*\b(plan|block|routine)\b/i;
+const REQUEST = /\b(program|programme|training block|mesocycle|powerbuilding|bro split|ppl)\b|push[ /,-]*pull[ /,-]*(and )?legs?|\b\d+[- ]?weeks?\b.*\b(plan|block|routine)\b/i;
 /** "Build me a 10-week 4-day powerbuilding program" -> { recognized, intake: details given }. */
 export function parseProgramRequest(text = '') {
   if (!REQUEST.test(text) || !/\b(build|make|create|design|write|give|plan|start|new|want|need|generate)\b/i.test(text)) return { recognized: false, intake: {} };
@@ -125,6 +140,13 @@ export function parseProgramRequest(text = '') {
   if (minutes && inRange(Number(minutes[1]), LIMITS.minutes)) intake.minutes = Number(minutes[1]);
   const goal = parseGoal(text);
   if (goal) intake.goal = goal;
+  const split = /push[ /,-]*pull[ /,-]*(and )?legs?|\bppl\b/i.test(text) ? 'ppl' : /\bbro split\b/i.test(text) ? 'bro'
+    : /upper[ /-]*(and )?lower/i.test(text) ? 'upper_lower' : /full[ -]?body/i.test(text) ? 'full_body' : null;
+  if (split) {
+    intake.split = split;
+    const fixed = SPLIT_TEMPLATES[split].days;
+    if (fixed.length === 1 && intake.daysPerWeek === undefined) intake.daysPerWeek = fixed[0];
+  }
   const equipment = parseEquipment(text.replace(/\bbody ?weight\b/i, ''));
   if (equipment?.length) intake.equipment = equipment;
   return { recognized: true, intake };
@@ -150,7 +172,11 @@ export function validateIntake(i = {}) {
   const p = [];
   if (!GOALS[i.goal]) p.push('goal: choose one of the listed goals');
   if (!EXPERIENCE[i.experience]) p.push('experience: new, returning or experienced');
-  if (!inRange(i.daysPerWeek, LIMITS.days)) p.push(`days per week must be ${LIMITS.days[0]} to ${LIMITS.days[1]}`);
+  const split = splitOf(i);
+  if (i.split !== undefined && !SPLIT_TEMPLATES[i.split]) p.push('split: unknown split');
+  else if (!SPLIT_TEMPLATES[split].days.includes(i.daysPerWeek)) {
+    p.push(split === 'auto' ? `days per week must be ${LIMITS.days[0]} to 5` : `the ${SPLIT_TEMPLATES[split].label.toLowerCase()} split needs ${SPLIT_TEMPLATES[split].days.join(' or ')} days per week`);
+  }
   if (!inRange(i.minutes, LIMITS.minutes)) p.push(`minutes per session must be ${LIMITS.minutes[0]} to ${LIMITS.minutes[1]}`);
   if (!inRange(i.weeks, LIMITS.weeks)) p.push(`program length must be ${LIMITS.weeks[0]} to ${LIMITS.weeks[1]} weeks`);
   if (!Array.isArray(i.equipment) || i.equipment.some((e) => !EQUIPMENT.includes(e))) p.push('equipment: unknown equipment');
@@ -174,6 +200,7 @@ const SLOTS = {
   chest_acc: ['dumbbell_bench', 'dips', 'push_up'],
   lateral: ['lateral_raise'],
   biceps: ['curl', 'hammer_curl'],
+  biceps_alt: ['hammer_curl', 'curl'],
 };
 const SLOT_WHY = {
   press_h: 'Horizontal press for chest, shoulders and triceps.',
@@ -203,6 +230,13 @@ const SESSIONS = {
   armsShoulders: { name: 'Arms & shoulders', focus: 'Extra upper-body volume', slots: [['row', 'secondary'], ['chest_acc', 'accessory'], ['lateral', 'accessory'], ['biceps', 'accessory'], ['triceps', 'accessory']] },
   fullA: { name: 'Full body A', focus: 'Squat and horizontal press', slots: [['squat', 'main'], ['press_h', 'main'], ['row', 'accessory'], ['lateral', 'accessory'], ['biceps', 'accessory']] },
   fullB: { name: 'Full body B', focus: 'Hinge and overhead press', slots: [['hinge', 'main'], ['press_v', 'main'], ['vpull', 'accessory'], ['lunge', 'accessory'], ['triceps', 'accessory']] },
+  push: { name: 'Push', focus: 'Chest, shoulders and triceps', slots: [['press_h', 'main'], ['press_v', 'secondary'], ['chest_acc', 'accessory'], ['lateral', 'accessory'], ['triceps', 'accessory']] },
+  pull: { name: 'Pull', focus: 'Back and biceps', slots: [['row', 'main'], ['vpull', 'secondary'], ['hinge_light', 'accessory'], ['biceps', 'accessory'], ['biceps_alt', 'accessory']] },
+  legs: { name: 'Legs', focus: 'Quads, hamstrings and glutes', slots: [['squat', 'main'], ['hinge_light', 'secondary'], ['lunge', 'accessory'], ['squat_light', 'accessory']] },
+  broChest: { name: 'Chest', focus: 'Chest and triceps', slots: [['press_h', 'main'], ['chest_acc', 'secondary'], ['triceps', 'accessory']] },
+  broBack: { name: 'Back', focus: 'Back and hinge strength', slots: [['hinge', 'main'], ['row', 'secondary'], ['vpull', 'secondary'], ['biceps', 'accessory']] },
+  broShoulders: { name: 'Shoulders', focus: 'Shoulders and upper back', slots: [['press_v', 'main'], ['lateral', 'accessory'], ['row', 'accessory']] },
+  broArms: { name: 'Arms', focus: 'Biceps and triceps', slots: [['biceps', 'accessory'], ['triceps', 'accessory'], ['biceps_alt', 'accessory'], ['chest_acc', 'accessory']] },
   fullC: { name: 'Full body C', focus: 'Moderate-rep volume', slots: [['squat_light', 'secondary'], ['chest_acc', 'secondary'], ['row', 'accessory'], ['hinge_light', 'accessory'], ['biceps', 'accessory']] },
 };
 const FILL = ['squat', 'push_up', 'lunge', 'goblet_squat', 'dumbbell_bench', 'bent_over_row', 'romanian_deadlift', 'chin_up', 'lat_pulldown'];
@@ -366,16 +400,23 @@ function capVolume(sessions, limit) {
   }
 }
 
-const TEMPLATE_NAME = (i) => (i.daysPerWeek >= 4
+const NAMED_SPLITS = {
+  full_body: { 2: ['fullA', 'fullB'], 3: ['fullA', 'fullB', 'fullC'] },
+  upper_lower: { 4: SPLITS[4] },
+  ppl: { 3: ['push', 'pull', 'legs'], 6: ['push', 'pull', 'legs', 'push', 'pull', 'legs'] },
+  bro: { 5: ['broChest', 'broBack', 'legs', 'broShoulders', 'broArms'] },
+};
+const NAMED_LABEL = { ppl: 'push/pull/legs', bro: 'bro split' };
+const TEMPLATE_NAME = (i) => (NAMED_LABEL[splitOf(i)] ?? (i.daysPerWeek >= 4
   ? (i.goal === 'powerbuilding' ? 'powerbuilding' : `upper/lower ${GOALS[i.goal].toLowerCase()}`)
-  : `full-body ${GOALS[i.goal].toLowerCase()}`);
+  : `full-body ${GOALS[i.goal].toLowerCase()}`));
 
 /** Build a validated program. Throws on an invalid intake instead of guessing. */
 export function buildProgram(intake, { history = [], unit = 'lb', id = `program-${Date.now().toString(36)}`, now = new Date().toISOString(), version = 1 } = {}) {
   const problems = validateIntake(intake);
   if (problems.length) throw new Error(problems.join('; '));
-  const clean = { goal: intake.goal, experience: intake.experience, daysPerWeek: intake.daysPerWeek, minutes: intake.minutes, equipment: [...intake.equipment], avoid: [...(intake.avoid ?? [])], weeks: intake.weeks };
-  const split = SPLITS[clean.daysPerWeek];
+  const clean = { goal: intake.goal, experience: intake.experience, daysPerWeek: intake.daysPerWeek, minutes: intake.minutes, equipment: [...intake.equipment], avoid: [...(intake.avoid ?? [])], weeks: intake.weeks, ...(intake.split && intake.split !== 'auto' ? { split: intake.split } : {}) };
+  const split = NAMED_SPLITS[clean.split]?.[clean.daysPerWeek] ?? SPLITS[clean.daysPerWeek];
   const bases = split.map((key) => ({ key, items: baseItems(key, clean) }));
   const weeks = [];
   for (let w = 1; w <= clean.weeks; w += 1) {
