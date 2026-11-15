@@ -26,6 +26,9 @@ Optional env: `PORT` (8787), `ALLOW_ORIGIN` (CORS, default `*`).
 
 ## API
 
+**Opt-in plan personalization**: `POST /plan` with `{ request: { goal, days_per_week, minutes_per_session, equipment }, recentSets? }` returns `{ ok, plan, explanation }`. The model may only reorder exercises already in the deterministic plan; set counts, loads, reps, equipment and durations are local and immutable. A user explicitly presses **Personalize with Jim AI** on Home; ordinary plan editing uses no Claude tokens. Confirm **Save as my plan** before persistence. Auth and deployment restrictions match `/chat`. This endpoint is not a replacement for production user authentication or backend-owned history.
+
+
 `POST /chat` with `{ messages: [{role, content}], context, persona }` returns
 `{ reply, proposals: [intent], safety? }`. `GET /health` returns `{ ok: true }`.
 

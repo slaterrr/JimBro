@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { allowRequest, authorized, handleChat } from './jim.js';
 import { healthReply } from './health.js';
 import { bodyLimitFor, handlePhysique } from './physique.js';
+import { handlePlan } from './plan.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ORIGIN = process.env.ALLOW_ORIGIN ?? '*';
@@ -36,7 +37,7 @@ const server = http.createServer((req, res) => {
     if (!health.head) return send(res, health.status, health.body);
     return void res.writeHead(health.status, { ...cors, 'Content-Type': 'application/json' }).end();
   }
-  const ROUTES = { '/chat': handleChat, '/physique': handlePhysique };
+  const ROUTES = { '/chat': handleChat, '/physique': handlePhysique, '/plan': handlePlan };
   const handler = ROUTES[req.url];
   if (req.method !== 'POST' || !handler) return send(res, 404, { error: 'not found' });
   const ip = req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress ?? 'unknown';
