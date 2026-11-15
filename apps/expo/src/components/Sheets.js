@@ -79,7 +79,7 @@ export function SetReportCard({ report, clips = [], movement }) {
         {report.trackingPct !== null ? ` · tracking ${report.trackingPct}%` : ''}
       </Text>
       {Object.entries(report.issues).length ? (
-        <Text style={type.small}>Not counted: {Object.entries(report.issues).map(([k, n]) => `${n}× ${ISSUE_LABEL[k] ?? 'tracking uncertain'}`).join(', ')}</Text>
+        <Text style={type.small}>Tracking interruptions: {Object.entries(report.issues).map(([k, n]) => `${n}× ${ISSUE_LABEL[k] ?? 'tracking uncertain'}`).join(', ')}</Text>
       ) : null}
       {report.repDurationsMs.length ? <Text style={type.small}>Rep times: {report.repDurationsMs.map(sec).join(' · ')}</Text> : null}
       {report.tempo ? <Text style={type.small}>Tempo: first 3 avg {sec(report.tempo.firstMs)} → last 3 avg {sec(report.tempo.lastMs)} ({report.tempo.changePct > 0 ? '+' : ''}{report.tempo.changePct}%)</Text> : null}

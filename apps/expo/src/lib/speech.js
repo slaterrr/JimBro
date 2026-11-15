@@ -28,7 +28,7 @@ export function spokenReport(report, persona) {
   const issues = Object.entries(report.issues ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   const missed = issues.reduce((a, [, n]) => a + n, 0);
   if (missed) {
-    parts.push(`${missed} ${missed === 1 ? "wasn't" : "weren't"} counted: ${issues.slice(0, 2).map(([k]) => ISSUE_WORDS[k] ?? 'lost tracking').join(' and ')}.`);
+    parts.push(`${missed} tracking ${missed === 1 ? 'interruption' : 'interruptions'}: ${issues.slice(0, 2).map(([k]) => ISSUE_WORDS[k] ?? 'lost tracking').join(' and ')}.`);
   }
 
   const pct = report.tempo?.changePct;
