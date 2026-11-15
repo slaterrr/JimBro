@@ -67,7 +67,7 @@ function syntheticPng(size = 96) {
 const checks = [
   { id: 'plain', name: 'plain reply', ask: 'Hi Jim. In one sentence, what should I train today?', ok: (r) => r.reply.length > 5 && !r.refused },
   { id: 'read', name: 'read tool (squat history)', ask: 'How is my squat going?', ok: (r) => /2[23]5/.test(r.reply) && log.length >= 2 },
-  { id: 'write', name: 'write tool -> proposal', ask: 'Log 3 sets of 10 curls at 25 pounds.', ok: (r) => r.proposals.length === 1 && r.proposals[0].type === 'log' && r.proposals[0].sets.length === 3 },
+  { id: 'write', name: 'write tool -> proposal', ask: 'Log 3 sets of 10 shoulder presses at 25 pounds.', ok: (r) => r.proposals.length === 1 && r.proposals[0].type === 'log' && r.proposals[0].sets.length === 3 },
   {
     id: 'vision', name: 'real vision measurements -> coaching', context: visionContext,
     ask: 'How did my last squat set go, and should I change the weight next time?',
