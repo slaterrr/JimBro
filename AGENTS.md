@@ -25,6 +25,8 @@ Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 | Compare your training → Submit → dedicated comparison results page | 🧪 codex/compare-submit-page; distinct-period validation, back action; device check pending |
 
+**Coach workout chat (review):** Send a contextual set report in the live camera studio or a Mission. Both save through a workout-scoped state update; camera corrections keep manual provenance. Rest and next target appear on the Coach screen. Native microphone behavior still needs a device run.
+
 ## Rules for agents
 Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
 
@@ -205,3 +207,7 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+## Live Coach targets
+
+Coach's set setup includes integer sliders for 1–25 target reps and 1–10 sets. Deadlift, shoulder press and pull-up keep rep targets and recorded history while hiding live set-count controls. Editing a guided workout changes its current exercise only and preserves completed sets.

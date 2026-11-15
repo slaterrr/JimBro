@@ -4,6 +4,7 @@ import * as Speech from 'expo-speech';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
+import { applyCoachSet } from './lib/coachSetChat.js';
 import { appendWorkoutSet } from './lib/workoutLogging.js';
 import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
 import { migrateGoals } from './lib/goals.js';
@@ -151,8 +152,36 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
       mission: { state: missionStart(planned), startedAt: Date.now() },
     }));
   const stepMission = (event) =>
-    setData((d) => (d.mission ? { ...d, mission: { ...d.mission, state: missionStep(d.mission.state, event) } } : d));
+    setData((d) => {
+      if (!d.mission) return d;
+      const state = missionStep(d.mission.state, event);
+      if (state === d.mission.state) return d;
+      const active = event.type === 'adjust_targets' && d.active?.planned?.mission
+        ? { ...d.active, planned: missionPlanned(state.mission) }
+        : d.active;
+      return { ...d, active, mission: { ...d.mission, state } };
+    });
   const endMission = () => setData((d) => ({ ...d, mission: null }));
+
+  // Coach saves the workout set and advances the session in one state update.
+  const saveCoachSet = (request) => {
+    const workoutId = data.active?.id;
+    if (!workoutId) return null;
+    const body = request.set;
+    const workouts = [...data.history, data.active];
+    const record = personalRecords(workouts, body).find((r) => r.exercise === body.exercise && r.unit === body.unit);
+    const now = Date.now();
+    const set = {
+      ...body, id: newId(), loggedAt: new Date(now).toISOString(),
+      pr: Boolean(record && (record.is_new_heaviest || record.is_new_volume)),
+    };
+    setData((d) => applyCoachSet(d, { ...request, workoutId, set, now }));
+    return set.id;
+  };
+  const clearCoachRest = (until) => setData((d) => {
+    if (d.active?.coachRest?.until !== until) return d;
+    return { ...d, active: { ...d.active, coachRest: null } };
+  });
 
   // Saving keeps the previous plan in planVersions (lib/planVersions.js).
   const savePlan = (plan) => setData((d) => withSavedPlan(d, plan));
@@ -169,7 +198,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice,
     active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
-    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, saveCoachSet, clearCoachRest, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return (
     <Ctx.Provider value={value}>
