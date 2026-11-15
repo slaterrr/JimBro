@@ -1,6 +1,6 @@
 import { useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import { useApp, useLiveCamera } from '../AppState.js';
 import { HowToSheet } from '../components/FormReview.js';
@@ -33,7 +33,7 @@ function plannedFor(active, movement) {
   return active?.planned?.items?.find((i) => i.exercise === movement) ?? null;
 }
 
-export function CoachScreen({ openLog }) {
+export function CoachScreen({ openLog, initialExercise }) {
   const { active, settings, voice: jim, mission, stepMission, startWorkout } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
@@ -41,7 +41,7 @@ export function CoachScreen({ openLog }) {
   const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
-  const [movement, setMovement] = useState(firstPlanned?.exercise ?? 'curl');
+  const [movement, setMovement] = useState(initialExercise ?? firstPlanned?.exercise ?? 'curl');
   const planned = plannedFor(active, movement);
   const [target, setTarget] = useState(planned?.reps_high ?? 12);
   const [sets, setSets] = useState(planned?.sets ?? 4);
@@ -237,8 +237,9 @@ export function CoachScreen({ openLog }) {
           <Text style={type.title}>Camera access</Text>
           <Text style={type.body}>Jim counts your reps from your pose, right on this phone. Video is never saved or uploaded.</Text>
           {permission.canAskAgain
-            ? <PrimaryButton onPress={requestPermission}>Allow camera</PrimaryButton>
-            : <PrimaryButton onPress={() => Linking.openSettings()}>Open Settings</PrimaryButton>}
+            ? <PrimaryButton onPress={() => requestPermission().catch(() => setError('Camera access was denied. Allow camera access in your browser or device settings.'))}>Allow camera</PrimaryButton>
+            : Platform.OS === 'web' ? <Text accessibilityRole="alert" style={[type.body, { marginTop: 12, color: T.amber }]}>Camera access is blocked. Open your browser’s site settings to allow the camera, then reopen the workout studio.</Text> : <PrimaryButton onPress={() => Linking.openSettings()}>Open Settings</PrimaryButton>}
+          {error ? <Text accessibilityRole="alert" style={[type.body, { color: T.amber }]}>{error}</Text> : null}
         </Card>
         {mission ? (
           <MissionPanel count={0} lastRepAt={0} tracking="lost" repsDetail={() => []} resetCounter={() => resetSet()} voiceOn={voice} />
@@ -264,7 +265,7 @@ export function CoachScreen({ openLog }) {
         </TouchableOpacity>
         <View style={[st.glass, st.repsBox]}>
           <Text style={{ color: T.text, fontSize: 15, fontWeight: '600' }}>Reps</Text>
-          <Text style={{ fontSize: 28, fontWeight: '800', color: T.text }}>
+          <Text testID="camera-rep-count" accessibilityLabel={`${view.count} measured reps`} style={{ fontSize: 28, fontWeight: '800', color: T.text }}>
             <Text style={{ color: T.purple }}>{view.count}</Text>
             <Text style={{ color: T.textDim, fontWeight: '500' }}> / {target}</Text>
           </Text>

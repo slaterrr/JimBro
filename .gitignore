@@ -28,3 +28,11 @@ npm-debug.log*
 # Small trained CV models shipped with the app (JSON weights)
 !frontend/src/cv/ml/models/
 *.egg-info/
+
+# Browser QA exports and reports
+dist-chat/
+dist-web/
+e2e-artifacts/
+test-results/
+playwright-report/
+dist-native/
