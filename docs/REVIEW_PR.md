@@ -30,4 +30,25 @@ the production HTTP boundary with a mocked SDK. Recorded squat landmarks exercis
 the browser tracking bridge. Neither constitutes live-Claude or physical-phone
 validation; those remain pending an API credential and device checks.
 
+
+## Acceptance criteria and TDD evidence
+
+Sprint issue: none supplied; this draft is the requested isolated team-review prototype.
+
+- [x] Requested chat behavior, blue mascot styling and edge cases documented
+- [x] Existing teammate integrations retained; no deployment or main modification
+- [x] Failing tests preceded implementation: `8140d9f` / `1d48036`; recorded browser regression caught a cross-workout save
+- [x] New tests cover valid/invalid tool calls, confirmation, expiry, cancellation, offline and safety behavior
+- [x] Camera data stays local; no secrets or raw video committed
+- [ ] CI quality/coverage gates complete (branch CI verification requested)
+- [ ] Mutation audit for changed deterministic logic completed
+- [ ] Physical-phone camera/speech validation completed
+
+## Rollback
+
+This branch is unmerged and the shared preview is unchanged. Close the draft or
+remove only the review worktree to abandon the prototype; main does not need a
+rollback. If adopted later, revert the review PR rather than replacing teammates'
+checkout files manually.
+
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
