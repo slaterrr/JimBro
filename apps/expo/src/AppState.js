@@ -97,6 +97,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   const voice = useMemo(() => createVoice(
     { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
     () => settingsRef.current,
+    { enabled: false },
   ), []);
   useEffect(() => { voice.enableAudio(); }, [voice]);
   // Device voices for the picker; until they load Jim uses the device default (lib/voices.js).

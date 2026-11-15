@@ -20,14 +20,14 @@ export function migrateVoiceSettings(settings) {
  * engine: { speak(text, opts), stop(), setAudioMode?(mode) } (expo-speech + expo-audio in the app).
  * getSettings: () => current { speak, persona }.
  */
-export function createVoice(engine, getSettings) {
+export function createVoice(engine, getSettings, { enabled = true } = {}) {
   let audioReady = null;
   let voices = null; // device voices once loaded (lib/voices.js); null = use the device default
   const opts = (persona, extra) => ({ ...speechOptions(persona), ...extra });
 
   const say = (text, { force = false, persona, interrupt = force, onDone, onError, voiceId } = {}) => {
     const s = getSettings() ?? {};
-    if (!text || !(force || s.speak)) return false;
+    if (!enabled || !text || !(force || s.speak)) return false;
     if (interrupt) engine.stop();
     const voice = resolveVoice(voiceId ?? s.voiceId, voices);
     engine.speak(String(text), opts(persona ?? s.persona, { ...(voice ? { voice } : {}), ...(onDone ? { onDone } : {}), ...(onError ? { onError } : {}) }));
@@ -43,6 +43,7 @@ export function createVoice(engine, getSettings) {
     setAvailableVoices: (raw) => { voices = voiceChoices(raw); return voices; },
     /** Let speech play with the iPhone ringer switch on silent. Safe to call repeatedly. */
     enableAudio: () => {
+      if (!enabled) return Promise.resolve();
       audioReady ??= Promise.resolve()
         .then(() => engine.setAudioMode?.({ playsInSilentMode: true, shouldPlayInBackground: false }))
         .catch(() => {});

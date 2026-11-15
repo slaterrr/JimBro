@@ -21,7 +21,6 @@ import { SAFETY, SAFETY_TEXT } from '../lib/coach.js';
 import { chatAction } from '../lib/chatActions.js';
 import { answerIntake, buildProgram, INTAKE_FIELDS, nextQuestion, programToPlan, sessionPlanned, swapExercise, validateProgram } from '../lib/program.js';
 import { programQuery, startProgramChat } from '../lib/programChat.js';
-import { createWelcome, WELCOME_TEXT } from '../lib/welcome.js';
 import { CoachScreen } from './CoachScreen.js';
 import { MusclesScreen } from './MusclesScreen.js';
 import { ProgressScreen } from './ProgressScreen.js';
@@ -42,14 +41,6 @@ const QUICK = [
   { icon: 'timer-outline', title: 'I have 20 minutes', detail: 'Make the most of today.', message: 'I have 20 minutes, help me train arms' },
 ];
 
-// One spoken welcome per app launch: module scope survives screen remounts but not a reload.
-const welcomeVoice = { current: null };
-const welcomeListeners = new Set();
-const launchWelcome = createWelcome(
-  { say: (t, o) => welcomeVoice.current?.say(t, o) ?? false, stop: () => welcomeVoice.current?.stop() },
-  { onChange: (state) => welcomeListeners.forEach((fn) => fn(state)) },
-);
-const pageActivated = () => (typeof navigator !== 'undefined' && navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined);
 const intakeLabel = (field, value) => (Array.isArray(value) ? value : [value]).map((v) => field.options.find(([id]) => id === v)?.[1] ?? String(v)).join(', ');
 
 function SmallButton({ icon, label, onPress, active = false }) {
@@ -75,9 +66,7 @@ function CameraConfirm({ message, onConfirm, onCancel }) {
 
 export function HomeScreen({ openLog, openActivity }) {
   const app = useApp();
-  const { settings, update, ready, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, savePlan, startMission, conversation } = app;
-  welcomeVoice.current = voice;
-  const [welcomeState, setWelcomeState] = useState(launchWelcome.state);
+  const { settings, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, savePlan, startMission, conversation } = app;
   const { snapshot: liveCamera, clear: clearCamera } = useLiveCamera();
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
   const [text, setText] = useState('');
@@ -93,7 +82,6 @@ export function HomeScreen({ openLog, openActivity }) {
   const [progressGroup, setProgressGroup] = useState(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraExercise, setCameraExercise] = useState(null);
-  const [talk, setTalk] = useState(false);
   const [menu, setMenu] = useState(false);
   const [focused, setFocused] = useState(false);
   const { width } = useWindowDimensions();
@@ -102,8 +90,6 @@ export function HomeScreen({ openLog, openActivity }) {
   const scroll = useRef(null);
   const input = useRef(null);
   const mounted = useRef(true);
-  const talkRef = useRef(false);
-  talkRef.current = talk;
   const [proxy, setProxy] = useState(PROXY_URL ? 'checking' : 'offline');
   const health = healthSummary({ history, active, goals, plan });
   const aiOn = source === 'ai' || (proxy === 'ok' && source !== 'offline');
@@ -116,19 +102,9 @@ export function HomeScreen({ openLog, openActivity }) {
     return () => { alive = false; };
   }, []);
   useEffect(() => { if (messages.length) scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
-  useEffect(() => { welcomeListeners.add(setWelcomeState); return () => { welcomeListeners.delete(setWelcomeState); }; }, []);
-  // Greet after saved preferences load, so a saved mute is respected. Never opens the microphone.
-  useEffect(() => { if (ready) setWelcomeState(launchWelcome.start(settings, { platform: Platform.OS, userActivated: Platform.OS === 'web' ? pageActivated() : undefined })); }, [ready]);
-  const toggleMute = () => { const on = !settings.speak; update({ speak: on }); if (!on) voice.stop(); };
-  const replayWelcome = () => { if (!launchWelcome.replay(settings)) push({ kind: 'notice', text: 'Jim is muted. Unmute Jim to hear the greeting.' }); };
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; voice.stop(); }; }, [voice]);
 
   const push = (...items) => conversation.update(cur => [...cur, ...items]);
-  const speak = line => {
-    if (!line) return;
-    if (!talkRef.current) return say(line, { interrupt: true }); // a new reply replaces whatever is playing
-    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
-  };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
   const openPanel = (panel, exercise, options = {}) => {
     if (panel === 'camera') { setCameraExercise(exercise ?? null); setCameraEnabled(false); setPage('workout-choice'); return; }
@@ -150,7 +126,6 @@ export function HomeScreen({ openLog, openActivity }) {
     else deleteSet(intent.target.setId);
     const reply = confirmedText(intent, settings.persona);
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: reply } : m));
-    speak(reply);
   };
   const cancelCard = index => conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: 'Cancelled. Your workout data was not changed.' } : m));
   const captureSet = (initial, camera) => {
@@ -210,7 +185,6 @@ export function HomeScreen({ openLog, openActivity }) {
     savePlan({ ...programToPlan(card.program), schedule: keep ? plan.schedule : app.createDefaultSchedule(card.program) });
     const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Say "Start workout" when you're ready.`;
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: line } : m));
-    speak(`Saved. ${card.program.name}.`);
   };
   const startSession = index => {
     const m = conversation.getSnapshot().messages[index];
@@ -324,19 +298,8 @@ export function HomeScreen({ openLog, openActivity }) {
       const latest = current.findLastIndex(m => m.kind === 'panel' && m.panel === 'camera');
       conversation.update(cur => cur.map((m, i) => m.kind === 'panel' && m.panel === 'camera' && i !== latest ? { kind: 'notice', text: 'Camera reopened below.' } : m));
     }
-    if (result && mounted.current && !result.actions?.length && !/^Opened |^Choose camera/i.test(result.reply ?? '')) speak(result.reply || result.proposals?.[0]?.summary);
   };
-  useEffect(() => {
-    if (!talk || !text.trim()) return undefined;
-    const timeout = setTimeout(() => send(text), 1800);
-    return () => clearTimeout(timeout);
-  }, [talk, text]);
-  const toggleTalk = () => {
-    setTalk(!talk); talkRef.current = !talk;
-    if (!talk) { speak('Use your keyboard microphone to talk. I’ll read my replies aloud.'); input.current?.focus(); }
-    else voice.stop();
-  };
-  const newChat = () => { conversation.clear(); clearCamera(); voice.stop(); setTalk(false); setText(''); setMenu(false); };
+  const newChat = () => { conversation.clear(); clearCamera(); voice.stop(); setText(''); setMenu(false); };
 
   const renderPanel = (m, index) => <View key={index} testID={`chat-panel-${m.panel}`} style={st.panel}>
     <View style={st.panelHeader}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={m.panel === 'camera' ? 'camera-outline' : 'view-dashboard-outline'} size={18} color={T.accent} /><Text style={st.panelTitle}>{PANEL_LABELS[m.panel]}</Text></View><SmallButton icon="close" label={`Close ${m.panel}`} onPress={() => closePanel(index)} /></View>
@@ -399,7 +362,6 @@ export function HomeScreen({ openLog, openActivity }) {
           {!desktop ? <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} /> : <View style={st.headerDot} />}
           <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim </Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
         </View>
-        <SmallButton icon={settings.speak ? 'volume-high' : 'volume-off'} label={settings.speak ? 'Mute Jim' : 'Unmute Jim'} onPress={toggleMute} />
                 {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
@@ -408,11 +370,7 @@ export function HomeScreen({ openLog, openActivity }) {
 
           <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Hey, I'm Jim</Text>
           <Text testID="welcome-greeting" style={st.heroSubtitle}>Your AI gym bro. Tell me what you want to hit today</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 }}>
-            {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
-          </View>
-          <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
+          <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type a message, or use your iPhone keyboard's dictation button.</Text>
           <TodayCard onStart={startToday} onOpenTraining={() => setPage('training')} onBuild={() => send('Build me a training program')} />
           <View style={st.quickGrid}>{QUICK.map(q => <TouchableOpacity accessibilityRole="button" accessibilityLabel={q.title} key={q.title} onPress={() => send(q.message)} style={[st.quickCard, { width: '48%' }]}><View style={st.quickIcon}><Icon name={q.icon} color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={st.quickTitle}>{q.title}</Text><Text style={st.quickDetail}>{q.detail}</Text></View><Icon name="arrow-top-right" size={17} color={T.textMute} /></TouchableOpacity>)}</View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}><Icon name="pulse" color={T.accent} size={16} /><Text style={{ color: T.textMute, fontSize: 12, flexShrink: 1 }}>{health.text}</Text></TouchableOpacity>
@@ -438,9 +396,8 @@ export function HomeScreen({ openLog, openActivity }) {
       </ScrollView>
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
         <View style={[st.composer, focused && { borderColor: T.accent }]}>
-          {talk ? <Text style={st.talkHint}>Talk mode: tap the microphone on your keyboard to dictate. Jim reads replies aloud. JimBro never records audio.</Text> : null}
-          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
-          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><SmallButton icon={talk ? 'volume-high' : 'microphone-outline'} label={talk ? 'Stop talk mode' : 'Dictate (use the keyboard microphone)'} active={talk} onPress={toggleTalk} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
+          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder="Ask anything about your training…" placeholderTextColor={T.textMute} style={st.input} />
+          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
         </View>
         <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
         <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>

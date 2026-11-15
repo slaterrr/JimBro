@@ -53,7 +53,7 @@ export function CoachScreen({ openLog, initialExercise }) {
   const [sets, setSets] = useState(workoutTarget('sets', planned?.sets));
   const [setup, setSetup] = useState(false);
   const [howTo, setHowTo] = useState(false);
-  const [voice, setVoice] = useState(true);
+  const voice = false;
   const [paused, setPaused] = useState(false);
   const [clockMs, setClockMs] = useState(Date.now);
   const restDeadline = mission ? null : active?.coachRest?.until;
@@ -400,7 +400,6 @@ export function CoachScreen({ openLog, initialExercise }) {
         </>
       )}
       <View style={st.controls}>
-        <IconButton icon={voice ? 'microphone-outline' : 'microphone-off'} label="Voice cues" onPress={() => setVoice((v) => !v)} />
         {mission || paused || restLeft > 0 ? null : (
           <IconButton ring={T.red} size={70} label="End set and log it" onPress={stop}>
             <View style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: T.red }} />
