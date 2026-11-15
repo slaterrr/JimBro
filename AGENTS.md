@@ -43,6 +43,7 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 | Vision lab tests (simulator + scoring) | `cd tools/vision-lab && npm ci && npm test` (15 pass) |
 | Real-video replay | `cd tools/vision-lab && node run.mjs` (needs Chrome + ffmpeg; videos downloaded per `labels/*.json` `source`) |
 | UI smoke (every screen at 320/390px: overlap, clipped, off-screen, covered, invisible labels, tap targets, dropdowns) | `cd apps/expo && npm run test:ui` (needs Chrome; CI job `ui-smoke`, screenshots artifact) |
+| User journeys (Playwright: first-run setup, log a set, chat + confirm/cancel, safety, last-workout answer, mission → Coach, plan, Progress tabs/dropdowns, muscles, persona, persistence) | `cd apps/expo && npm run test:e2e` (needs Chrome; runs in CI job `ui-smoke`) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
 ## Feature status
