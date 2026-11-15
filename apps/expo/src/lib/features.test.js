@@ -115,7 +115,7 @@ const WIRING = {
     [/DEFAULT_GOAL_SETTINGS/, 'goal fields in DEFAULT_SETTINGS'],
     [/migrateSettings/, 'legacy tone → persona migration'],
     [/migrateVoiceSettings/, 'voice on by default (sound bug)'],
-    [/enableAudio\(/, 'iOS silent-mode playback (sound bug)'],
+    [/prepareBeforeSpeak: true/, 'CV speech waits for audio-session setup'],
     [/migrateGoals/, 'goals persisted'],
     [/updateSet/, 'Jim can correct sets'],
     [/onboarded: isOnboarded\(/, 'onboarded flag migrated (old saves with history skip setup)'],

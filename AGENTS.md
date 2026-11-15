@@ -233,3 +233,10 @@ Workouts retain unique IDs and full ISO timestamps; AppState normalizes complete
 Removed app microphone/Talk, spoken greeting/replay, voice settings and workout voice controls. App speech is disabled centrally even for saved preferences and forced cues. Native message input remains available for Apple keyboard dictation; messages are sent explicitly. Physical iPhone dictation verification remains pending.
 
 Correction: spoken output is enabled only through coachVoice in the live CV workout screen and its mission/set guidance. General chat remains silent; app microphone, Talk mode and voice settings stay removed. CV speech stops when the workout screen unmounts. Expo CV is the on-phone JavaScript pipeline; the legacy Python backend was not changed.
+
+## CV audio audit
+See `docs/CV_AUDIO_AUDIT.md`. Protect form instructions from rep-cue interruptions,
+make disabled chat stop a no-op, await CV audio preparation/native stop and report
+errors with retry. Refresh playback mode after camera ready; load device voices
+into the coach too. Camera ready speaks one exercise instruction. 722 app tests
+pass; physical iPhone audio remains unverified. Chat camera shortcut removed.

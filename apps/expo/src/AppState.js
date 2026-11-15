@@ -12,6 +12,7 @@ import { missionPlanned, missionStart, missionStep } from './lib/mission.js';
 import { isOnboarded } from './lib/onboarding.js';
 import { migrateSettings } from './lib/personas.js';
 import { createVoice, migrateVoiceSettings, VOICE_SETTINGS_VERSION } from './lib/sound.js';
+import { createCvNarrator } from './lib/cvNarrator.js';
 import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 import { createConversation } from './lib/conversation.js';
@@ -100,18 +101,18 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     { enabled: false },
   ), []);
   // Spoken output is reserved for the live CV workout coach. Chat remains silent.
-  const coachVoice = useMemo(() => createVoice(
+  const coachVoice = useMemo(() => createCvNarrator(createVoice(
     { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
     () => settingsRef.current,
-  ), []);
-  useEffect(() => { coachVoice.enableAudio(); }, [coachVoice]);
+    { prepareBeforeSpeak: true, onPlaybackError: () => setNotice('Jim could not play workout audio. Check your phone volume and audio output, then reopen the camera.') },
+  )), []);
   // Device voices for the picker; until they load Jim uses the device default (lib/voices.js).
   const [voices, setVoices] = useState([]);
   useEffect(() => {
     let alive = true;
-    Speech.getAvailableVoicesAsync?.().then((raw) => { if (alive) setVoices(voice.setAvailableVoices(raw)); }).catch(() => {});
+    Speech.getAvailableVoicesAsync?.().then((raw) => { if (alive) { setVoices(voice.setAvailableVoices(raw)); coachVoice.setAvailableVoices(raw); } }).catch(() => {});
     return () => { alive = false; };
-  }, [voice]);
+  }, [voice, coachVoice]);
   const say = voice.say;
 
   /** All logged sets in order, including the workout in progress. */

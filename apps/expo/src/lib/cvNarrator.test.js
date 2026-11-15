@@ -4,7 +4,8 @@ import { createCvNarrator } from './cvNarrator.js';
 
 test('a blocked-rep cue and next rep cannot cut off a spoken form instruction', () => {
   const calls = [];
-  const narrator = createCvNarrator({ say: (text, options) => { calls.push({ text, options }); return true; }, stop() {} });
+  const record = (text, options) => { calls.push({ text, options }); return true; };
+  const narrator = createCvNarrator({ say: record, cue: record, stop() {} });
   narrator.say('Keep your elbows near your sides.');
   assert.equal(narrator.cue('Not counted'), false);
   assert.equal(narrator.cue('3'), false);

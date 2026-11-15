@@ -11,7 +11,7 @@ import { TargetSlider } from '../components/TargetSlider';
 import { PoseView } from '../components/PoseView';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
 import { cameraGuidance, guidanceThrottle } from '../lib/guidance.js';
-import { liveCue } from '../lib/cues.js';
+import { FORM, liveCue } from '../lib/cues.js';
 import { coachLoadLabel, coachSetBody } from '../lib/coachSetChat.js';
 import { estimateEffort } from '../lib/effort.js';
 import { perfLabel, PerfTracker } from '../lib/cameraPerf.js';
@@ -39,7 +39,7 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog, initialExercise }) {
-  const { active, settings, coachVoice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
+  const { active, settings, coachVoice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest, setNotice } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
   // The Studio is embedded in a bounded chat panel. Keep the camera and composer visible together.
@@ -72,6 +72,17 @@ export function CoachScreen({ openLog, initialExercise }) {
 
   const [facing, setFacing] = useState('user');
   const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    // Camera startup can change the iOS audio session after AppProvider mounts.
+    jim.enableAudio({ refresh: true }).then(() => {
+      if (!cancelled) jim.say(`Camera ready for ${exerciseName(movement)}. ${FORM[movement] ?? 'Keep your whole body visible and move with control.'}`, { force: true });
+    }).catch(() => {
+      if (!cancelled) setNotice('Jim could not prepare workout audio. Check your phone volume and audio output, then reopen the camera.');
+    });
+    return () => { cancelled = true; jim.stop(); };
+  }, [ready, movement, jim]);
   const [error, setError] = useState(null);
   const [view, setView] = useState({ count: 0, tracking: 'lost', lastRep: null, issue: null, hint: null });
   const [caught, setCaught] = useState(null);
