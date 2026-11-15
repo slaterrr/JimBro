@@ -235,6 +235,14 @@ function allowed(id, intake) {
   return Boolean(info) && canDo(id, intake.equipment) && !(intake.avoid ?? []).includes(info.pattern) && info.level <= maxLevel(intake);
 }
 
+/** Library exercises this intake can use (equipment, limitations, experience). */
+export const allowedFor = (id, intake) => allowed(id, intake);
+
+/** Substitution options for an exercise within the program's constraints. */
+export function programSubstitutes(exercise, intake) {
+  return substitutes(exercise, { equipment: intake.equipment, avoid: intake.avoid ?? [], level: maxLevel(intake) - 1 }).options.filter((o) => allowed(o.exercise, intake));
+}
+
 function latestSet(history, exercise) {
   let best = null;
   for (const w of history ?? []) for (const s of w.sets ?? []) {
