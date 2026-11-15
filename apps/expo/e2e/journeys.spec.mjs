@@ -141,11 +141,9 @@ test('mission: "20 minutes, chest day" plans a session that starts in the inline
 test('plan: Create a New Plan builds and saves a plan for a goal', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
   await say(page, 'Create a new plan');
-  await expect(page.getByText('Import workouts (CSV or Excel)').last()).toBeVisible();
-  await tap(page, 'Plan from my goal (no photo)');
-  const confirm = page.getByText(/^(Confirm|Save plan|Use this plan)$/).locator('visible=true').last();
-  await expect(confirm).toBeVisible();
-  await confirm.click();
+  await expect(page.getByText('Your weekly plan', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Day 1/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Save as my plan', exact: true }).click();
   await expect.poll(async () => Boolean((await saved(page)).plan)).toBe(true);
 });
 
