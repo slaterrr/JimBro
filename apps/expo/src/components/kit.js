@@ -25,8 +25,8 @@ export function JimBars({ height = 22, color = T.accent }) {
   );
 }
 
-export function Card({ children, style, onPress }) {
-  const body = <View style={[st.card, style]}>{children}</View>;
+export function Card({ children, style, onPress, testID }) {
+  const body = <View testID={testID} style={[st.card, style]}>{children}</View>;
   return onPress ? <TouchableOpacity activeOpacity={0.85} onPress={onPress}>{body}</TouchableOpacity> : body;
 }
 

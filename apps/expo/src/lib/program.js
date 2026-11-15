@@ -489,6 +489,9 @@ export function programNext(program, history = []) {
   };
 }
 
+/** What a started workout carries for a program session (so the block position advances). */
+export const sessionPlanned = (program, session, week) => ({ ...toDay(session), programId: program.id, programVersion: program.version, week });
+
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 /** Replace one exercise from a week onward. Returns { program } (new version) or { error }. */

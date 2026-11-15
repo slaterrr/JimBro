@@ -3,7 +3,7 @@ import { EXERCISES } from './exercises.js';
 import { SAFETY } from './coach.js';
 
 export const PANELS = ['camera', 'progress', 'muscles', 'plan', 'import'];
-export const TOOL_NAMES = ['log_sets', 'correct_set', 'delete_set', 'get_recent_sets', 'get_goal_progress', 'get_weekly_checkin', 'get_last_set_report', 'get_workout_context', 'get_live_session', 'show_panel'];
+export const TOOL_NAMES = ['log_sets', 'correct_set', 'delete_set', 'get_recent_sets', 'get_goal_progress', 'get_weekly_checkin', 'get_last_set_report', 'get_workout_context', 'get_live_session', 'show_panel', 'build_program', 'get_program'];
 const cameraIds = new Set(EXERCISES.filter(e => e.camera).map(e => e.id));
 
 export function validateAction(action) {

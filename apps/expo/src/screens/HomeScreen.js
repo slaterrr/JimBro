@@ -2,10 +2,11 @@ import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
-import { useApp, useLiveCamera } from '../AppState.js';
+import { newId, useApp, useLiveCamera } from '../AppState.js';
 import { PlanCard } from '../components/ChatPlanCard.js';
 import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
+import { IntakeCard, ProgramCard, SessionCard, SwapCard } from '../components/ProgramCards.js';
 import { Card, Field, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
@@ -18,6 +19,9 @@ import { answerContext } from '../lib/coachQA.js';
 import { answerPerformance } from '../lib/perfCoach.js';
 import { SAFETY, SAFETY_TEXT } from '../lib/coach.js';
 import { chatAction } from '../lib/chatActions.js';
+import { answerIntake, buildProgram, INTAKE_FIELDS, nextQuestion, programToPlan, sessionPlanned, swapExercise, validateProgram } from '../lib/program.js';
+import { programQuery, startProgramChat } from '../lib/programChat.js';
+import { createWelcome, WELCOME_TEXT } from '../lib/welcome.js';
 import { CoachScreen } from './CoachScreen.js';
 import { MusclesScreen } from './MusclesScreen.js';
 import { ProgressScreen } from './ProgressScreen.js';
@@ -26,13 +30,23 @@ import { T, type } from '../theme.js';
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
 const PANEL_LABELS = { camera: 'Workout studio', progress: 'Your progress', muscles: 'Muscle & recovery map', plan: 'Your training plan', import: 'Import & reference photo' };
-const TOOL_LABELS = { get_recent_sets: 'Read workout history', get_live_session: 'Read measured camera reps', get_workout_context: 'Read your workout', get_goal_progress: 'Check your goals', get_weekly_checkin: 'Review your week', get_last_set_report: 'Read your set report', log_sets: 'Propose logging a set', correct_set: 'Propose a correction', delete_set: 'Propose deleting a set', show_panel: 'Open a chat tool' };
+const TOOL_LABELS = { get_recent_sets: 'Read workout history', get_live_session: 'Read measured camera reps', get_workout_context: 'Read your workout', get_goal_progress: 'Check your goals', get_weekly_checkin: 'Review your week', get_last_set_report: 'Read your set report', log_sets: 'Propose logging a set', correct_set: 'Propose a correction', delete_set: 'Propose deleting a set', show_panel: 'Open a chat tool', build_program: 'Build and check a program', get_program: 'Read your program' };
 const QUICK = [
   { icon: 'camera-outline', title: 'Start a workout', detail: 'Your camera. Every rep.', message: 'Start a workout' },
-  { icon: 'creation', title: 'Build me a plan', detail: 'A routine that fits your life.', message: 'Create a new plan' },
+  { icon: 'creation', title: 'Build my program', detail: 'A multi-week plan that fits your life.', message: 'Build me a training program' },
   { icon: 'chart-line', title: 'Review my progress', detail: 'Find your next small win.', message: 'Review my progress' },
   { icon: 'timer-outline', title: 'I have 20 minutes', detail: 'Make the most of today.', message: 'I have 20 minutes, help me train arms' },
 ];
+
+// One spoken welcome per app launch: module scope survives screen remounts but not a reload.
+const welcomeVoice = { current: null };
+const welcomeListeners = new Set();
+const launchWelcome = createWelcome(
+  { say: (t, o) => welcomeVoice.current?.say(t, o) ?? false, stop: () => welcomeVoice.current?.stop() },
+  { onChange: (state) => welcomeListeners.forEach((fn) => fn(state)) },
+);
+const pageActivated = () => (typeof navigator !== 'undefined' && navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined);
+const intakeLabel = (field, value) => (Array.isArray(value) ? value : [value]).map((v) => field.options.find(([id]) => id === v)?.[1] ?? String(v)).join(', ');
 
 function SmallButton({ icon, label, onPress, active = false }) {
   return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[st.smallButton, active && { backgroundColor: T.accentSoft }]}><Icon name={icon} size={20} color={active ? T.accentText : T.textDim} /></TouchableOpacity>;
@@ -57,7 +71,9 @@ function CameraConfirm({ message, onConfirm, onCancel }) {
 
 export function HomeScreen({ openLog, openActivity }) {
   const app = useApp();
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, startMission, conversation } = app;
+  const { settings, update, ready, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, savePlan, startMission, conversation } = app;
+  welcomeVoice.current = voice;
+  const [welcomeState, setWelcomeState] = useState(launchWelcome.state);
   const { snapshot: liveCamera, clear: clearCamera } = useLiveCamera();
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
   const [text, setText] = useState('');
@@ -84,12 +100,17 @@ export function HomeScreen({ openLog, openActivity }) {
     return () => { alive = false; };
   }, []);
   useEffect(() => { if (messages.length) scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
+  useEffect(() => { welcomeListeners.add(setWelcomeState); return () => { welcomeListeners.delete(setWelcomeState); }; }, []);
+  // Greet after saved preferences load, so a saved mute is respected. Never opens the microphone.
+  useEffect(() => { if (ready) setWelcomeState(launchWelcome.start(settings, { platform: Platform.OS, userActivated: Platform.OS === 'web' ? pageActivated() : undefined })); }, [ready]);
+  const toggleMute = () => { const on = !settings.speak; update({ speak: on }); if (!on) voice.stop(); };
+  const replayWelcome = () => { if (!launchWelcome.replay(settings)) push({ kind: 'notice', text: 'Jim is muted. Unmute Jim to hear the greeting.' }); };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
 
   const push = (...items) => conversation.update(cur => [...cur, ...items]);
   const speak = line => {
     if (!line) return;
-    if (!talkRef.current) return say(line);
+    if (!talkRef.current) return say(line, { interrupt: true }); // a new reply replaces whatever is playing
     voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
   };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
@@ -129,6 +150,63 @@ export function HomeScreen({ openLog, openActivity }) {
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `Saved ${c.reps.length} measured reps of ${exerciseName(c.movement)}. Added weight and effort are user-reported.` } : m));
   };
 
+  // ---------- multi-week programs (lib/program.js): intake -> checked program card -> confirm ----------
+  const programTurn = (intake, question, first = false) => {
+    if (question) {
+      const text = `${first ? "Let's build your program. I'll ask a few quick questions; your logged sets set the starting loads. " : ''}${question.question}`;
+      return { reply: question.question, messages: [{ me: false, text }, { kind: 'program-intake', intake, field: question.id }] };
+    }
+    const program = buildProgram(intake, { history, unit: settings.unit, id: `program-${newId()}`, now: new Date().toISOString() });
+    const problems = validateProgram(program, program.intake, { history });
+    if (problems.length) return { reply: `I couldn't build a program that passes my checks (${problems[0]}). Nothing was saved.`, messages: [{ kind: 'tools', calls: [{ name: 'build_program', status: 'rejected' }] }, { me: false, text: `I couldn't build a program that passes my checks (${problems[0]}). Nothing was saved.` }] };
+    const fromHistory = program.weeks[0].sessions.flatMap((x) => x.items).filter((i) => i.load.from).length;
+    const reply = `Here's your ${program.name}. Week 1 is open below; tap any week or day to see it. ${fromHistory ? `${fromHistory} starting loads come from your logged sets; the rest are set by effort.` : 'You have no logged sets for these lifts yet, so starting loads are set by effort, not guessed.'} Nothing is saved until you confirm.`;
+    return { reply, messages: [{ kind: 'tools', calls: [{ name: 'build_program', status: 'completed' }] }, { me: false, text: reply }, { kind: 'program', program }] };
+  };
+  const answerProgram = (index, message) => {
+    const card = conversation.getSnapshot().messages[index];
+    const r = answerIntake(card.intake, card.field, message);
+    if (!r.ok) {
+      conversation.update(cur => cur.filter((_, i) => i !== index));
+      const text = `${r.error} Or say "cancel" to stop building.`;
+      return { reply: text, messages: [{ me: false, text }, { kind: 'program-intake', intake: card.intake, field: card.field }] };
+    }
+    conversation.update(cur => cur.filter((_, i) => i !== index));
+    return programTurn(r.intake, nextQuestion(r.intake));
+  };
+  const programAnswer = q => {
+    const tools = { kind: 'tools', calls: [{ name: 'get_program', status: 'completed' }] };
+    const text = { me: false, text: q.reply };
+    if (q.type === 'today' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week }];
+    if (q.type === 'shorter' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week, short: true }];
+    if (q.type === 'swap' && q.options.length) return [tools, text, { kind: 'swap', from: q.from, options: q.options, fromWeek: q.fromWeek }];
+    return [tools, text];
+  };
+  const saveProgram = index => {
+    const card = conversation.claimConfirmation(index, m => validateProgram(m.program, m.program.intake, { history }).length === 0);
+    if (!card) return;
+    const replaced = Boolean(plan);
+    savePlan(programToPlan(card.program));
+    const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Ask "What's today's workout?" when you're ready.`;
+    conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: line } : m));
+    speak(`Saved. ${card.program.name}.`);
+  };
+  const startSession = index => {
+    const m = conversation.getSnapshot().messages[index];
+    if (m?.kind !== 'session' || active || !plan?.program) return;
+    startWorkout(m.name, sessionPlanned(plan.program, m.session, m.week));
+    conversation.update(cur => cur.map((item, i) => i === index ? { kind: 'notice', text: `${m.name} started. Your workout studio is ready below.` } : item));
+    openPanel('camera');
+  };
+  const pickSwap = (index, to) => {
+    const m = conversation.getSnapshot().messages[index];
+    if (m?.kind !== 'swap' || !plan?.program) return;
+    const r = swapExercise(plan.program, { from: m.from, to, fromWeek: m.fromWeek });
+    conversation.update(cur => [...cur.map((item, i) => i === index ? { kind: 'notice', text: `Swap chosen: ${exerciseName(m.from)} → ${exerciseName(to)}.` } : item),
+      ...(r.error ? [{ me: false, text: `${r.error} Your program was not changed.` }]
+        : [{ kind: 'program', program: r.program, mode: 'swap', summary: `${exerciseName(m.from)} → ${exerciseName(to)} from week ${m.fromWeek} (${r.count} sessions). Starting loads for the new exercise are set by effort.` }])]);
+  };
+
   const send = async raw => {
     const message = raw.trim();
     if (!message) return;
@@ -163,6 +241,19 @@ export function HomeScreen({ openLog, openActivity }) {
       if (/\bhow many reps\b/i.test(message) && liveCamera?.sessionId === active?.id && Date.now() - new Date(liveCamera.updatedAt).getTime() < 300000) {
         return { source: 'local', reply: `The camera has counted ${liveCamera.reps} reps of ${exerciseName(liveCamera.exercise)} in this set. These are measured on your device and are not saved until you confirm.`, toolCalls: [{ name: 'get_live_session', status: 'completed' }] };
       }
+      // An open program question takes the typed answer first.
+      const intakeIndex = conversation.getSnapshot().messages.findLastIndex(m => m.kind === 'program-intake');
+      if (intakeIndex >= 0) {
+        if (/^(cancel|stop building|never ?mind|forget it)[.!]?$/i.test(message)) {
+          conversation.update(cur => cur.filter((_, i) => i !== intakeIndex));
+          return { source: 'local', reply: 'Okay, I stopped building the program. Nothing was saved.' };
+        }
+        return { source: 'local', ...answerProgram(intakeIndex, message) };
+      }
+      const pq = programQuery(message, { plan, history, active });
+      if (pq) return { source: 'local', reply: pq.reply, messages: programAnswer(pq) };
+      const started = startProgramChat(message, { settings });
+      if (started) return { source: 'local', ...programTurn(started.intake, started.question, true) };
       const ask = parseMission(message);
       if (ask.recognized) {
         const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
@@ -218,7 +309,7 @@ export function HomeScreen({ openLog, openActivity }) {
       ['camera-outline', 'Workout studio', () => send('Start a workout')],
       ['chart-line', 'Progress & history', () => send('Review my progress')],
       ['human-handsup', 'Muscle & recovery', () => send('Show my muscles')],
-      ['calendar-outline', 'Training plan', () => send('Create a new plan')],
+      ['calendar-outline', 'Training program', () => send('Build me a training program')],
       ['tray-arrow-up', 'Import workouts', () => send('Import my workouts')],
     ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} key={label} onPress={action} style={[st.navItem, i === 0 && st.navActive]}><Icon name={icon} size={19} color={i === 0 ? T.accentText : T.textMute} /><Text style={[st.navText, i === 0 && { color: T.text }]}>{label}</Text>{i === 0 ? <View style={st.dot} /> : null}</TouchableOpacity>)}
     <View style={st.sideDivider} />
@@ -238,7 +329,9 @@ export function HomeScreen({ openLog, openActivity }) {
           {!desktop ? <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} /> : <View style={st.headerDot} />}
           <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim <Text style={{ color: T.textMute, fontWeight: '400' }}> / Your AI gym bro</Text></Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
         </View>
-        <SmallButton icon={talk ? 'volume-high' : 'headphones'} label={talk ? 'Stop talk mode' : 'Start talk mode'} active={talk} onPress={toggleTalk} />
+        <SmallButton icon={settings.speak ? 'volume-high' : 'volume-off'} label={settings.speak ? 'Mute Jim' : 'Unmute Jim'} onPress={toggleMute} />
+        {!compact ? <SmallButton icon="replay" label="Replay greeting" onPress={replayWelcome} /> : null}
+        <SmallButton icon={talk ? 'microphone' : 'headphones'} label={talk ? 'Stop talk mode' : 'Start talk mode'} active={talk} onPress={toggleTalk} />
         {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
@@ -246,7 +339,12 @@ export function HomeScreen({ openLog, openActivity }) {
           <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
           <Text style={st.eyebrow}>YOUR SPACE TO GET STRONGER</Text>
           <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Big goals.{"\n"}<Text style={{ color: T.accentText }}>One conversation.</Text></Text>
-          <Text style={st.heroSubtitle}>A coach, a workout partner, a little accountability.{"\n"}Tell me what you’re working toward. We’ll take it from here.</Text>
+          <Text testID="welcome-greeting" style={st.heroSubtitle}>{WELCOME_TEXT}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 }}>
+            {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
+          </View>
+          <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
           <View style={st.quickGrid}>{QUICK.map(q => <TouchableOpacity accessibilityRole="button" accessibilityLabel={q.title} key={q.title} onPress={() => send(q.message)} style={[st.quickCard, { width: compact ? '100%' : '48.8%' }]}><View style={st.quickIcon}><Icon name={q.icon} color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={st.quickTitle}>{q.title}</Text><Text style={st.quickDetail}>{q.detail}</Text></View><Icon name="arrow-top-right" size={17} color={T.textMute} /></TouchableOpacity>)}</View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}><Icon name="pulse" color={T.accent} size={16} /><Text style={{ color: T.textMute, fontSize: 12, flexShrink: 1 }}>{health.text}</Text></TouchableOpacity>
         </View> : messages.map((m, index) => {
@@ -254,6 +352,10 @@ export function HomeScreen({ openLog, openActivity }) {
           if (m.kind === 'tools') return <View key={index} style={st.receipts}>{m.calls.map((c, i) => <View key={i} style={st.receipt}><Icon name={c.status === 'rejected' ? 'close-circle-outline' : c.status === 'proposed' ? 'clock-outline' : 'check-circle-outline'} color={c.status === 'rejected' ? T.amber : T.accent} size={15} /><Text style={st.receiptText}>{TOOL_LABELS[c.name]} · {c.status === 'proposed' ? 'awaiting confirmation' : c.status}</Text></View>)}</View>;
           if (m.kind === 'notice') return <View key={index} style={st.notice}><Icon name="check-circle-outline" color={T.accent} size={16} /><Text style={{ color: T.textDim, fontSize: 13, lineHeight: 20, flex: 1 }}>{m.text}</Text></View>;
           if (m.kind === 'camera-confirm') return <CameraConfirm key={m.confirmationId} message={m} onConfirm={reported => confirmCamera(index, reported)} onCancel={() => cancelCard(index)} />;
+          if (m.kind === 'program-intake') { const field = INTAKE_FIELDS.find(f => f.id === m.field); return <IntakeCard key={`intake-${index}`} field={field} onAnswer={v => send(intakeLabel(field, v))} onCancel={() => send('cancel')} />; }
+          if (m.kind === 'program') return <ProgramCard key={m.confirmationId} message={m} currentPlan={plan} onSave={() => saveProgram(index)} onCancel={() => conversation.update(cur => cur.map((x, i) => i === index ? { kind: 'notice', text: 'Cancelled. Your plan was not changed.' } : x))} />;
+          if (m.kind === 'session') return <SessionCard key={index} message={m} disabledReason={active ? 'Finish your current workout before starting this one.' : null} onStart={() => startSession(index)} />;
+          if (m.kind === 'swap') return <SwapCard key={index} message={m} onPick={to => pickSwap(index, to)} onCancel={() => conversation.update(cur => cur.map((x, i) => i === index ? { kind: 'notice', text: `Kept ${exerciseName(m.from)}. Your program was not changed.` } : x))} />;
           if (m.kind === 'mission') return <MissionCard key={index} mission={m.mission} onStart={() => { if (conversation.getSnapshot().messages[index]?.kind !== 'mission') return; startMission(m.mission); conversation.update(cur => cur.map((item, i) => i === index ? { kind: 'notice', text: 'Mission started. Your workout studio is ready below.' } : item)); openPanel('camera'); }} onCancel={() => cancelCard(index)} />;
           if (m.kind === 'confirm') return <Card key={m.confirmationId} style={st.confirmCard}><Text style={st.eyebrow}>YOUR CALL</Text><Text style={[type.title, { marginTop: 10 }]}>{m.intent.type === 'delete' ? 'Delete this set?' : m.intent.type === 'correct' ? 'Update your set?' : 'Add to your workout?'}</Text><Text style={[type.body, { marginTop: 8 }]}>{m.intent.summary}</Text><Text style={[type.small, { marginTop: 8 }]}>{m.intent.type === 'log' && !active ? 'Start a workout, then ask Jim to log these sets again. ' : ''}Nothing changes until you confirm. This proposal expires in 5 minutes.</Text><View style={{ flexDirection: 'row', gap: 10 }}><PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(index)}>Confirm</PrimaryButton><PrimaryButton secondary style={{ flex: 1 }} onPress={() => cancelCard(index)}>Cancel</PrimaryButton></View></Card>;
           return <View key={index} style={[st.message, m.me && st.userMessage]}>
@@ -267,7 +369,8 @@ export function HomeScreen({ openLog, openActivity }) {
       </ScrollView>
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
         <View style={[st.composer, focused && { borderColor: T.accent }]}>
-          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={setText} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
+          {talk ? <Text style={st.talkHint}>Talk mode: tap the microphone on your keyboard to dictate. Jim reads replies aloud. JimBro never records audio.</Text> : null}
+          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
           <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><SmallButton icon={talk ? 'volume-high' : 'microphone-outline'} label={talk ? 'Stop talk mode' : 'Dictate (use the keyboard microphone)'} active={talk} onPress={toggleTalk} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
         </View>
         <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
@@ -330,6 +433,9 @@ const st = StyleSheet.create({
   panel: { marginTop: 20, borderWidth: 1, borderColor: T.border, borderRadius: 16, overflow: 'hidden', backgroundColor: T.bg },
   panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 16, paddingRight: 7, minHeight: 49, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.chat.tinted },
   panelTitle: { color: T.accentText, fontSize: 13, fontWeight: '600' },
+  voiceChip: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: T.accent },
+  voiceChipQuiet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: T.chat.accentBorder },
+  talkHint: { color: T.textMute, fontSize: 11, lineHeight: 16, paddingHorizontal: 9, paddingTop: 4 },
   thinking: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20 },
   composerArea: { width: '100%', maxWidth: 870, alignSelf: 'center', paddingTop: 8, paddingBottom: 12 },
   composer: { backgroundColor: T.chat.composer, borderWidth: 1, borderColor: T.chat.composerBorder, borderRadius: 20, padding: 10 },
