@@ -54,8 +54,13 @@ const message = async (page, text) => {
 const saved = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)), DATA_KEY);
 const startWorkout = async page => {
   await message(page, 'Start a workout');
+  await expect(page.getByRole('button', { name: 'Without camera', exact: true })).toBeVisible();
+  expect((await saved(page)).active).toBeNull();
+  await page.getByRole('button', { name: 'Without camera', exact: true }).click();
   await expect.poll(async () => Boolean((await saved(page)).active?.id)).toBe(true);
-  await message(page, 'stop camera');
+  await expect(page.locator('iframe[title="Camera and pose tracking"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
   await expect(page.getByTestId('chat-panel-camera')).toHaveCount(0);
 };
 const allSets = data => [...(data?.history || []), ...(data?.active ? [data.active] : [])].flatMap(w => w.sets || []);
@@ -182,9 +187,10 @@ test('a server-originated camera tool opens inside the conversation', async ({ p
   expect(allSets(await saved(page))).toHaveLength(0);
 });
 
-test('server-originated progress tool uses the existing progress view in chat', async ({ page }) => {
+test('server-originated progress tool opens full Progression and returns to chat', async ({ page }) => {
   await message(page, 'Could you review my training?');
-  await expect(page.getByTestId('chat-panel-progress')).toBeVisible();
+  await expect(page.getByText('Progression', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
   await expect(page.getByLabel('Message Jim', { exact: true })).toBeVisible();
 });
 

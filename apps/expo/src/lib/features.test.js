@@ -50,7 +50,7 @@ const WIRING = {
   ],
   'components/ImportSheet.js': [
     [/getDocumentAsync\(/, 'pick a CSV / Excel workout sheet'],
-    [/parseWorkoutFile\(/, 'sheet parsed with tolerant headers'],
+    [/parseImport\(/, 'JSON dataset validated before preview'],
     [/skipped/, 'skipped rows shown, not guessed'],
     [/importData\(toExport\(/, 'import only after Confirm, via the existing importer'],
     [/launchImageLibraryAsync\(/, 'pick a reference photo'],
@@ -97,9 +97,9 @@ const WIRING = {
   'screens/ProgressScreen.js': [
     [/Goals/, 'Goals tab'],
     [/History/, 'History tab with comparisons'],
-    [/<Dropdown[\s\S]*label="Compare by"/, 'History tab time frame from a dropdown'],
-    [/Estimate my activity level/, 'activity level entry card'],
-    [/<HealthConnect\b/, 'health history import sheet mounted'],
+    [/Back to sessions/, 'session details return to session list'],
+    [/Top load:/, 'session details compare normalized load'],
+    [/Total reps:/, 'session details compare reps'],
   ],
   'components/HealthConnect.js': [
     [/activityLevel\(/, 'activity level estimated from health history'],
