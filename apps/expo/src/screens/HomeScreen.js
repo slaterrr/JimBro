@@ -380,12 +380,10 @@ export function HomeScreen({ openLog, openActivity }) {
       <View style={[st.header, compact && { paddingHorizontal: 12 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
           {!desktop ? <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} /> : <View style={st.headerDot} />}
-          <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim <Text style={{ color: T.textMute, fontWeight: '400' }}> / Your AI gym bro</Text></Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
+          <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim </Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
         </View>
         <SmallButton icon={settings.speak ? 'volume-high' : 'volume-off'} label={settings.speak ? 'Mute Jim' : 'Unmute Jim'} onPress={toggleMute} />
-        {!compact ? <SmallButton icon="replay" label="Replay greeting" onPress={replayWelcome} /> : null}
-        <SmallButton icon={talk ? 'microphone' : 'headphones'} label={talk ? 'Stop talk mode' : 'Start talk mode'} active={talk} onPress={toggleTalk} />
-        {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
+                {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
         {!messages.length ? <View style={st.welcome}>

@@ -67,7 +67,7 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
   const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
   const [adding, setAdding] = useState(false);
   const [health, setHealth] = useState(false);
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(initialTab === 'strength' ? 'overview' : initialTab);
   const [exercise, setExercise] = useState('bench');
   const unit = settings.unit;
   const workouts = useMemo(() => [...history, ...(active?.sets.length ? [active] : [])], [history, active]);
@@ -99,7 +99,7 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
+      <Segmented options={[['overview', 'Overview'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
       {['volume', 'prs'].includes(tab) ? <PrimaryButton secondary onPress={() => setTab('overview')}>Back to Overview</PrimaryButton> : null}
 
       {tab === 'overview' ? <Comparisons history={history} unit={unit} onSubmit={setComparison} /> : null}

@@ -1,4 +1,4 @@
-// "Create a New Plan" extras: import past workouts from a CSV / Excel sheet, and build a plan
+// "Create a New Plan" extras: import past workouts from a JimBro JSON dataset sheet, and build a plan
 // from a reference physique photo. Both follow the confirm-card pattern: nothing is written
 // to history or the saved plan until the user taps Confirm.
 // Photo privacy: upload only after the consent box is ticked; the base64 lives in component
@@ -12,12 +12,13 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../AppState.js';
 import { exerciseName } from '../lib/exercises.js';
 import { parseWorkoutFile, toExport } from '../lib/importWorkouts.js';
+import { parseImport } from '../lib/tools.js';
 import { askPhysique } from '../lib/jimAI.js';
 import { describeItem } from '../lib/planFromGoal.js';
 import { T, type } from '../theme.js';
 import { Card, Icon, PrimaryButton } from './kit.js';
 
-const SHEET_TYPES = ['text/csv', 'text/comma-separated-values', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/plain'];
+const SHEET_TYPES = ['application/json', 'text/json', 'text/plain'];
 const MAX_SKIPPED_SHOWN = 8;
 
 async function readAsset(asset) {
@@ -43,8 +44,11 @@ export function ImportSheet({ proxyUrl, proxyKey = null, onDone }) {
     if (r.canceled || !r.assets?.[0]) return;
     const asset = r.assets[0];
     try {
+      if (/\.(xlsx?|csv)$/i.test(asset.name)) throw new Error('Choose a JimBro JSON dataset, not a spreadsheet.');
       const bytes = await readAsset(asset);
-      setPreview({ name: asset.name, result: parseWorkoutFile({ name: asset.name, bytes }, { unit: settings.unit }) });
+      const incoming = parseImport(new TextDecoder().decode(bytes));
+      const workouts = incoming.history;
+      setPreview({ name: asset.name, result: { workouts, summary: `${workouts.length} workouts in this dataset.`, setCount: workouts.reduce((n,w) => n+w.sets.length,0), skipped: [] } });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -93,8 +97,8 @@ export function ImportSheet({ proxyUrl, proxyKey = null, onDone }) {
   return (
     <Card style={{ marginTop: 10, gap: 10 }}>
       <Text style={type.title}>Bring your own data</Text>
-      <PrimaryButton secondary onPress={pickSheet}>Import workouts (CSV or Excel)</PrimaryButton>
-      <Text style={type.small}>Columns like date, exercise, sets, reps, weight, unit. Rows Jim can't match are listed, not guessed.</Text>
+      <PrimaryButton secondary onPress={pickSheet}>Import dataset (JSON)</PrimaryButton>
+      <Text style={type.small}>Choose a JimBro JSON dataset exported from the app. Preview the workouts, then confirm to restore them.</Text>
 
       {preview ? (
         <View style={{ gap: 6 }}>
