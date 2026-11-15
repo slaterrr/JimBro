@@ -192,8 +192,8 @@ test('settings: changing Jim\'s persona is saved', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
   await tap(page, 'Activity and settings');
   const before = (await saved(page)).settings?.persona;
-  const play = page.getByLabel(/^Play /).locator('visible=true');
-  await expect(play.first()).toBeVisible();
+  await expect(page.getByText('Jim\'s persona', { exact: true }).locator('visible=true')).toBeVisible();
+  await expect(page.getByLabel(/^Play /).locator('visible=true')).toHaveCount(0);
   for (const name of ['Hype Jim', 'Zen Jim', 'Data Jim', 'Sergeant Jim']) {
     const opt = page.getByText(name, { exact: true }).locator('visible=true');
     if (await opt.count()) { await opt.last().click(); break; }

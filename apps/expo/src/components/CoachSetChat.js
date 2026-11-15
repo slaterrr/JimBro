@@ -8,7 +8,7 @@ import { T, type } from '../theme.js';
 import { Card, Field, IconButton } from './kit.js';
 
 export function CoachSetChat({ target, phase, slotKey, measured, paused, setPaused, sendSet, voiceOn, onFocusChange }) {
-  const { active, history, plan, settings, voice } = useApp();
+  const { active, history, plan, settings, coachVoice: voice } = useApp();
   const [draft, setDraft] = useState('');
   const [turn, setTurn] = useState(null);
   const followUp = useRef(null);

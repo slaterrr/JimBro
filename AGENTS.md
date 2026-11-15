@@ -228,3 +228,8 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+## Keyboard dictation only
+Removed app microphone/Talk, spoken greeting/replay, voice settings and workout voice controls. App speech is disabled centrally even for saved preferences and forced cues. Native message input remains available for Apple keyboard dictation; messages are sent explicitly. Physical iPhone dictation verification remains pending.
+
+Correction: spoken output is enabled only through coachVoice in the live CV workout screen and its mission/set guidance. General chat remains silent; app microphone, Talk mode and voice settings stay removed. CV speech stops when the workout screen unmounts. Expo CV is the on-phone JavaScript pipeline; the legacy Python backend was not changed.

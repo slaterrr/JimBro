@@ -43,7 +43,7 @@ const WIRING = {
   ],
   'screens/HomeScreen.js': [
     [/askJim\(/, 'AI Jim chat with offline fallback'],
-    [/Talk/, 'Talk mode'],
+    [/keyboard.*dictation/, 'native keyboard dictation guidance'],
     [/HOME_OPTIONS|homeActions/, 'Start a Workout / Create a New Plan / Review My Progress'],
     [/healthSummary\(/, 'weekly health summary card'],
     [/go\?\.\('Progress'\)/, 'health summary opens Progress'],
@@ -187,4 +187,11 @@ test('screens never call expo-speech directly; AppState only adapts it for sound
   const app = src('AppState.js');
   assert.equal(app.match(/Speech\.speak\(/g)?.length, 1);
   assert.match(app, /createVoice\(\s*\{\s*speak: \(t, o\) => Speech\.speak\(t, o\)/);
+});
+
+test('chat has no app microphone or spoken reply controls', () => {
+  assert.doesNotMatch(src('screens/HomeScreen.js'), /microphone-outline|toggleTalk|toggleMute|launchWelcome/);
+  assert.match(src('screens/HomeScreen.js'), /accessibilityLabel="Message Jim"/);
+  assert.match(src('screens/CoachScreen.js'), /coachVoice: jim/);
+  assert.doesNotMatch(src('components/Sheets.js'), /VoicePicker|Spoken replies/);
 });
