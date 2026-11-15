@@ -13,6 +13,22 @@ you hands-free. Video never leaves the phone.
 |---|---|---|---|
 | ![Home](docs/design/expo-Home.png) | ![Muscles](docs/design/expo-Muscles.png) | ![Progress](docs/design/expo-Progress.png) | ![Coach](docs/design/expo-Coach.png) |
 
+## Team review prototype — feat/chat-mvp-review
+
+A separate worktree hosts the chat-centered prototype. The blue Jim mascot now sets
+its palette: body blue, graphite, cream and pale yellow. Camera, progress/history,
+muscle recovery, plans and imports open in the conversation. Current main's login,
+account-scoped records, workout-only logging and optional AI plan personalization
+are preserved. Nothing is merged, deployed or published to the shared Expo preview.
+
+![Actual desktop review preview — offline coach](docs/design/review-blue-desktop.png)
+
+Run `npm ci && npm run preview:review` in `apps/expo` for the web preview.
+[Walkthrough, screenshots and test evidence](docs/REVIEW_PROTOTYPE.md).
+**711 engine/helper/API tests +39 browser scenarios pass**; Android/iOS exports build.
+Mocked-SDK AI tests, recorded-landmark replay and the actual offline web preview are
+reported separately from live Claude and physical-camera validation.
+
 ## Try it in a minute
 ```bash
 cd apps/expo

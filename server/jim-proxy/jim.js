@@ -2,6 +2,7 @@
 // tools (answered from the app's context snapshot), and turns write tools into PROPOSALS
 // shaped exactly like apps/expo/src/lib/intents.js output. Nothing is stored or applied here.
 import { timingSafeEqual } from 'node:crypto';
+import { PANELS, validateAction } from '../../apps/expo/src/lib/chatActions.js';
 
 import { SAFETY, SAFETY_TEXT } from '../../apps/expo/src/lib/coach.js';
 import { principleRules } from '../../apps/expo/src/lib/coachingPrinciples.js';
@@ -39,13 +40,14 @@ export function buildSystemPrompt(personaId) {
     ...principleRules().map((r) => `- ${r}`),
     '- Your reply is read aloud: plain sentences, no markdown, no lists, no emoji.',
     '- Use the get_* tools for any number you cite. To log, fix or delete a set, call log_sets, correct_set or delete_set: they only PROPOSE the change and the user confirms it on screen, so say "confirm and I will..." rather than claiming it is done.',
+    '- Everything happens in this chat. Use show_panel for camera, progress, muscles, plan or import. Camera and read operations are local and reversible. Never claim camera access is granted or video is recorded. get_live_session returns observed counts only; absent camera data means unknown. Saving a set always needs its confirmation card.',
     `- Exercises the app knows: ${EXERCISE_IDS.join(', ')}. For anything else, say you cannot log it yet.`,
   ].join('\n');
 }
 
 const SET_ID = { type: 'string', description: 'id of a set from get_recent_sets' };
 const EXERCISE = { type: 'string', enum: EXERCISE_IDS };
-export const TOOLS = [
+const TOOL_DEFINITIONS = [
   {
     name: 'log_sets',
     description: 'Propose logging one or more identical sets. The user must confirm.',
@@ -92,6 +94,27 @@ export const TOOLS = [
   { name: 'get_last_set_report', description: 'Measured report of the last camera-counted set.', input_schema: { type: 'object', properties: {} } },
   { name: 'get_workout_context', description: "Today's planned workout, sets left in the current workout, and the user's stated equipment and limits.", input_schema: { type: 'object', properties: {} } },
 ];
+TOOL_DEFINITIONS.push(
+  { name: 'get_live_session', description: 'Read the active workout and latest observed camera rep count. Null camera means no fresh measurement.', input_schema: { type: 'object', properties: {} } },
+  { name: 'show_panel', description: 'Open a tool inside the conversation. Camera permission is requested on device. No workout data is saved.', input_schema: { type: 'object', properties: { panel: { type: 'string', enum: PANELS }, exercise: { type: 'string', enum: EXERCISES.filter(e => e.camera).map(e => e.id) } }, required: ['panel'] } },
+);
+function strictSchema(schema) {
+  if (schema.type !== 'object') return schema;
+  return { ...schema, additionalProperties: false, properties: Object.fromEntries(Object.entries(schema.properties).map(([k, v]) => [k, strictSchema(v)])) };
+}
+export const TOOLS = TOOL_DEFINITIONS.map(t => ({ ...t, strict: true, input_schema: strictSchema(t.input_schema) }));
+
+// Validate independently of the model/provider: strict output is not a trust boundary.
+function matchesSchema(value, schema) {
+  if (schema.type === 'object') return value && typeof value === 'object' && !Array.isArray(value)
+    && (schema.required ?? []).every(k => Object.hasOwn(value, k))
+    && Object.entries(value).every(([k, v]) => Object.hasOwn(schema.properties, k) && matchesSchema(v, schema.properties[k]));
+  if (schema.enum && !schema.enum.includes(value)) return false;
+  if (schema.type === 'string') return typeof value === 'string' && value.length <= 200;
+  if (schema.type === 'integer' && !Number.isInteger(value)) return false;
+  if (['integer', 'number'].includes(schema.type)) return typeof value === 'number' && Number.isFinite(value) && value >= (schema.minimum ?? -Infinity) && value <= (schema.maximum ?? Infinity);
+  return true;
+}
 const WRITE_TOOLS = new Set(['log_sets', 'correct_set', 'delete_set']);
 
 export function runReadTool(tool, input, context = {}) {
@@ -104,6 +127,7 @@ export function runReadTool(tool, input, context = {}) {
     case 'get_goal_progress': return { goals: context.goals ?? [] };
     case 'get_weekly_checkin': return context.weeklyCheckIn ?? { none: 'No check-in data yet.' };
     case 'get_last_set_report': return context.lastSetReport ?? { none: 'No camera set report yet.' };
+    case 'get_live_session': return { session: context.activeSession ?? null, camera: context.liveCamera ?? null };
     case 'get_workout_context': return context.workout ?? { none: 'No workout context yet.' };
     default: return { error: `Unknown tool ${tool}` };
   }
@@ -186,27 +210,48 @@ export async function handleChat(body, client, { fallbacks = FALLBACKS_DEFAULT }
   const context = body.context && typeof body.context === 'object' ? body.context : {};
   const system = buildSystemPrompt(body.persona);
   const proposals = [];
+  const actions = [];
+  const toolCalls = [];
+  const seenTools = new Set();
+  const result = () => ({ reply, proposals, ...(actions.length ? { actions } : {}), ...(toolCalls.length ? { toolCalls } : {}) });
   const convo = [...messages];
   let reply = '';
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
     const res = await callClaude(client, { model: MODEL, max_tokens: MAX_TOKENS, output_config: { effort: EFFORT }, system, tools: TOOLS, messages: convo }, fallbacks);
     if (res.stop_reason === 'refusal') return { reply: REFUSED, proposals: [], refused: true };
-    if (res.stop_reason === 'max_tokens') return { reply: CUT_OFF, proposals };
+    if (res.stop_reason === 'max_tokens') { reply = CUT_OFF; return result(); }
     reply = textOf(res) || reply;
     const uses = res.content.filter((b) => b.type === 'tool_use');
     if (res.stop_reason !== 'tool_use' || !uses.length || round === MAX_TOOL_ROUNDS) break;
-    const results = uses.map((u) => {
+    const results = uses.slice(0, 24).map((u) => {
+      const tool = TOOLS.find(t => t.name === u.name);
+      const valid = tool && matchesSchema(u.input, tool.input_schema);
+      const receipt = { name: tool?.name ?? 'unknown', status: 'rejected' };
+      if (toolCalls.length < 24) toolCalls.push(receipt);
+      const respond = (content, error = false) => ({ type: 'tool_result', tool_use_id: u.id, content, is_error: error });
+      if (!valid) return respond('Rejected: unknown tool or invalid arguments.', true);
+      const signature = JSON.stringify([u.name, u.input]);
+      if (seenTools.has(signature) && (WRITE_TOOLS.has(u.name) || u.name === 'show_panel')) return respond('Already proposed or opened in this turn; do not repeat.', true);
+      seenTools.add(signature);
+      if (u.name === 'show_panel') {
+        const action = validateAction({ type: 'show_panel', ...u.input });
+        if (!action) return respond('Rejected: unsupported panel or camera exercise.', true);
+        actions.push(action);
+        receipt.status = 'completed';
+        return respond('The app will open this panel in chat. Permission is still required for the camera.');
+      }
       if (WRITE_TOOLS.has(u.name)) {
         const p = proposalFrom(u.name, u.input, context);
-        if (p) proposals.push(p);
+        if (p) { proposals.push(p); receipt.status = 'proposed'; }
         return { type: 'tool_result', tool_use_id: u.id, content: p ? `Proposed to the user for confirmation: ${p.summary}` : 'Rejected: invalid exercise, number or set id.', is_error: !p };
       }
-      return { type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(runReadTool(u.name, u.input, context)) };
+      receipt.status = 'completed';
+      return respond(JSON.stringify(runReadTool(u.name, u.input, context)));
     });
     convo.push({ role: 'assistant', content: res.content }, { role: 'user', content: results });
   }
   if (!reply) reply = proposals.length ? 'Check the card and confirm.' : "Sorry, I lost my train of thought. Try again?";
-  return { reply, proposals };
+  return result();
 }
 
 const WINDOW_MS = 60_000;

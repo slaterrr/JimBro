@@ -1,391 +1,449 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
-import { useApp, useLiveCamera } from '../AppState.js';
+import { newId, useApp, useLiveCamera } from '../AppState.js';
+import { PlanCard } from '../components/ChatPlanCard.js';
 import { ImportSheet } from '../components/ImportSheet.js';
 import { MissionCard } from '../components/Mission.js';
-import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
+import { IntakeCard, ProgramCard, SessionCard, SwapCard } from '../components/ProgramCards.js';
+import { Card, Field, Icon, IconButton, JimBars, PrimaryButton } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
-import { requestAIPlan } from '../lib/aiPlan.js';
-import { confirmedText, missionIntro, planIntro, staleText } from '../lib/homeReplies.js';
+import { confirmedText, missionIntro } from '../lib/homeReplies.js';
 import { proxyStatusLine } from '../lib/aiStatus.js';
 import { healthSummary } from '../lib/healthSummary.js';
-import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
-import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
+import { nextWorkout } from '../lib/homeActions.js';
+import { parseMission, planMission } from '../lib/mission.js';
 import { answerContext } from '../lib/coachQA.js';
 import { answerPerformance } from '../lib/perfCoach.js';
-import { SAFETY } from '../lib/coach.js';
-import { isCompact } from '../lib/layout.js';
-import { buildPlan } from '../lib/plans.js';
-import { R, T, type } from '../theme.js';
+import { SAFETY, SAFETY_TEXT } from '../lib/coach.js';
+import { chatAction } from '../lib/chatActions.js';
+import { answerIntake, buildProgram, INTAKE_FIELDS, nextQuestion, programToPlan, sessionPlanned, swapExercise, validateProgram } from '../lib/program.js';
+import { programQuery, startProgramChat } from '../lib/programChat.js';
+import { createWelcome, WELCOME_TEXT } from '../lib/welcome.js';
+import { CoachScreen } from './CoachScreen.js';
+import { MusclesScreen } from './MusclesScreen.js';
+import { ProgressScreen } from './ProgressScreen.js';
+import { T, type } from '../theme.js';
 
-const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
+const PANEL_LABELS = { camera: 'Workout studio', progress: 'Your progress', muscles: 'Muscle & recovery map', plan: 'Your training plan', import: 'Import & reference photo' };
+const TOOL_LABELS = { get_recent_sets: 'Read workout history', get_live_session: 'Read measured camera reps', get_workout_context: 'Read your workout', get_goal_progress: 'Check your goals', get_weekly_checkin: 'Review your week', get_last_set_report: 'Read your set report', log_sets: 'Propose logging a set', correct_set: 'Propose a correction', delete_set: 'Propose deleting a set', show_panel: 'Open a chat tool', build_program: 'Build and check a program', get_program: 'Read your program' };
+const QUICK = [
+  { icon: 'camera-outline', title: 'Start a workout', detail: 'Your camera. Every rep.', message: 'Start a workout' },
+  { icon: 'creation', title: 'Build my program', detail: 'A multi-week plan that fits your life.', message: 'Build me a training program' },
+  { icon: 'chart-line', title: 'Review my progress', detail: 'Find your next small win.', message: 'Review my progress' },
+  { icon: 'timer-outline', title: 'I have 20 minutes', detail: 'Make the most of today.', message: 'I have 20 minutes, help me train arms' },
+];
 
-const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
-const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
+// One spoken welcome per app launch: module scope survives screen remounts but not a reload.
+const welcomeVoice = { current: null };
+const welcomeListeners = new Set();
+const launchWelcome = createWelcome(
+  { say: (t, o) => welcomeVoice.current?.say(t, o) ?? false, stop: () => welcomeVoice.current?.stop() },
+  { onChange: (state) => welcomeListeners.forEach((fn) => fn(state)) },
+);
+const pageActivated = () => (typeof navigator !== 'undefined' && navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined);
+const intakeLabel = (field, value) => (Array.isArray(value) ? value : [value]).map((v) => field.options.find(([id]) => id === v)?.[1] ?? String(v)).join(', ');
 
-function Glow() {
-  return (
-    <Svg width="100%" height={110} viewBox="0 0 400 110" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
-      <Defs>
-        <LinearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={T.accent} stopOpacity="0.55" />
-          <Stop offset="1" stopColor={T.accent} stopOpacity="0" />
-        </LinearGradient>
-      </Defs>
-      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34 L400 110 L0 110 Z" fill="url(#glow)" />
-      <Path d="M0 70 C80 95 140 95 210 72 C280 48 330 30 400 34" stroke={T.accent} strokeWidth="2" fill="none" />
-    </Svg>
-  );
+function SmallButton({ icon, label, onPress, active = false }) {
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[st.smallButton, active && { backgroundColor: T.accentSoft }]}><Icon name={icon} size={20} color={active ? T.accentText : T.textDim} /></TouchableOpacity>;
 }
 
-function PlanCard({ goal: initialGoal = 'hypertrophy', proxyUrl: aiUrl, proxyKey: aiKey }) {
-  const { savePlan, startWorkout, active, plan: saved, history } = useApp();
-  const [goal, setGoal] = useState(initialGoal);
-  const [days, setDays] = useState(3);
-  const [minutes, setMinutes] = useState(45);
-  const [equipment, setEquipment] = useState(['barbell', 'dumbbells']);
-  const [aiResult, setAiResult] = useState(null);
-  const [aiBusy, setAiBusy] = useState(false);
-  const requested = useRef(false);
-  const req = { goal, days_per_week: days, minutes_per_session: minutes, equipment };
-  const localPlan = equipment.length ? buildPlan(req) : null;
-  const plan = aiResult && aiResult.requestKey === JSON.stringify(req) ? aiResult.plan : localPlan;
-  const personalize = async () => {
-    if (!localPlan || requested.current) return;
-    requested.current = true;
-    setAiBusy(true);
-    try {
-      const key = JSON.stringify(req);
-      const result = await requestAIPlan({ request: req, history, url: aiUrl, key: aiKey });
-      setAiResult({ requestKey: key, ...result });
-    } finally { requested.current = false; setAiBusy(false); }
-  };
-  const isSaved = saved && JSON.stringify(saved.request) === JSON.stringify(req);
-  return (
-    <Card style={{ marginTop: 10 }}>
-      <Text style={type.title}>Your weekly plan</Text>
-      <Text style={[type.label, { marginVertical: 8 }]}>Goal</Text>
-      <Chips options={GOALS} value={goal} onChange={setGoal} />
-      <Text style={[type.label, { marginVertical: 8 }]}>Days per week</Text>
-      <Chips options={[2, 3, 4, 5].map((d) => [d, String(d)])} value={days} onChange={setDays} />
-      <Text style={[type.label, { marginVertical: 8 }]}>Minutes</Text>
-      <Chips options={[30, 45, 60].map((m) => [m, String(m)])} value={minutes} onChange={setMinutes} />
-      <Text style={[type.label, { marginVertical: 8 }]}>Equipment</Text>
-      <Chips multi options={EQUIPMENT} value={equipment} onChange={(id) => setEquipment((e) => (e.includes(id) ? e.filter((x) => x !== id) : [...e, id]))} />
-      {plan?.days.map((d) => (
-        <View key={d.day} style={{ marginTop: 12 }}>
-          <Text style={[type.label, { color: T.text }]}>Day {d.day} · ~{Math.round(d.estimated_minutes)} min</Text>
-          <Text style={type.small}>{d.items.map((i) => `${exerciseName(i.exercise)} ${i.sets}×${i.reps_low}–${i.reps_high}`).join(' · ')}</Text>
-        </View>
-      ))}
-      <PrimaryButton secondary disabled={!plan || aiBusy} onPress={personalize}>{aiBusy ? 'Personalizing…' : 'Personalize with Jim AI (optional)'}</PrimaryButton>
-      {aiResult?.requestKey === JSON.stringify(req) ? <Text style={type.small}>{aiResult.source === 'ai' ? 'AI suggested an exercise order. ' : 'Using the local plan. '}{aiResult.explanation}</Text> : null}
-      <PrimaryButton disabled={!plan || aiBusy} onPress={() => savePlan({ ...plan, request: req })}>{isSaved ? 'Saved ✓' : 'Save as my plan'}</PrimaryButton>
-      {isSaved && !active ? (
-        <PrimaryButton secondary onPress={() => startWorkout('Plan day 1', plan.days[0])}>Start day 1</PrimaryButton>
-      ) : null}
-    </Card>
-  );
+function CameraConfirm({ message, onConfirm, onCancel }) {
+  const { settings } = useApp();
+  const [weight, setWeight] = useState('0');
+  const [rpe, setRpe] = useState('');
+  const valid = weight.trim() !== '' && Number.isFinite(Number(weight)) && Number(weight) >= 0 && Number(weight) <= 2000 && (!rpe || (Number(rpe) >= 1 && Number(rpe) <= 10));
+  return <Card style={st.confirmCard}>
+    <Text style={st.eyebrow}>MEASURED ON YOUR DEVICE</Text>
+    <Text style={[type.h2, { marginVertical: 10 }]}>{message.camera.reps.length} reps · {exerciseName(message.camera.movement)}</Text>
+    <Text style={type.body}>Save these camera-counted reps? Enter any added weight. Zero means no external load.</Text>
+    <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+      <Field accessibilityLabel="Added weight" label={`Added weight (${settings.unit}) · reported`} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" />
+      <Field accessibilityLabel="Reported effort" label="RPE 1–10 · optional" value={rpe} onChangeText={setRpe} keyboardType="decimal-pad" />
+    </View>
+    <View style={{ flexDirection: 'row', gap: 10 }}><PrimaryButton style={{ flex: 1 }} disabled={!valid} onPress={() => onConfirm({ weight: Number(weight), rpe: rpe ? Number(rpe) : null })}>Confirm</PrimaryButton><PrimaryButton secondary style={{ flex: 1 }} onPress={onCancel}>Cancel</PrimaryButton></View>
+  </Card>;
 }
 
-export function HomeScreen({ openLog, openActivity, go }) {
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission, conversation } = useApp();
-  const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
-  const { snapshot: liveCamera } = useLiveCamera();
-  const [text, setText] = useState('');
-  const compact = isCompact(useWindowDimensions().width);
+export function HomeScreen({ openLog, openActivity }) {
+  const app = useApp();
+  const { settings, update, ready, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, savePlan, startMission, conversation } = app;
+  welcomeVoice.current = voice;
+  const [welcomeState, setWelcomeState] = useState(launchWelcome.state);
+  const { snapshot: liveCamera, clear: clearCamera } = useLiveCamera();
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
-  const setMessages = conversation.update;
+  const [text, setText] = useState('');
   const [talk, setTalk] = useState(false);
-  // One /health ping on mount wakes a sleeping host (free tier) before the first chat.
-  const [proxy, setProxy] = useState(() => (PROXY_URL ? { configured: true, state: 'checking' } : { configured: false, state: 'down', reason: 'not configured' }));
-  useEffect(() => {
-    if (!PROXY_URL) return undefined;
-    let live = true;
-    checkProxy({ url: PROXY_URL, key: PROXY_KEY }).then((r) => {
-      if (live) setProxy(r.ok ? { configured: true, state: 'ok', ms: r.ms } : { configured: true, state: 'down', reason: r.reason });
-    });
-    return () => { live = false; };
-  }, []);
+  const [menu, setMenu] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const { width } = useWindowDimensions();
+  const desktop = width >= 1000;
+  const compact = width < 400;
   const scroll = useRef(null);
   const input = useRef(null);
   const mounted = useRef(true);
   const talkRef = useRef(false);
   talkRef.current = talk;
+  const [proxy, setProxy] = useState(PROXY_URL ? 'checking' : 'offline');
   const health = healthSummary({ history, active, goals, plan });
-
-  const push = (...m) => {
-    setMessages((cur) => [...cur, ...m]);
-    setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
-  };
-
-  // Talk mode always speaks (in the persona's voice) and reopens dictation when Jim is done.
-  const speak = (line) => {
-    if (!line) return;
-    if (!talkRef.current) return say(line);
-    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
-  };
-
-  const send = async (raw) => {
-    const message = raw.trim();
-    if (!message || conversation.getSnapshot().busy) return;
-    setText('');
-    voice.stop();
-    // The shared camera context is ephemeral and keyed to the active on-device workout.
-    // Overlay it only for this request; buildContext whitelists its fields and strips IDs.
-    const activeForJim = active && liveCamera?.sessionId === active.id
-      ? { ...active, cameraSnapshot: liveCamera }
-      : active;
-    const r = await conversation.send(message, async priorMessages => {
-    const prior = historyFor(priorMessages);
-    // Safety is checked before local intent/performance shortcuts as well as cloud calls.
-    if (SAFETY.test(message)) return askJim({ message, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
-    // Performance questions ("how was my last set?", "should I go heavier?") are answered from the
-    // recorded sets on the phone, so every claim comes from data.
-    const perfReply = answerPerformance(message, { history, active })
-      ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
-    if (perfReply) {
-      return { source: 'local', reply: perfReply, proposals: [] };
-    }
-    // Workout Mission: a time-boxed session request is planned on the phone (no AI call), then confirmed.
-    const ask = parseMission(message);
-    if (ask.recognized) {
-      const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
-      const intro = missionIntro(mission, { hasHistory: history.length > 0, persona: settings.persona });
-      return { source: 'local', reply: intro, messages: [{ me: false, text: intro }, { kind: 'mission', mission }] };
-    }
-    return askJim({ message, history: prior, state: { settings, history, active: activeForJim, goals, plan }, url: PROXY_URL, key: PROXY_KEY });
-    });
-    if (r && mounted.current) speak(r.reply || r.proposals?.[0]?.summary);
-  };
+  const aiOn = source === 'ai' || (proxy === 'ok' && source !== 'offline');
+  const status = thinking ? 'Working on it…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : proxyStatusLine({ configured: Boolean(PROXY_URL), state: proxy }, source);
 
   useEffect(() => {
-    if (messages.length || thinking) scroll.current?.scrollToEnd({ animated: true });
-  }, [messages, thinking]);
+    if (!PROXY_URL) return undefined;
+    let alive = true;
+    checkProxy({ url: PROXY_URL, key: PROXY_KEY }).then(r => { if (alive) setProxy(r.ok ? 'ok' : 'offline'); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => { if (messages.length) scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
+  useEffect(() => { welcomeListeners.add(setWelcomeState); return () => { welcomeListeners.delete(setWelcomeState); }; }, []);
+  // Greet after saved preferences load, so a saved mute is respected. Never opens the microphone.
+  useEffect(() => { if (ready) setWelcomeState(launchWelcome.start(settings, { platform: Platform.OS, userActivated: Platform.OS === 'web' ? pageActivated() : undefined })); }, [ready]);
+  const toggleMute = () => { const on = !settings.speak; update({ speak: on }); if (!on) voice.stop(); };
+  const replayWelcome = () => { if (!launchWelcome.replay(settings)) push({ kind: 'notice', text: 'Jim is muted. Unmute Jim to hear the greeting.' }); };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
 
-  // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
-  const choose = (id) => {
-    if (id === 'start') {
-      if (!active) {
-        const next = nextWorkout(plan, history);
-        startWorkout(next.name, next.planned);
-      }
-      go?.('Coach');
-    } else if (id === 'plan') {
-      const intro = planIntro(settings.persona);
-      push({ me: true, text: 'Create a new plan.' }, { me: false, text: intro }, { kind: 'plan' }, { kind: 'import' });
-      speak(intro);
-    } else {
-      go?.('Progress');
-    }
+  const push = (...items) => conversation.update(cur => [...cur, ...items]);
+  const speak = line => {
+    if (!line) return;
+    if (!talkRef.current) return say(line, { interrupt: true }); // a new reply replaces whatever is playing
+    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
   };
-
-  // Talk mode: keyboard dictation fills the box; once it settles, send it hands-free.
-  useEffect(() => {
-    if (!talk || !text.trim()) return undefined;
-    const t = setTimeout(() => send(text), TALK_SEND_MS);
-    return () => clearTimeout(t);
-  }, [talk, text]);
-
-  const toggleTalk = () => {
-    const next = !talk;
-    setTalk(next);
-    talkRef.current = next;
-    if (next) {
-      speak("I'm listening. Tap the mic on your keyboard and talk.");
-      input.current?.focus();
-    } else {
-      voice.stop();
-    }
+  const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
+  const openPanel = (panel, exercise, options = {}) => {
+    // Keep just one live camera mounted. Closing it releases the camera stream.
+    conversation.update(cur => [...cur.map(m => m.kind === 'panel' && m.panel === panel ? { kind: 'notice', text: `${PANEL_LABELS[panel]} reopened below.` } : m), { kind: 'panel', panel, ...options, ...(exercise ? { exercise } : {}) }]);
+    setMenu(false);
   };
+  const go = screen => openPanel({ Coach: 'camera', Progress: 'progress', Muscles: 'muscles' }[screen] ?? 'progress');
 
-  const confirmIntent = (i, intent) => {
-    // The conversation store updates synchronously, preventing a rapid second tap/replay.
-    if (conversation.getSnapshot().messages[i]?.kind !== 'confirm') return;
-    if (!validateProposal(intent, { history, active })) {
-      setMessages(cur => cur.map((m, j) => j === i ? { me: false, text: staleText(settings.persona) } : m));
-      return;
-    }
-    if (intent.type === 'log') {
-      if (!active) {
-        push({ me: false, text: 'Start a workout before confirming these sets.' });
-        return;
-      }
-      intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
-    } else if (intent.type === 'correct') {
-      updateSet(intent.target.setId, intent.changes);
-    } else {
-      deleteSet(intent.target.setId);
-    }
+  const confirmIntent = (index) => {
+    const card = conversation.getSnapshot().messages[index];
+    if (card?.intent?.type === 'log' && !active) return;
+    const intent = conversation.claimConfirmation(index, p => Boolean(validateProposal(p, { history, active })) && (p.type !== 'log' || card.workoutId === active?.id));
+    if (!intent) return;
+    if (intent.type === 'log') intent.sets.forEach(x => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
+    else if (intent.type === 'correct') updateSet(intent.target.setId, intent.changes);
+    else deleteSet(intent.target.setId);
     const reply = confirmedText(intent, settings.persona);
-    setMessages((cur) => cur.map((m, j) => (j === i ? { me: false, text: reply } : m)));
+    conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: reply } : m));
     speak(reply);
   };
+  const cancelCard = index => conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: 'Cancelled. Your workout data was not changed.' } : m));
+  const captureSet = (initial, camera) => {
+    if (!camera?.reps.length) {
+      push({ me: false, text: 'No completed camera reps to save yet. You can also tell me your exercise, reps and weight to log a set manually.' });
+      return;
+    }
+    push({ kind: 'camera-confirm', camera, workoutId: active?.id ?? null });
+  };
+  const confirmCamera = (index, reported) => {
+    const captured = conversation.claimConfirmation(index, m => m.camera?.reps.length > 0 && Boolean(active) && m.workoutId === active.id);
+    if (!captured) return;
+    const c = captured.camera;
+    const saved = logSet({ exercise: c.movement, reps: c.reps.length, weight: reported.weight, unit: settings.unit, rpe: reported.rpe, source: 'camera', reps_detail: c.reps, camera_quality: c.quality, target: c.target, clips: c.clips });
+    if (!saved) return;
+    conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `Saved ${c.reps.length} measured reps of ${exerciseName(c.movement)}. Added weight and effort are user-reported.` } : m));
+  };
 
-  // A failed chat (source 'offline') overrides an earlier good ping; a good chat overrides a failed one.
-  const aiOn = source === 'ai' || (proxy.state === 'ok' && source !== 'offline');
-  const connecting = !aiOn && proxy.state === 'checking' && source !== 'offline';
+  // ---------- multi-week programs (lib/program.js): intake -> checked program card -> confirm ----------
+  const programTurn = (intake, question, first = false) => {
+    if (question) {
+      const text = `${first ? "Let's build your program. I'll ask a few quick questions; your logged sets set the starting loads. " : ''}${question.question}`;
+      return { reply: question.question, messages: [{ me: false, text }, { kind: 'program-intake', intake, field: question.id }] };
+    }
+    const program = buildProgram(intake, { history, unit: settings.unit, id: `program-${newId()}`, now: new Date().toISOString() });
+    const problems = validateProgram(program, program.intake, { history });
+    if (problems.length) return { reply: `I couldn't build a program that passes my checks (${problems[0]}). Nothing was saved.`, messages: [{ kind: 'tools', calls: [{ name: 'build_program', status: 'rejected' }] }, { me: false, text: `I couldn't build a program that passes my checks (${problems[0]}). Nothing was saved.` }] };
+    const fromHistory = program.weeks[0].sessions.flatMap((x) => x.items).filter((i) => i.load.from).length;
+    const reply = `Here's your ${program.name}. Week 1 is open below; tap any week or day to see it. ${fromHistory ? `${fromHistory} starting loads come from your logged sets; the rest are set by effort.` : 'You have no logged sets for these lifts yet, so starting loads are set by effort, not guessed.'} Nothing is saved until you confirm.`;
+    return { reply, messages: [{ kind: 'tools', calls: [{ name: 'build_program', status: 'completed' }] }, { me: false, text: reply }, { kind: 'program', program }] };
+  };
+  const answerProgram = (index, message) => {
+    const card = conversation.getSnapshot().messages[index];
+    const r = answerIntake(card.intake, card.field, message);
+    if (!r.ok) {
+      conversation.update(cur => cur.filter((_, i) => i !== index));
+      const text = `${r.error} Or say "cancel" to stop building.`;
+      return { reply: text, messages: [{ me: false, text }, { kind: 'program-intake', intake: card.intake, field: card.field }] };
+    }
+    conversation.update(cur => cur.filter((_, i) => i !== index));
+    return programTurn(r.intake, nextQuestion(r.intake));
+  };
+  const programAnswer = q => {
+    const tools = { kind: 'tools', calls: [{ name: 'get_program', status: 'completed' }] };
+    const text = { me: false, text: q.reply };
+    if (q.type === 'today' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week }];
+    if (q.type === 'shorter' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week, short: true }];
+    if (q.type === 'swap' && q.options.length) return [tools, text, { kind: 'swap', from: q.from, options: q.options, fromWeek: q.fromWeek }];
+    return [tools, text];
+  };
+  const saveProgram = index => {
+    const card = conversation.claimConfirmation(index, m => validateProgram(m.program, m.program.intake, { history }).length === 0);
+    if (!card) return;
+    const replaced = Boolean(plan);
+    savePlan(programToPlan(card.program));
+    const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Ask "What's today's workout?" when you're ready.`;
+    conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: line } : m));
+    speak(`Saved. ${card.program.name}.`);
+  };
+  const startSession = index => {
+    const m = conversation.getSnapshot().messages[index];
+    if (m?.kind !== 'session' || active || !plan?.program) return;
+    startWorkout(m.name, sessionPlanned(plan.program, m.session, m.week));
+    conversation.update(cur => cur.map((item, i) => i === index ? { kind: 'notice', text: `${m.name} started. Your workout studio is ready below.` } : item));
+    openPanel('camera');
+  };
+  const pickSwap = (index, to) => {
+    const m = conversation.getSnapshot().messages[index];
+    if (m?.kind !== 'swap' || !plan?.program) return;
+    const r = swapExercise(plan.program, { from: m.from, to, fromWeek: m.fromWeek });
+    conversation.update(cur => [...cur.map((item, i) => i === index ? { kind: 'notice', text: `Swap chosen: ${exerciseName(m.from)} → ${exerciseName(to)}.` } : item),
+      ...(r.error ? [{ me: false, text: `${r.error} Your program was not changed.` }]
+        : [{ kind: 'program', program: r.program, mode: 'swap', summary: `${exerciseName(m.from)} → ${exerciseName(to)} from week ${m.fromWeek} (${r.count} sessions). Starting loads for the new exercise are set by effort.` }])]);
+  };
 
-  return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={st.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
-          <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
-          <Text numberOfLines={1} style={[type.h2, { flexShrink: 1 }, compact && { fontSize: 20 }]}>Jim</Text>
-          <View accessibilityLabel={aiOn ? 'Jim is using Claude' : connecting ? 'Jim is connecting to Claude' : 'Jim is offline, using built-in rules'} style={[st.badge, aiOn && st.badgeAI, compact && { padding: 4 }]}>
-            {compact
-              ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: aiOn ? T.accent : connecting ? T.accentText : T.textMute }} />
-              : <Text style={[st.badgeText, aiOn && { color: T.accentText }]}>{aiOn ? 'AI' : connecting ? 'connecting…' : 'offline'}</Text>}
-          </View>
+  const send = async raw => {
+    const message = raw.trim();
+    if (!message) return;
+    const preempts = SAFETY.test(message) || /^(stop|stop workout|stop camera|pause camera)[.!]?$/i.test(message);
+    if (conversation.getSnapshot().busy && preempts) conversation.cancel();
+    if (conversation.getSnapshot().busy) return;
+    setText(''); setMenu(false); voice.stop();
+    // "Yes" applies only to the current unexpired card. Destructive changes need an explicit tap.
+    if (/^(yes|confirm|save it)[.!]?$/i.test(message)) {
+      const index = conversation.getSnapshot().messages.findLastIndex(m => m.kind === 'confirm');
+      if (index >= 0 && conversation.getSnapshot().messages[index].intent.type !== 'delete') { confirmIntent(index); return; }
+    }
+    const activeForJim = active && liveCamera?.sessionId === active.id ? { ...active, cameraSnapshot: liveCamera } : active;
+    const result = await conversation.send(message, async prior => {
+      const state = { settings, history, active: activeForJim, goals, plan };
+      if (SAFETY.test(message)) {
+        // Stop the local camera before any remote reasoning or response.
+        conversation.update(cur => cur.map(m => m.kind === 'panel' && m.panel === 'camera' ? { kind: 'notice', text: 'Camera stopped.' } : m));
+        clearCamera();
+        return { source: 'safety', safety: true, reply: SAFETY_TEXT, proposals: [] };
+      }
+      if (/^(stop|stop workout|stop camera|pause camera)[.!]?$/i.test(message)) {
+        conversation.update(cur => cur.map(m => m.kind === 'panel' && m.panel === 'camera' ? { kind: 'notice', text: 'Camera stopped.' } : m));
+        clearCamera();
+        return { source: 'local', reply: 'Stopped. Your saved sets are safe. Tell me when you want to continue.', proposals: [] };
+      }
+      if (/^(finish|end|complete) (my |the )?(workout|session)[.!]?$/i.test(message)) {
+        finishWorkout(); endMission(); clearCamera();
+        conversation.update(cur => cur.map(m => m.kind === 'panel' && m.panel === 'camera' ? { kind: 'notice', text: 'Camera stopped.' } : m));
+        return { source: 'local', reply: active?.sets.length ? `Workout finished. ${active.sets.length} saved sets are in your history.` : 'Workout finished. No sets were saved.', actions: [{ type: 'show_panel', panel: 'progress' }] };
+      }
+      if (/\bhow many reps\b/i.test(message) && liveCamera?.sessionId === active?.id && Date.now() - new Date(liveCamera.updatedAt).getTime() < 300000) {
+        return { source: 'local', reply: `The camera has counted ${liveCamera.reps} reps of ${exerciseName(liveCamera.exercise)} in this set. These are measured on your device and are not saved until you confirm.`, toolCalls: [{ name: 'get_live_session', status: 'completed' }] };
+      }
+      // An open program question takes the typed answer first.
+      const intakeIndex = conversation.getSnapshot().messages.findLastIndex(m => m.kind === 'program-intake');
+      if (intakeIndex >= 0) {
+        if (/^(cancel|stop building|never ?mind|forget it)[.!]?$/i.test(message)) {
+          conversation.update(cur => cur.filter((_, i) => i !== intakeIndex));
+          return { source: 'local', reply: 'Okay, I stopped building the program. Nothing was saved.' };
+        }
+        return { source: 'local', ...answerProgram(intakeIndex, message) };
+      }
+      const pq = programQuery(message, { plan, history, active });
+      if (pq) return { source: 'local', reply: pq.reply, messages: programAnswer(pq) };
+      const started = startProgramChat(message, { settings });
+      if (started) return { source: 'local', ...programTurn(started.intake, started.question, true) };
+      const ask = parseMission(message);
+      if (ask.recognized) {
+        const mission = planMission({ minutes: ask.minutes, focus: ask.focus, history, settings, now: new Date() });
+        const intro = missionIntro(mission, { hasHistory: history.length > 0, persona: settings.persona });
+        return { source: 'local', reply: intro, messages: [{ me: false, text: intro }, { kind: 'mission', mission }] };
+      }
+      const action = chatAction(message);
+      if (action) {
+        if (action.panel === 'camera' && !active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); }
+        return { source: 'local', reply: action.panel === 'camera' ? 'Let’s get moving. Allow your camera below and keep your body in frame. Video stays on this device; only your rep measurements are saved when you confirm.' : `Here’s ${PANEL_LABELS[action.panel].toLowerCase()}, right here in our conversation.`, actions: [action], toolCalls: [{ name: 'show_panel', status: 'completed' }] };
+      }
+      const mutation = /\b(log|save|correct|change|delete|remove|fix)\b/i.test(message);
+      const answer = mutation ? null : answerPerformance(message, { history, active }) ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
+      if (answer) return { source: 'local', reply: answer, proposals: [], toolCalls: [{ name: 'get_workout_context', status: 'completed' }] };
+      const response = await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY });
+      return { ...response, workoutId: active?.id ?? null };
+    });
+    // Model-triggered panels use the same renderer and camera lifecycle as local actions.
+    if (result?.actions?.some(a => a.panel === 'camera')) {
+      const current = conversation.getSnapshot().messages;
+      const latest = current.findLastIndex(m => m.kind === 'panel' && m.panel === 'camera');
+      conversation.update(cur => cur.map((m, i) => m.kind === 'panel' && m.panel === 'camera' && i !== latest ? { kind: 'notice', text: 'Camera reopened below.' } : m));
+    }
+    if (result && mounted.current) speak(result.reply || result.proposals?.[0]?.summary);
+  };
+  useEffect(() => {
+    if (!talk || !text.trim()) return undefined;
+    const timeout = setTimeout(() => send(text), 1800);
+    return () => clearTimeout(timeout);
+  }, [talk, text]);
+  const toggleTalk = () => {
+    setTalk(!talk); talkRef.current = !talk;
+    if (!talk) { speak('Use your keyboard microphone to talk. I’ll read my replies aloud.'); input.current?.focus(); }
+    else voice.stop();
+  };
+  const newChat = () => { conversation.clear(); clearCamera(); voice.stop(); setTalk(false); setText(''); setMenu(false); };
+
+  const renderPanel = (m, index) => <View key={index} testID={`chat-panel-${m.panel}`} style={st.panel}>
+    <View style={st.panelHeader}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={m.panel === 'camera' ? 'camera-outline' : 'view-dashboard-outline'} size={18} color={T.accent} /><Text style={st.panelTitle}>{PANEL_LABELS[m.panel]}</Text></View><SmallButton icon="close" label={`Close ${m.panel}`} onPress={() => closePanel(index)} /></View>
+    {m.panel === 'camera' ? <View style={{ height: 620, maxHeight: 740 }}><CoachScreen openLog={captureSet} initialExercise={m.exercise} /></View>
+      : m.panel === 'progress' ? <View style={{ height: 540 }}><ProgressScreen go={go} muscleGroup={m.muscleGroup} onClearMuscle={() => conversation.update(cur => cur.map((item, i) => i === index ? { ...item, muscleGroup: null } : item))} /></View>
+      : m.panel === 'muscles' ? <View style={{ height: 550 }}><MusclesScreen openProgress={group => openPanel('progress', undefined, { muscleGroup: group })} openHistory={() => go?.('Progress')} /></View>
+      : m.panel === 'plan' ? <View style={{ padding: 16 }}><PlanCard proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onStart={() => openPanel('camera')} /><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>
+      : <View style={{ padding: 16 }}><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>}
+  </View>;
+
+  const sidebar = <View style={st.sidebar}>
+    <View style={st.brand}><View style={st.brandMark}><JimBars height={23} /></View><Text style={st.brandName}>jim<Text style={{ color: T.accent }}>bro</Text><Text style={{ color: T.textMute }}>.</Text></Text>{!desktop ? <SmallButton icon="close" label="Close menu" onPress={() => setMenu(false)} /> : null}</View>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="New chat" onPress={newChat} style={st.newChat}><Icon name="plus" size={19} color={T.accentText} /><Text style={{ color: T.accentText, fontWeight: '600', fontSize: 14 }}>New conversation</Text><Icon name="square-edit-outline" size={17} color={T.accentText} /></TouchableOpacity>
+    <Text style={st.sideLabel}>YOUR WORKSPACE</Text>
+    {[
+      ['message-outline', 'Chat with Jim', () => { setMenu(false); input.current?.focus(); }],
+      ['camera-outline', 'Workout studio', () => send('Start a workout')],
+      ['chart-line', 'Progress & history', () => send('Review my progress')],
+      ['human-handsup', 'Muscle & recovery', () => send('Show my muscles')],
+      ['calendar-outline', 'Training program', () => send('Build me a training program')],
+      ['tray-arrow-up', 'Import workouts', () => send('Import my workouts')],
+    ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} key={label} onPress={action} style={[st.navItem, i === 0 && st.navActive]}><Icon name={icon} size={19} color={i === 0 ? T.accentText : T.textMute} /><Text style={[st.navText, i === 0 && { color: T.text }]}>{label}</Text>{i === 0 ? <View style={st.dot} /> : null}</TouchableOpacity>)}
+    <View style={st.sideDivider} />
+    <Text style={st.sideLabel}>ON YOUR DEVICE</Text>
+    <Text style={st.sideInfo}>{history.length} saved workouts{active ? ` · ${active.sets.length} sets today` : ''}</Text>
+    <Text style={[st.sideInfo, { marginTop: 12, lineHeight: 20 }]}>Your camera stays private. Your progress stays yours.</Text>
+    <View style={{ flex: 1 }} />
+    {active ? <TouchableOpacity accessibilityRole="button" onPress={() => send('Finish workout')} style={st.activeSession}><View style={st.dot} /><Text style={{ color: T.accentText, flex: 1, fontSize: 12 }}>Workout in progress</Text><Icon name="stop-circle-outline" size={20} color={T.accentText} /></TouchableOpacity> : null}
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={st.profile}><View style={st.avatar}><Icon name="account-outline" color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={{ color: T.text, fontWeight: '600', fontSize: 13 }}>Your training space</Text><Text style={{ color: T.textMute, fontSize: 11, marginTop: 3 }}>Local storage · {settings.unit}</Text></View><Icon name="cog-outline" size={18} color={T.textMute} /></TouchableOpacity>
+  </View>;
+
+  return <KeyboardAvoidingView style={st.workspace} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    {desktop ? sidebar : null}
+    <View style={st.main}>
+      <View style={[st.header, compact && { paddingHorizontal: 12 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          {!desktop ? <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} /> : <View style={st.headerDot} />}
+          <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim <Text style={{ color: T.textMute, fontWeight: '400' }}> / Your AI gym bro</Text></Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
         </View>
-        <TouchableOpacity accessibilityLabel={talk ? 'Stop talk mode' : 'Start talk mode'} onPress={toggleTalk} style={[st.talk, talk && st.talkOn]}>
-          <Icon name={talk ? 'account-voice' : 'account-voice-off'} size={18} color={talk ? T.onAccent : T.textDim} />
-          {compact ? null : <Text style={{ color: talk ? T.onAccent : T.textDim, fontWeight: '700' }}>{talk ? 'Talking' : 'Talk'}</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={{ flexShrink: 0, padding: 10 }}>
-          <Icon name="cog-outline" size={24} color={T.textDim} />
-        </TouchableOpacity>
+        <SmallButton icon={settings.speak ? 'volume-high' : 'volume-off'} label={settings.speak ? 'Mute Jim' : 'Unmute Jim'} onPress={toggleMute} />
+        {!compact ? <SmallButton icon="replay" label="Replay greeting" onPress={replayWelcome} /> : null}
+        <SmallButton icon={talk ? 'microphone' : 'headphones'} label={talk ? 'Stop talk mode' : 'Start talk mode'} active={talk} onPress={toggleTalk} />
+        {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
-
-      <View style={{ paddingHorizontal: 20, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Text accessibilityLiveRegion="polite" style={[type.small, { flex: 1 }]}>
-          {thinking ? 'Jim is working on your request…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : proxyStatusLine(proxy, source)}
-        </Text>
-        {messages.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="New chat" style={{ minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }} onPress={() => { conversation.clear(); voice.stop(); setTalk(false); setText(''); }}><Text style={{ color: T.accentText }}>New chat</Text></TouchableOpacity> : null}
-      </View>
-
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, paddingBottom: 30, flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}>
-          <Icon name="heart-pulse" size={22} color={T.accent} />
-          <Text style={st.healthText}>{health.text}</Text>
-          <Icon name="chevron-right" size={20} color={T.textMute} />
-        </TouchableOpacity>
-        {!messages.length ? (
-          <View style={{ alignItems: 'center', marginTop: compact ? 8 : 20 }}>
-            <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Jim holding a barbell" resizeMode="contain" style={{ width: 220, height: 150 }} />
-            <Text style={[type.h1, { marginTop: 16, fontSize: 32 }]}>Hey, I'm Jim</Text>
-            <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
-              {HOME_SUBTITLE}
-            </Text>
-            <View style={st.goals}>
-              {HOME_OPTIONS.map((g) => (
-                <TouchableOpacity key={g.id} accessibilityRole="button" accessibilityLabel={g.label.replace('\n', ' ')} style={st.goal} onPress={() => choose(g.id)}>
-                  <Icon name={g.icon} size={30} color={T.accent} />
-                  <Text style={st.goalText}>{g.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[type.label, { marginTop: 22 }]}>Short on time? Give Jim a mission</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
-              {MISSION_CHIPS.map((c) => (
-                <TouchableOpacity key={c} accessibilityRole="button" onPress={() => send(c)} style={{ borderWidth: 1, borderColor: T.accent, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
-                  <Text style={{ color: T.accentText, fontWeight: '600', fontSize: 13 }}>{c}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+      <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
+        {!messages.length ? <View style={st.welcome}>
+          <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
+          <Text style={st.eyebrow}>YOUR SPACE TO GET STRONGER</Text>
+          <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Big goals.{"\n"}<Text style={{ color: T.accentText }}>One conversation.</Text></Text>
+          <Text testID="welcome-greeting" style={st.heroSubtitle}>{WELCOME_TEXT}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 }}>
+            {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
           </View>
-        ) : (
-          messages.map((m, i) => {
-            if (m.kind === 'plan') return <PlanCard key={i} proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} />;
-            if (m.kind === 'mission') {
-              return (
-                <MissionCard
-                  key={i}
-                  mission={m.mission}
-                  onStart={() => { startMission(m.mission); go?.('Coach'); }}
-                  onCancel={() => setMessages((cur) => cur.filter((_, j) => j !== i))}
-                />
-              );
-            }
-            if (m.kind === 'import') return <ImportSheet key={i} proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={speak} />;
-            if (m.kind === 'confirm') {
-              return (
-                <Card key={i} style={{ marginTop: 10 }}>
-                  <Text style={type.title}>{{ log: 'Log this?', correct: 'Fix this set?', delete: 'Delete this set?' }[m.intent.type]}</Text>
-                  <Text style={type.body}>{m.intent.summary}</Text>
-                  {m.intent.type === 'log' && !active ? <Text style={type.small}>Start a workout on Home before confirming these sets.</Text> : null}
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
-                    <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Cancel</PrimaryButton>
-                  </View>
-                </Card>
-              );
-            }
-            return (
-              <View key={i} style={[st.bubble, m.me ? st.me : st.jim, m.safety && { borderColor: T.amber }]}>
-                {!m.me ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <JimBars height={14} />
-                    <Text style={{ color: T.accentText, fontWeight: '700' }}>Jim</Text>
-                  </View>
-                ) : null}
-                <Text style={{ color: T.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
-                {m.suggestion ? (
-                  <TouchableOpacity disabled={!active} onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8, opacity: active ? 1 : 0.5 }}>
-                    <Text style={{ color: T.accent, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          })
-        )}
-        {thinking ? <PrimaryButton secondary onPress={() => { conversation.cancel(); voice.stop(); }}>Stop reply</PrimaryButton> : null}
-        {reason && source === 'offline' && PROXY_URL ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
-        {error ? <Text accessibilityRole="alert" style={[type.body, { color: T.amber }]}>{error}</Text> : null}
+          <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
+          <View style={st.quickGrid}>{QUICK.map(q => <TouchableOpacity accessibilityRole="button" accessibilityLabel={q.title} key={q.title} onPress={() => send(q.message)} style={[st.quickCard, { width: compact ? '100%' : '48.8%' }]}><View style={st.quickIcon}><Icon name={q.icon} color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={st.quickTitle}>{q.title}</Text><Text style={st.quickDetail}>{q.detail}</Text></View><Icon name="arrow-top-right" size={17} color={T.textMute} /></TouchableOpacity>)}</View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}><Icon name="pulse" color={T.accent} size={16} /><Text style={{ color: T.textMute, fontSize: 12, flexShrink: 1 }}>{health.text}</Text></TouchableOpacity>
+        </View> : messages.map((m, index) => {
+          if (m.kind === 'panel') return renderPanel(m, index);
+          if (m.kind === 'tools') return <View key={index} style={st.receipts}>{m.calls.map((c, i) => <View key={i} style={st.receipt}><Icon name={c.status === 'rejected' ? 'close-circle-outline' : c.status === 'proposed' ? 'clock-outline' : 'check-circle-outline'} color={c.status === 'rejected' ? T.amber : T.accent} size={15} /><Text style={st.receiptText}>{TOOL_LABELS[c.name]} · {c.status === 'proposed' ? 'awaiting confirmation' : c.status}</Text></View>)}</View>;
+          if (m.kind === 'notice') return <View key={index} style={st.notice}><Icon name="check-circle-outline" color={T.accent} size={16} /><Text style={{ color: T.textDim, fontSize: 13, lineHeight: 20, flex: 1 }}>{m.text}</Text></View>;
+          if (m.kind === 'camera-confirm') return <CameraConfirm key={m.confirmationId} message={m} onConfirm={reported => confirmCamera(index, reported)} onCancel={() => cancelCard(index)} />;
+          if (m.kind === 'program-intake') { const field = INTAKE_FIELDS.find(f => f.id === m.field); return <IntakeCard key={`intake-${index}`} field={field} onAnswer={v => send(intakeLabel(field, v))} onCancel={() => send('cancel')} />; }
+          if (m.kind === 'program') return <ProgramCard key={m.confirmationId} message={m} currentPlan={plan} onSave={() => saveProgram(index)} onCancel={() => conversation.update(cur => cur.map((x, i) => i === index ? { kind: 'notice', text: 'Cancelled. Your plan was not changed.' } : x))} />;
+          if (m.kind === 'session') return <SessionCard key={index} message={m} disabledReason={active ? 'Finish your current workout before starting this one.' : null} onStart={() => startSession(index)} />;
+          if (m.kind === 'swap') return <SwapCard key={index} message={m} onPick={to => pickSwap(index, to)} onCancel={() => conversation.update(cur => cur.map((x, i) => i === index ? { kind: 'notice', text: `Kept ${exerciseName(m.from)}. Your program was not changed.` } : x))} />;
+          if (m.kind === 'mission') return <MissionCard key={index} mission={m.mission} onStart={() => { if (conversation.getSnapshot().messages[index]?.kind !== 'mission') return; startMission(m.mission); conversation.update(cur => cur.map((item, i) => i === index ? { kind: 'notice', text: 'Mission started. Your workout studio is ready below.' } : item)); openPanel('camera'); }} onCancel={() => cancelCard(index)} />;
+          if (m.kind === 'confirm') return <Card key={m.confirmationId} style={st.confirmCard}><Text style={st.eyebrow}>YOUR CALL</Text><Text style={[type.title, { marginTop: 10 }]}>{m.intent.type === 'delete' ? 'Delete this set?' : m.intent.type === 'correct' ? 'Update your set?' : 'Add to your workout?'}</Text><Text style={[type.body, { marginTop: 8 }]}>{m.intent.summary}</Text><Text style={[type.small, { marginTop: 8 }]}>{m.intent.type === 'log' && !active ? 'Start a workout, then ask Jim to log these sets again. ' : ''}Nothing changes until you confirm. This proposal expires in 5 minutes.</Text><View style={{ flexDirection: 'row', gap: 10 }}><PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(index)}>Confirm</PrimaryButton><PrimaryButton secondary style={{ flex: 1 }} onPress={() => cancelCard(index)}>Cancel</PrimaryButton></View></Card>;
+          return <View key={index} style={[st.message, m.me && st.userMessage]}>
+            {!m.me ? <View style={st.messageAvatar}><JimBars height={18} /></View> : null}
+            <View style={[st.messageBody, m.me && st.userBubble, m.safety && { borderLeftColor: T.amber, borderLeftWidth: 2, paddingLeft: 16 }]}>{!m.me ? <Text style={st.messageName}>Jim <Text style={{ color: T.textMute, fontWeight: '400' }}>· your training partner</Text></Text> : null}<Text selectable style={st.messageText}>{m.text}</Text>{m.suggestion ? <TouchableOpacity accessibilityRole="button" onPress={() => send(`Log ${m.suggestion.reps} ${exerciseName(m.suggestion.exercise)} at ${m.suggestion.weight} ${m.suggestion.unit}`)}><Text style={{ color: T.accentText, marginTop: 8 }}>Review suggested set →</Text></TouchableOpacity> : null}</View>
+          </View>;
+        })}
+        {thinking ? <View accessibilityLiveRegion="polite" style={st.thinking}><JimBars height={18} /><Text style={{ color: T.textMute, fontSize: 13 }}>Jim is thinking…</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Stop reply" onPress={() => { conversation.cancel(); voice.stop(); }}><Text style={{ color: T.accentText, padding: 12 }}>Stop reply</Text></TouchableOpacity></View> : null}
+        {reason && source === 'offline' && messages.length ? <Text style={[type.small, { marginVertical: 12 }]}>Jim AI is unavailable. This reply uses the offline coach.</Text> : null}
+        {error ? <Text accessibilityRole="alert" style={{ color: T.amber, marginVertical: 10 }}>{error}</Text> : null}
       </ScrollView>
-
-      <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
-        <Glow />
-        <View style={st.composer}>
-          <TouchableOpacity accessibilityLabel={active ? 'Log a set' : 'Start a workout to log sets'} accessibilityState={{ disabled: !active }} disabled={!active} style={{ opacity: active ? 1 : 0.5 }} onPress={() => openLog()}>
-            <Icon name="plus" size={26} color={T.text} />
-          </TouchableOpacity>
-          <TextInput
-            ref={input}
-            value={text}
-            onChangeText={setText}
-            onSubmitEditing={() => send(text)}
-            accessibilityLabel="Message Jim"
-            maxLength={2000}
-            placeholder={talk ? 'Tap the keyboard mic and talk…' : 'Ask Jim about your workout…'}
-            placeholderTextColor={T.textMute}
-            returnKeyType="send"
-            style={{ flex: 1, color: T.text, fontSize: 16, paddingHorizontal: 10 }}
-          />
-          {text.trim() && !thinking ? (
-            <IconButton icon="arrow-up" size={34} ring={T.accent} fill={T.accent} color={T.onAccent} label="Send" onPress={() => send(text)} />
-          ) : (
-            <TouchableOpacity accessibilityLabel="Dictate (use the keyboard microphone)" onPress={() => input.current?.focus()}>
-              <Icon name="microphone-outline" size={24} color={T.textDim} />
-            </TouchableOpacity>
-          )}
+      <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
+        <View style={[st.composer, focused && { borderColor: T.accent }]}>
+          {talk ? <Text style={st.talkHint}>Talk mode: tap the microphone on your keyboard to dictate. Jim reads replies aloud. JimBro never records audio.</Text> : null}
+          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
+          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><SmallButton icon={talk ? 'volume-high' : 'microphone-outline'} label={talk ? 'Stop talk mode' : 'Dictate (use the keyboard microphone)'} active={talk} onPress={toggleTalk} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
         </View>
+        <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
+        <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>
       </View>
-    </KeyboardAvoidingView>
-  );
+    </View>
+    {!desktop && menu ? <View style={st.mobileMenu}>{sidebar}</View> : null}
+  </KeyboardAvoidingView>;
 }
 
 const st = StyleSheet.create({
-  health: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: R.md, borderWidth: 1, borderColor: T.border, backgroundColor: T.card },
-  healthText: { flex: 1, color: T.textDim, fontSize: 14, lineHeight: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  goals: { flexDirection: 'row', gap: 12, marginTop: 40, alignSelf: 'stretch' },
-  goal: { flex: 1, alignItems: 'center', paddingVertical: 18, borderRadius: R.md, borderWidth: 1, borderColor: T.borderStrong, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8 },
-  goalText: { color: T.text, fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  composer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: 'rgba(6,10,9,0.9)' },
-  bubble: { borderRadius: R.md, padding: 12, marginTop: 10, maxWidth: '88%', borderWidth: 1 },
-  me: { alignSelf: 'flex-end', backgroundColor: T.accentSoft, borderColor: T.accent },
-  badge: { borderWidth: 1, borderColor: T.border, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeAI: { borderColor: T.accent, backgroundColor: T.accentSoft },
-  badgeText: { color: T.textMute, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  talk: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: T.borderStrong, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 'auto', marginRight: 14, flexShrink: 0 },
-  talkOn: { backgroundColor: T.accent, borderColor: T.accent },
-  jim: { alignSelf: 'flex-start', backgroundColor: T.card, borderColor: T.border },
+  workspace: { flex: 1, flexDirection: 'row', backgroundColor: T.chat.background },
+  sidebar: { width: 252, backgroundColor: T.chat.sidebar, paddingHorizontal: 18, paddingTop: 28, borderRightWidth: 1, borderRightColor: T.border, flexShrink: 0 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, marginBottom: 32 },
+  brandMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: T.chat.tinted, alignItems: 'center', justifyContent: 'center' },
+  brandName: { color: T.text, fontSize: 25, fontWeight: '700', letterSpacing: -1, flex: 1 },
+  newChat: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 46, borderWidth: 1, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted, borderRadius: 10, paddingHorizontal: 12, marginBottom: 32 },
+  sideLabel: { color: T.textMute, fontSize: 10, fontWeight: '600', letterSpacing: 1.5, marginLeft: 12, marginBottom: 14 },
+  navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, paddingHorizontal: 12, borderRadius: 8, marginBottom: 4 },
+  navActive: { backgroundColor: T.chat.selected },
+  navText: { color: T.textDim, fontSize: 13, flex: 1 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent },
+  sideDivider: { height: 1, backgroundColor: T.border, marginHorizontal: 10, marginTop: 24, marginBottom: 26 },
+  sideInfo: { color: T.textMute, fontSize: 12, paddingHorizontal: 12 },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: T.border, paddingVertical: 22, marginTop: 16 },
+  avatar: { width: 34, height: 34, borderRadius: 18, backgroundColor: T.chat.selected, alignItems: 'center', justifyContent: 'center' },
+  activeSession: { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, backgroundColor: T.chat.tinted, borderRadius: 10 },
+  main: { flex: 1, minWidth: 0 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 30, minHeight: 79, borderBottomWidth: 1, borderBottomColor: T.border },
+  headerDot: { width: 7, height: 7, backgroundColor: T.accent, borderRadius: 4 },
+  headerTitle: { color: T.text, fontWeight: '600', fontSize: 14 },
+  status: { color: T.textMute, fontSize: 11, marginTop: 5 },
+  smallButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexShrink: 0 },
+  thread: { flexGrow: 1, width: '100%', maxWidth: 870, alignSelf: 'center', paddingTop: 28, paddingBottom: 30 },
+  welcome: { alignItems: 'center', paddingVertical: 22 },
+  mascot: { width: 194, height: 130, marginBottom: 20 },
+  heroMark: { width: 78, height: 78, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted, marginBottom: 28, transform: [{ rotate: '-5deg' }] },
+  heroSpark: { position: 'absolute', right: -8, top: -8, width: 26, height: 26, backgroundColor: T.chat.background, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: T.highlight, fontSize: 10, letterSpacing: 2, fontWeight: '600' },
+  heroTitle: { color: T.text, textAlign: 'center', fontFamily: Platform.OS === 'web' ? 'Georgia, serif' : undefined, fontWeight: '400', letterSpacing: -1.5, marginTop: 16 },
+  heroSubtitle: { color: T.textDim, fontSize: 14, lineHeight: 23, textAlign: 'center', marginTop: 18, maxWidth: 480 },
+  quickGrid: { width: '100%', maxWidth: 660, flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 34 },
+  quickCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1, borderColor: T.border, borderRadius: 13, backgroundColor: T.chat.raised, minHeight: 86 },
+  quickIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: T.chat.selected, alignItems: 'center', justifyContent: 'center' },
+  quickTitle: { color: T.text, fontSize: 13, fontWeight: '600' },
+  quickDetail: { color: T.textMute, fontSize: 11, marginTop: 6, lineHeight: 15 },
+  health: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, marginTop: 18, minHeight: 44 },
+  message: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 25 },
+  userMessage: { justifyContent: 'flex-end', marginTop: 16 },
+  messageAvatar: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: T.chat.tinted },
+  messageBody: { flexShrink: 1, paddingTop: 3, maxWidth: '93%' },
+  messageName: { color: T.text, fontSize: 12, fontWeight: '700', marginBottom: 10 },
+  messageText: { color: T.text, fontSize: 15, lineHeight: 25 },
+  userBubble: { backgroundColor: T.chat.selected, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 18, maxWidth: '86%' },
+  receipts: { marginTop: 20, gap: 6, alignItems: 'flex-start' },
+  receipt: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: T.chat.tinted, borderWidth: 1, borderColor: T.border, borderRadius: 8, maxWidth: '100%' },
+  receiptText: { color: T.accentText, fontSize: 11, flexShrink: 1, lineHeight: 17 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18, padding: 12, backgroundColor: T.chat.tinted, borderRadius: 10 },
+  confirmCard: { marginTop: 18, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted },
+  panel: { marginTop: 20, borderWidth: 1, borderColor: T.border, borderRadius: 16, overflow: 'hidden', backgroundColor: T.bg },
+  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 16, paddingRight: 7, minHeight: 49, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.chat.tinted },
+  panelTitle: { color: T.accentText, fontSize: 13, fontWeight: '600' },
+  voiceChip: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: T.accent },
+  voiceChipQuiet: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: T.chat.accentBorder },
+  talkHint: { color: T.textMute, fontSize: 11, lineHeight: 16, paddingHorizontal: 9, paddingTop: 4 },
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20 },
+  composerArea: { width: '100%', maxWidth: 870, alignSelf: 'center', paddingTop: 8, paddingBottom: 12 },
+  composer: { backgroundColor: T.chat.composer, borderWidth: 1, borderColor: T.chat.composerBorder, borderRadius: 20, padding: 10 },
+  input: { color: T.text, fontSize: 14, lineHeight: 22, padding: 9, minHeight: 48, maxHeight: 120, outlineStyle: 'none' },
+  composerTools: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  toolDivider: { width: 1, height: 14, backgroundColor: T.borderStrong, marginHorizontal: 7 },
+  send: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
+  reviewLabel: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 9, lineHeight: 14 },
+  footer: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 10, lineHeight: 16 },
+  mobileMenu: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 270, backgroundColor: T.chat.sidebar, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 30, elevation: 10 },
 });

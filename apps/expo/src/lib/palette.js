@@ -1,13 +1,13 @@
 // Pure colour values (no React Native) so contrast can be unit-tested; theme.js builds T from these.
 
-export const BG = '#070c12';
+export const BG = '#191b1e';
 
 export const SURFACES = {
-  surface: '#101922',
-  card: 'rgba(21, 34, 46, 0.92)',
-  cardSolid: '#15222e',
-  border: '#263b4b',
-  borderStrong: '#395568',
+  surface: '#22252a',
+  card: 'rgba(40, 44, 49, 0.96)',
+  cardSolid: '#282c31',
+  border: '#3a414a',
+  borderStrong: '#515d69',
 };
 
 export const ACCENT = {
@@ -17,6 +17,19 @@ export const ACCENT = {
   accentText: '#c5e5f7', // light blue text on dark
   accentLight: '#e3f4ff', // highlight dots
   onAccent: '#0a2233', // text drawn on an accent fill
+};
+
+// Cream neutrals echo Jim's headband/belly; blue is reserved for interaction.
+export const TEXT = { text: '#f7f3e9', textDim: '#c8c5bf', textMute: '#adb0b3' };
+export const CHAT = {
+  background: BG,
+  sidebar: '#14171b',
+  raised: '#25292e',
+  selected: '#2a3641',
+  tinted: '#242f39',
+  accentBorder: '#516b7f',
+  composer: '#272c32',
+  composerBorder: '#596570',
 };
 
 const channel = (c) => {

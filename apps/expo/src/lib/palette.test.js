@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ACCENT, BG, SURFACES, contrast } from './palette.js';
+import { ACCENT, BG, SURFACES, CHAT, TEXT, contrast } from './palette.js';
 
 const report = [];
 
@@ -33,4 +33,13 @@ describe('palette', () => {
     assert.ok(r >= 4.5);
     if (process.env.PALETTE_REPORT) console.log(report.join('\n'));
   });
+});
+
+// Review workspace must use the shared palette instead of stale green hardcoded colors.
+it('review workspace text and blue actions remain readable on every surface', () => {
+  for (const bg of [BG, SURFACES.surface, SURFACES.cardSolid, CHAT.background, CHAT.sidebar, CHAT.raised, CHAT.selected, CHAT.tinted, CHAT.composer]) {
+    for (const text of [TEXT.text, TEXT.textDim, TEXT.textMute, ACCENT.accent, ACCENT.accentText]) {
+      assert.ok(contrast(text, bg) >= 4.5, `${text} on ${bg} must pass AA`);
+    }
+  }
 });

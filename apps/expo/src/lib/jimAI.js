@@ -2,6 +2,7 @@
 // jim-proxy (Claude), gets back a reply plus PROPOSED intents, and re-validates every proposal
 // against its own data before the confirm card shows. No URL, a timeout, an error or a bad
 // payload all fall back to the rule-based parseIntent/coachReply, so the demo never breaks.
+import { toolReceipts, validateAction } from './chatActions.js';
 import { coachReply, SAFETY, SAFETY_TEXT } from './coach.js';
 import { answerContext } from './coachQA.js';
 import { EXERCISES } from './exercises.js';
@@ -187,7 +188,8 @@ export async function askJim({ message, history = [], state, url, key = null, fe
     const proposals = body.proposals.map((p) => validateProposal(p, state)).filter(Boolean);
     const reply = body.reply.trim() || (proposals.length ? 'Check the card and confirm.' : '');
     if (!reply && !proposals.length) throw new Error('empty reply');
-    return { source: body.safety ? 'safety' : 'ai', reply, proposals, suggestion: null, safety: Boolean(body.safety) };
+    const actions = Array.isArray(body.actions) ? body.actions.map(validateAction).filter(Boolean).slice(0, 1) : [];
+    return { source: body.safety ? 'safety' : 'ai', reply, proposals, actions, toolCalls: toolReceipts(body.toolCalls), suggestion: null, safety: Boolean(body.safety) };
   } catch (e) {
     return offline(message, state, e?.message ?? 'error');
   } finally {

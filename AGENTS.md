@@ -57,6 +57,44 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 | User journeys (Playwright: first-run setup, log a set, chat + confirm/cancel, safety, last-workout answer, mission → Coach, plan, Progress tabs/dropdowns, muscles, persona, persistence) | `cd apps/expo && npm run test:e2e` (needs Chrome; runs in CI job `ui-smoke`) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
+## Isolated team review prototype (feat/chat-mvp-review)
+
+- Worktree `/workspace/JimBro-review`; existing prototype rebased onto `fca85e0`.
+  Original checkout/main stay unchanged; no merge, deployment or shared EAS update.
+- User confirmed the mascot is **blue**. Keep main's supplied blue asset; shared
+  body-blue/graphite/cream theme with pale-yellow highlights replaces old chat
+  green hardcodes. AA checks cover all review surfaces. Muse is labeled an
+  interpretation because no exact layout reference was supplied.
+- Retains current main's local login/account-scoped data, active-workout guard,
+  muscle progress, comparison results, opt-in AI plan personalization and proxy
+  hardening. Chat cards bind to their original workout; stale cards cannot migrate
+  a write into a new session.
+- Checks: app609, proxy51, vision51, chat Playwright23, user journeys16 passed.
+  Both native exports build; actual web preview signup/chat/reload smoke passed.
+  SDK tests are mocked; the2rep camera case is recorded-landmark replay. Live
+  Claude and physical-phone testing remain separate/unverified.
+- Local web: `npm run preview:review` in apps/expo (port8081). No public deployment.
+  Handoff and screenshots: `docs/REVIEW_PROTOTYPE.md`; draft body `REVIEW_PR.md`.
+
+## Chat-centered MVP integration (codex/chat-mvp)
+
+- Builds on main `70891a3` and merged Claude contributions #47/#55/#62.
+- One responsive conversation workspace; camera/progress/muscles/plan/import are
+  inline tools. Existing settings/form sheets remain reachable. No tab switching
+  is needed to chat alongside a workout.
+- Strict, independently validated proxy tools: `show_panel`, `get_live_session`,
+  visible tool receipts; existing confirm-first writes remain authoritative.
+- Camera sets save via an inline confirmation card (measured reps/timing,
+  user-reported added load/RPE). One-shot, revalidated, five-minute save cards.
+- Stop/pain preempt pending model replies and release the camera. No frame-wise
+  model calls; no video saved/uploaded; offline mode stays explicit.
+- Checks: app **580**, vision **51**, proxy **44**, Playwright **20** pass. Android
+  and iOS exports build. E2E replays recorded real squat landmarks (2 reps), not a
+  physical camera trial. No live Claude key was available in this environment.
+- `npm run test:chat` / `test:ui` in apps/expo builds a test-only export and uses
+  production HTTP with an injected SDK. Full report: `docs/CHAT_MVP.md`.
+- GitHub API access returned 401; do not claim a remote PR/deployment exists.
+
 ## Feature status
 
 Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validation · 🚧 in progress · 📋 planned · ❌ not doing
@@ -132,6 +170,13 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | **Workout Mission**: "I have 20 minutes, help me finish chest day" → on-phone plan from history + goal (time-boxed, every choice explained) → confirm card → hands-free run on Coach (auto-start when tracked, auto-end set, quick RPE check that saves itself, rest with next-set adjustment, switch to a camera-counted lift, skip/end) → summary checked against the plan | 🧪 feat/workout-mission | `lib/mission.js`, `components/Mission.js`, HomeScreen chips + intercept, CoachScreen, AppState `mission` | 15 unit tests (parse, plan budget/progression/rested area, state machine, summary, weight pick, camera swap); iOS bundle; simulator tap-through of the tap-counted path (no camera in simulator) | camera-counted path on a real phone; spoken lines on device |
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 402. On feat/performance-engine: app 470, vision-lab 44. On feat/engines: app 544, vision-lab 51, proxy 33 (628); handoff docs in `docs/engines/`. Roadmap for equipment tracking, force/power and validation: `docs/PERFORMANCE_ROADMAP.md`. On main after #55: app 558, vision-lab 51, proxy 35.
+
+## Programs and voice (feat/chat-mvp-review)
+| Feature | Status | Where | Tested how | Still needs |
+|---|---|---|---|---|
+| Multi-week programs (2–5 days, 4–16 weeks, powerbuilding 4-day option): intake in chat, checked program card, save/replace with versions, today / why / swap / shorter | 🧪 feat/chat-mvp-review | `lib/program.js`, `lib/programChat.js`, `lib/planVersions.js`, `components/ProgramCards.js`, HomeScreen | unit: 8640 intake combos valid, loads only from logged sets, validator rejects bad programs; Playwright `e2e/program-voice.spec.mjs` | live-Claude program edits not wired; coach review of set/rep schemes |
+| Spoken welcome once per launch, mute (saved) + replay, Enable Jim's voice fallback, speech stops on typing/new reply | 🧪 feat/chat-mvp-review | `lib/welcome.js`, `lib/sound.js` onError, HomeScreen | unit + Playwright (speech calls stubbed) | hear it on an iPhone and Android phone |
+See `docs/PROGRAMS_AND_VOICE.md`.
 
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.

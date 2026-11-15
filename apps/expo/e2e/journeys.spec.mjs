@@ -1,6 +1,7 @@
 // User journeys: what a real person does in JimBro, end to end, on the web build at phone size.
 // Every test starts from a fresh browser (fresh phone storage) unless it seeds demo data.
-// Run: npm run test:e2e   (builds dist-web, needs Chrome)
+// Chat-first review workspace journeys; keeps the shipped login/setup/workout capabilities.
+// Run: npm run test:e2e (offline web export, needs Chrome).
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -22,13 +23,19 @@ async function open(page, seed, { signedIn = true } = {}) {
 }
 // Tap the top-most visible control with this text or accessible name (modals render last).
 async function tap(page, name) {
+  // The mobile workspace keeps account/settings controls inside its menu.
+  if (name === 'Activity and settings' && !(await page.getByLabel(name, { exact: true }).locator('visible=true').count())) {
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  }
   const byText = page.getByText(name, { exact: true }).locator('visible=true');
   const target = (await byText.count()) ? byText.last() : page.getByLabel(name, { exact: true }).locator('visible=true').last();
   await target.click();
+  if (name === 'Skip for now') await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 const saved = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}'), KEY);
 const say = async (page, text) => {
   await page.getByLabel('Message Jim').fill(text);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await page.getByLabel('Message Jim').press('Enter');
 };
 
@@ -58,26 +65,27 @@ test('first run: pain answer shows safety advice instead of a plan', async ({ pa
 
 test('workout: start, log a set by hand, finish, and it shows in history after reload', async ({ page }) => {
   const errors = await open(page, { history: [], settings: READY });
-  await tap(page, 'Start a Workout');
-  await tap(page, 'Home');
-  await tap(page, 'Log a set');
-  await page.getByText('Bench press', { exact: true }).last().click();
-  const sheet = page.getByRole('dialog').last();
-  await sheet.getByPlaceholder('0').fill('135');
-  await sheet.locator('input').nth(1).fill('8');
-  await tap(page, 'Save set');
+  await say(page, 'Start a workout');
+  await say(page, 'stop camera');
+  await say(page, 'log 1 set of 8 bench press at 135 lb');
+  await tap(page, 'Confirm');
   await expect.poll(async () => (await saved(page)).active?.sets?.length).toBe(1);
   const set = (await saved(page)).active.sets[0];
   expect(set).toMatchObject({ exercise: 'bench', weight: 135, reps: 8 });
   await page.reload();
   await expect.poll(async () => (await saved(page)).active?.sets?.length).toBe(1); // survives a reload
+  await say(page, 'Finish workout');
+  await expect.poll(async () => (await saved(page)).history?.length).toBe(1);
+  expect((await saved(page)).active).toBeNull();
+  await page.reload();
+  expect((await saved(page)).history[0].sets[0]).toMatchObject({ exercise: 'bench', reps: 8, weight: 135 });
   expect(errors).toEqual([]);
 });
 
 test('chat: tell Jim a set in plain words, he asks to confirm, nothing changes until Confirm', async ({ page }) => {
   await open(page, { history: [], settings: READY });
-  await tap(page, 'Start a Workout');
-  await tap(page, 'Home');
+  await say(page, 'Start a workout');
+  await say(page, 'stop camera');
   await say(page, 'log 3 sets of 10 curls at 25 lb');
   const confirm = page.getByText('Confirm', { exact: true }).locator('visible=true').last();
   await expect(confirm).toBeVisible();
@@ -89,8 +97,8 @@ test('chat: tell Jim a set in plain words, he asks to confirm, nothing changes u
 
 test('chat: Cancel on a proposal leaves the log untouched', async ({ page }) => {
   await open(page, { history: [], settings: READY });
-  await tap(page, 'Start a Workout');
-  await tap(page, 'Home');
+  await say(page, 'Start a workout');
+  await say(page, 'stop camera');
   await say(page, 'log 1 set of 5 squats at 185 lb');
   await tap(page, 'Cancel');
   await page.waitForTimeout(300);
@@ -111,9 +119,9 @@ test('chat: "how was my last workout" is answered from my data, offline', async 
   await expect(page.getByText(/Jim AI is unavailable/)).toHaveCount(0); // no AI configured: nothing "failed"
 });
 
-test('mission: "20 minutes, chest day" plans a session that starts on the Coach screen', async ({ page }) => {
+test('mission: "20 minutes, chest day" plans a session that starts in the inline workout studio', async ({ page }) => {
   const errors = await open(page, { history: demo.history, settings: READY });
-  await tap(page, 'I have 20 minutes, help me finish chest day');
+  await say(page, 'I have 20 minutes, help me finish chest day');
   await expect(page.getByText(/20-minute/).last()).toBeVisible();
   await tap(page, 'Start mission');
   await expect(page.getByText('Allow camera', { exact: true })).toBeVisible(); // Coach screen, no camera on web
@@ -122,7 +130,7 @@ test('mission: "20 minutes, chest day" plans a session that starts on the Coach 
 
 test('plan: Create a New Plan builds and saves a plan for a goal', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
-  await tap(page, 'Create a New Plan');
+  await say(page, 'Create a new plan');
   await expect(page.getByText('Import workouts (CSV or Excel)').last()).toBeVisible();
   await tap(page, 'Plan from my goal (no photo)');
   const confirm = page.getByText(/^(Confirm|Save plan|Use this plan)$/).locator('visible=true').last();
@@ -133,12 +141,18 @@ test('plan: Create a New Plan builds and saves a plan for a goal', async ({ page
 
 test('progress: tabs and time-frame dropdowns work, comparison shows real numbers', async ({ page }) => {
   const errors = await open(page, { history: demo.history, settings: READY });
-  await tap(page, 'Progress');
+  await say(page, 'Review my progress');
+  await expect(page.getByTestId('chat-panel-progress')).toBeVisible();
   await expect(page.getByText('Compare your training')).toBeVisible();
   await expect(page.getByText(/Best estimated 1RM.*No data.*$/)).toHaveCount(0);
   await page.getByTestId('compare-frame').click();
   await tap(page, 'Month to month');
   await expect(page.getByTestId('compare-frame')).toContainText('Month to month');
+  await tap(page, 'Submit');
+  await expect(page.getByText('Back to comparison', { exact: true })).toBeVisible();
+  await expect(page.getByText('Best estimated 1RM', { exact: true })).toBeVisible();
+  await expect(page.getByText('Total reps', { exact: true })).toBeVisible();
+  await tap(page, 'Back to comparison');
   for (const tab of ['strength', 'history', 'goals', 'overview']) {
     await page.getByTestId(`seg-${tab}`).click();
     await expect(page.getByTestId(`seg-${tab}`)).toHaveAttribute('aria-selected', 'true');
@@ -148,13 +162,16 @@ test('progress: tabs and time-frame dropdowns work, comparison shows real number
 
 test('muscles: tapping a muscle opens its progress', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
-  await tap(page, 'Muscles');
+  await say(page, 'Show my muscles');
+  await expect(page.getByTestId('chat-panel-muscles')).toBeVisible();
   const body = page.locator('svg[viewBox="0 0 200 400"]').first();
-  const box = await body.boundingBox();
-  await page.mouse.click(box.x + box.width * 0.44, box.y + box.height * 0.24); // chest on the front figure
+  // Target the visible chest shape itself; absolute screen coordinates can
+  // drift while the conversation scroll animation finishes.
+  await body.locator('path[d^="M99 76"]').first().click();
   await expect(page.getByText(/chest/i).locator('visible=true').last()).toBeVisible();
   await tap(page, 'Progress');
-  await expect(page.getByText(/progress/i).locator('visible=true').last()).toBeVisible();
+  await expect(page.getByText('Chest progress', { exact: true })).toBeVisible();
+  await expect(page.getByText('Show all progress', { exact: true })).toBeVisible();
 });
 
 test('settings: changing Jim\'s persona is saved', async ({ page }) => {
@@ -225,8 +242,9 @@ test('login: each account keeps its own workouts', async ({ page }) => {
   await page.goto('/');
   await signUp(page, 'one@example.com', 'gains123');
   await tap(page, 'Skip for now');
-  await tap(page, 'Start a Workout');
-  await tap(page, 'Home');
+  await say(page, 'Start a workout');
+  await say(page, 'stop camera');
+  await expect.poll(async () => page.evaluate(() => Boolean(JSON.parse(localStorage.getItem('jimbro.data.v2:one@example.com') ?? '{}').active))).toBe(true);
   await tap(page, 'Activity and settings');
   await tap(page, 'Sign out');
   await signUp(page, 'two@example.com', 'gains123');

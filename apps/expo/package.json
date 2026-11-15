@@ -9,9 +9,11 @@
     "ios": "expo start --ios",
     "test": "node --test src/lib/*.test.js",
     "harness": "node scripts/engine-harness.mjs",
-    "test:ui": "expo export --platform web --output-dir dist-web && node e2e/ui-smoke.mjs dist-web",
+    "test:ui": "npm run test:chat",
     "test:e2e": "expo export --platform web --output-dir dist-web && playwright test",
-    "test:e2e:only": "playwright test"
+    "test:e2e:only": "playwright test",
+    "test:chat": "node scripts/test-chat.mjs",
+    "preview:review": "expo start --web --port 8081"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

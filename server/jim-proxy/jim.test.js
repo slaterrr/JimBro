@@ -42,7 +42,7 @@ describe('system prompt', () => {
 describe('tools', () => {
   it('defines the write and read tools', () => {
     const names = TOOLS.map((t) => t.name).sort();
-    assert.deepEqual(names, ['correct_set', 'delete_set', 'get_goal_progress', 'get_last_set_report', 'get_recent_sets', 'get_weekly_checkin', 'get_workout_context', 'log_sets'].sort());
+    assert.deepEqual(names, ['correct_set', 'delete_set', 'get_goal_progress', 'get_last_set_report', 'get_live_session', 'get_recent_sets', 'get_weekly_checkin', 'get_workout_context', 'log_sets', 'show_panel'].sort());
     for (const t of TOOLS) assert.equal(t.input_schema.type, 'object');
   });
   it('answers read tools from the context snapshot only', () => {
@@ -92,7 +92,7 @@ describe('handleChat', () => {
   it('runs read tools server-side and returns the final reply', async () => {
     const client = fakeClient([toolUse('get_recent_sets', { exercise: 'squat' }), text('Squat is at 225 for 5.')]);
     const r = await handleChat({ messages, context, persona: 'analyst' }, client);
-    assert.deepEqual(r, { reply: 'Squat is at 225 for 5.', proposals: [] });
+    assert.deepEqual(r, { reply: 'Squat is at 225 for 5.', proposals: [], toolCalls: [{ name: 'get_recent_sets', status: 'completed' }] });
     assert.equal(client.calls.length, 2);
     assert.equal(client.calls[0].model, MODEL);
     // Sonnet 5.5 thinks by default and thinking counts against max_tokens: room for it, but bounded.

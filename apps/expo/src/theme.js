@@ -1,10 +1,13 @@
-// JimBro design tokens (dark blue glass with Jim's body-blue accent, green for gains).
+// Review theme: graphite, Jim's body blue, cream neutrals and muted success colors.
 import { StyleSheet } from 'react-native';
 
-import { ACCENT, BG, SURFACES } from './lib/palette.js';
+import { ACCENT, BG, SURFACES, CHAT, TEXT } from './lib/palette.js';
 
 export const T = {
   bg: BG,
+  chat: CHAT,
+  ...TEXT,
+  highlight: '#e9dfa8',
   ...SURFACES,
   ...ACCENT,
   // Legacy names kept for other branches: they now resolve to Jim blue.
@@ -12,14 +15,11 @@ export const T = {
   purpleDeep: ACCENT.accentDeep,
   purpleSoft: ACCENT.accentSoft,
   violetText: ACCENT.accentText,
-  green: '#4ade80',
-  greenBright: '#39ff5a',
-  greenSoft: '#a3f0a8',
+  green: '#9dceb3',
+  greenBright: '#b7dfc4',
+  greenSoft: '#d4e6d8',
   red: '#ef4444',
   amber: '#f5c451',
-  text: '#ffffff',
-  textDim: '#b7c7d3',
-  textMute: '#8298a8',
   rest: '#556674',
 };
 

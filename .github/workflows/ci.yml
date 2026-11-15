@@ -82,9 +82,8 @@ jobs:
       - name: Bundle for Android and iOS
         run: npx expo export --platform android --platform ios --output-dir /tmp/expo-dist
 
-  # Renders every screen in headless Chrome at 320px and 390px with demo data. Fails on crashes,
-  # console errors, overlapping / clipped / off-screen / covered / invisible buttons, tiny tap
-  # targets, and buttons or dropdowns that stop responding. Screenshots are uploaded every run.
+  # Playwright exercises chat, camera replay, inline tools and confirmation persistence
+  # through the production HTTP boundary with an injected SDK (no API key required).
   ui-smoke:
     name: ui-smoke
     runs-on: ubuntu-latest
@@ -100,16 +99,16 @@ jobs:
           cache: npm
           cache-dependency-path: apps/expo/package-lock.json
       - run: npm ci
-      - name: UI smoke (web export + headless Chrome)
+      - name: Chat E2E (web export + Playwright + production HTTP)
         env:
           CHROME_PATH: /usr/bin/google-chrome
           E2E_OUT: e2e-artifacts
         run: npm run test:ui
-      - name: User journeys (Playwright, same web export)
+      - name: User journeys (Playwright, independent offline web export)
         env:
           CHROME_PATH: /usr/bin/google-chrome
           CI: "true"
-        run: npm run test:e2e:only
+        run: npm run test:e2e
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -23,11 +23,11 @@ export function createVoice(engine, getSettings) {
   let audioReady = null;
   const opts = (persona, extra) => ({ ...speechOptions(persona), ...extra });
 
-  const say = (text, { force = false, persona, interrupt = force, onDone } = {}) => {
+  const say = (text, { force = false, persona, interrupt = force, onDone, onError } = {}) => {
     const s = getSettings() ?? {};
     if (!text || !(force || s.speak)) return false;
     if (interrupt) engine.stop();
-    engine.speak(String(text), opts(persona ?? s.persona, onDone ? { onDone } : {}));
+    engine.speak(String(text), opts(persona ?? s.persona, { ...(onDone ? { onDone } : {}), ...(onError ? { onError } : {}) }));
     return true;
   };
 
