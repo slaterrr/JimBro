@@ -1,0 +1,30 @@
+{
+  "video": "commons_forward_lunge.webm",
+  "movement": "lunge",
+  "split": "dev",
+  "adversarial": false,
+  "reps": [
+    {
+      "end_ms": 25750
+    },
+    {
+      "end_ms": 38500
+    },
+    {
+      "end_ms": 46500
+    },
+    {
+      "end_ms": 52000
+    },
+    {
+      "end_ms": 56750
+    },
+    {
+      "end_ms": 62250
+    }
+  ],
+  "labeling": "end_ms = first return to upright stance or straight-arm plank. Approximate 250 ms resolution from contact sheets before detector replay; single AI-assisted labeling pass.",
+  "conditions": "Weighted forward lunges with extended bottom holds and hard cuts between front, side, and cropped views.",
+  "source": "https://commons.wikimedia.org/wiki/File:Forward_lunge_training.webm",
+  "license": "CC BY-SA 4.0, Skhulile Mthiyane. Original media fetched locally and not redistributed."
+}

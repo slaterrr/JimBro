@@ -1,0 +1,30 @@
+{
+  "video": "commons_interval_push_up.webm",
+  "movement": "push_up",
+  "split": "dev",
+  "adversarial": false,
+  "reps": [
+    {
+      "end_ms": 8000
+    },
+    {
+      "end_ms": 16250
+    },
+    {
+      "end_ms": 24250
+    },
+    {
+      "end_ms": 32750
+    },
+    {
+      "end_ms": 40250
+    },
+    {
+      "end_ms": 48250
+    }
+  ],
+  "labeling": "end_ms = first return to upright stance or straight-arm plank. Approximate 250 ms resolution from contact sheets before detector replay; single AI-assisted labeling pass.",
+  "conditions": "Side-view chest push-ups with long top holds and small subject in a wide outdoor frame.",
+  "source": "https://commons.wikimedia.org/wiki/File:Interval_Push-ups.webm",
+  "license": "CC BY-SA 4.0, Taco Fleur. Original media fetched locally and not redistributed."
+}

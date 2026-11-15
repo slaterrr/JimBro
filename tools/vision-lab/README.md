@@ -44,3 +44,23 @@ who consented, and download public clips yourself from the `source` URL.
 ## Limits
 Synthetic 3D renders (BlenderProc etc.) are not here yet. Labels are 2D rep timing only, so no
 MPJPE: valid 3D error needs mocap-grade ground truth. Inference latency is desktop CPU, not phone.
+
+## Public lunge and push-up clips
+
+Fetch the original videos locally from Wikimedia Commons. Both are CC BY-SA 4.0. The repository tracks the labels and attribution. The videos stay in the ignored `videos/` directory.
+
+```powershell
+# From tools/vision-lab
+New-Item -ItemType Directory -Force videos | Out-Null
+curl.exe -fL https://upload.wikimedia.org/wikipedia/commons/0/02/Forward_lunge_training.webm -o videos/commons_forward_lunge.webm
+curl.exe -fL https://upload.wikimedia.org/wikipedia/commons/9/98/Interval_Push-ups.webm -o videos/commons_interval_push_up.webm
+node run.mjs --clip commons_forward_lunge
+node run.mjs --clip commons_interval_push_up
+```
+
+| Clip | Credit | Labeled | Counted | Missed | False |
+| --- | --- | ---: | ---: | ---: | ---: |
+| [Forward lunge](https://commons.wikimedia.org/wiki/File:Forward_lunge_training.webm) | Skhulile Mthiyane | 6 | 0 | 6 | 0 |
+| [Interval push-ups](https://commons.wikimedia.org/wiki/File:Interval_Push-ups.webm) | Taco Fleur | 6 | 6 | 0 | 0 |
+
+Production MediaPipe Lite replay at 20 fps. Both clips are development examples with one AI-assisted labeling pass before replay. The lunge clip includes camera cuts and partial framing. A continuous side-view lunge clip is needed to assess clean capture separately. No analyzer thresholds were changed.
