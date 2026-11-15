@@ -409,7 +409,6 @@ export function HomeScreen({ openLog, openActivity }) {
           <Text testID="welcome-greeting" style={st.heroSubtitle}>Your AI gym bro. Tell me what you want to hit today</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 }}>
             {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
           </View>
           <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
           <TodayCard onStart={startToday} onOpenTraining={() => setPage('training')} onBuild={() => send('Build me a training program')} />
