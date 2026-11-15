@@ -6,7 +6,7 @@ import { defaultPair, periods, metrics } from '../lib/comparison.js';
 import { T, type } from '../theme.js';
 
 const FRAMES = [['workout', 'Workout to workout'], ['month', 'Month to month'], ['year', 'Year to year']];
-const JIM_MASCOT = require('../../assets/jim-mascot.png');
+const JIM_MASCOT = require('../../assets/jim-comparison@3x.png');
 
 export function Comparisons({ history, unit, onSubmit }) {
   const [mode, setMode] = useState('workout');
@@ -35,10 +35,11 @@ export function Comparisons({ history, unit, onSubmit }) {
 }
 
 export function ComparisonResults({ comparison, onBack }) {
+  const [imageReady, setImageReady] = useState(false);
   const { exercise, from, to, old, current, unit } = comparison;
   const display = n => n === null ? 'No data' : Math.round(n).toLocaleString();
   const name = EXERCISES.find(e => e.id === exercise)?.name ?? exercise;
-  return <>
+  return <View style={{ opacity: imageReady ? 1 : 0 }} pointerEvents={imageReady ? 'auto' : 'none'}>
     <PrimaryButton secondary onPress={onBack}>Back to comparison</PrimaryButton>
     <Card style={{ marginTop: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -46,6 +47,8 @@ export function ComparisonResults({ comparison, onBack }) {
         <Image
           source={JIM_MASCOT}
           fadeDuration={0}
+          onLoad={() => setImageReady(true)}
+          onError={() => setImageReady(true)}
           accessibilityLabel="Jim holding a barbell"
           resizeMode="contain"
           style={{ width: 112, height: 82 }}
@@ -79,5 +82,5 @@ export function ComparisonResults({ comparison, onBack }) {
       })}
       <Text style={[type.small, { marginTop: 8 }]}>Same exercise. Strength is converted to {unit} and uses sets of 1–10 reps. Total reps adds all logged sets; partial months and years may have fewer workouts.</Text>
     </Card>
-  </>;
+  </View>;
 }

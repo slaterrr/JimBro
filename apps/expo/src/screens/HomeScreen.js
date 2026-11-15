@@ -78,6 +78,7 @@ function PlanCard({ goal: initialGoal = 'hypertrophy' }) {
 }
 
 export function HomeScreen({ openLog, openActivity, go }) {
+  const [mascotReady, setMascotReady] = useState(false);
   const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, active, history, goals, plan, startMission, conversation } = useApp();
   const MISSION_CHIPS = ['I have 20 minutes, help me finish chest day', '30 min legs', '15 min, you pick'];
   const { snapshot: liveCamera } = useLiveCamera();
@@ -217,7 +218,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const connecting = !aiOn && proxy.state === 'checking' && source !== 'offline';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, opacity: mascotReady || messages.length ? 1 : 0 }} pointerEvents={mascotReady || messages.length ? 'auto' : 'none'} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={st.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
           <Icon name="arm-flex" size={compact ? 24 : 30} color={T.accent} />
@@ -252,7 +253,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
         </TouchableOpacity>
         {!messages.length ? (
           <View style={{ alignItems: 'center', marginTop: compact ? 8 : 20 }}>
-            <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Jim holding a barbell" resizeMode="contain" style={{ width: 220, height: 150 }} />
+            <Image source={require('../../assets/jim-home@3x.png')} fadeDuration={0} onLoad={() => setMascotReady(true)} onError={() => setMascotReady(true)} accessibilityLabel="Jim holding a barbell" resizeMode="contain" style={{ width: 220, height: 150 }} />
             <Text style={[type.h1, { marginTop: 16, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
               {HOME_SUBTITLE}
