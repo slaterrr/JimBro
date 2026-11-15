@@ -109,6 +109,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const input = useRef(null);
   const mounted = useRef(true);
   const talkRef = useRef(false);
+  const talkInitialDraft = useRef(null);
   talkRef.current = talk;
   const [proxy, setProxy] = useState(PROXY_URL ? 'checking' : 'offline');
   const health = healthSummary({ history, active, goals, plan });
@@ -302,13 +303,14 @@ export function HomeScreen({ openLog, openActivity }) {
     if (result && mounted.current) speak(result.reply || result.proposals?.[0]?.summary);
   };
   useEffect(() => {
-    if (!talk || !text.trim()) return undefined;
+    if (!talk || !text.trim() || text === talkInitialDraft.current) return undefined;
     const timeout = setTimeout(() => send(text), 1800);
     return () => clearTimeout(timeout);
   }, [talk, text]);
   const openDictation = () => input.current?.focus();
   const toggleTalk = () => {
     const next = !talk;
+    talkInitialDraft.current = next ? text : null;
     talkRef.current = next;
     setTalk(next);
     Keyboard.dismiss();
@@ -394,7 +396,7 @@ export function HomeScreen({ openLog, openActivity }) {
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
         <View style={[st.composer, focused && { borderColor: T.accent }]}>
           {talk ? <Text style={st.talkHint}>Jim reads replies aloud. Tap the mic to open keyboard dictation.</Text> : null}
-          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
+          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); talkInitialDraft.current = null; setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
           <View style={st.composerTools}>
             <View style={st.composerActions}>
               <SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} />
