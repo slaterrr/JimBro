@@ -189,7 +189,9 @@ test('an unknown model tool cannot escape the tool registry', async ({ page }) =
   expect(allSets(await saved(page))).toHaveLength(0);
 });
 
-test('a server-originated camera tool offers a camera choice without silently logging', async ({ page }) => {
+test('a server-originated camera tool offers a camera choice without silently logging', async ({ page, context }) => {
+  await context.grantPermissions(['camera']);
+  await page.route('https://cdn.jsdelivr.net/**', route => route.abort());
   await openCamera(page, 'Could you help me prepare?');
   await expect(page.locator('iframe[title="Camera and pose tracking"]')).toBeVisible();
   expect(allSets(await saved(page))).toHaveLength(0);
@@ -254,9 +256,13 @@ test('recorded real squat landmarks count twice locally and save only when confi
   expect(fixture.calls.length).toBe(modelCallsBeforeFrames);
   expect(allSets(await saved(page))).toHaveLength(0);
   await page.getByRole('button', { name: 'End set and log it', exact: true }).click();
-  await page.getByLabel('Added weight', { exact: true }).fill('20');
-  await page.getByLabel('Reported effort', { exact: true }).fill('7');
-  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  // The dedicated Coach screen opens LogSetSheet, not the old inline camera-confirm card.
+  await expect(page.getByText('Log a set', { exact: true })).toBeVisible();
+  await expect(page.getByText(/2 camera-counted reps with timing attached/)).toBeVisible();
+  await page.locator('input[placeholder="0"]').fill('20');
+  await page.getByText('Effort (RPE)', { exact: true })
+    .locator('xpath=following-sibling::*[1]').getByText('7', { exact: true }).click();
+  await page.getByRole('button', { name: 'Save set', exact: true }).click();
   await expect.poll(async () => allSets(await saved(page)).length).toBe(1);
   const [set] = allSets(await saved(page));
   expect(set).toMatchObject({ exercise: 'squat', reps: 2, source: 'camera', weight: 20, rpe: 7 });
