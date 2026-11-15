@@ -15,11 +15,12 @@ import { personalRecords } from './lib/progress.js';
 import { mergeHistory, parseImport } from './lib/tools.js';
 import { createConversation } from './lib/conversation.js';
 import { chronologicalHistory } from './lib/historyOrder.js';
+import { withSavedPlan } from './lib/planVersions.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
 export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3, onboarded: false, ...DEFAULT_GOAL_SETTINGS }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
-const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, goals: [] };
+const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, planVersions: [], goals: [] };
 
 export const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -153,7 +154,8 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     setData((d) => (d.mission ? { ...d, mission: { ...d.mission, state: missionStep(d.mission.state, event) } } : d));
   const endMission = () => setData((d) => ({ ...d, mission: null }));
 
-  const savePlan = (plan) => setData((d) => ({ ...d, plan }));
+  // Saving keeps the previous plan in planVersions (lib/planVersions.js).
+  const savePlan = (plan) => setData((d) => withSavedPlan(d, plan));
   // Goals: measurable targets checked against logged history (see lib/goals.js).
   const addGoal = (goal) => setData((d) => ({ ...d, goals: [...(d.goals ?? []), { id: newId(), createdAt: new Date().toISOString(), ...goal }] }));
   const removeGoal = (id) => setData((d) => ({ ...d, goals: (d.goals ?? []).filter((g) => g.id !== id) }));
@@ -166,7 +168,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     goals: data.goals ?? [], addGoal, removeGoal,
     mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice,
-    active: data.active, history: data.history, plan: data.plan, allSets,
+    active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
     startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return (

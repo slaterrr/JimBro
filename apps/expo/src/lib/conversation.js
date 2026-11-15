@@ -2,6 +2,9 @@
 // Kept outside persisted workout data so future database exports never include chat by accident.
 import { toolReceipts, validateAction } from './chatActions.js';
 
+const CHANGE_KINDS = ['confirm', 'camera-confirm'];
+const CONFIRM_KINDS = [...CHANGE_KINDS, 'program'];
+
 export function createConversation({ now = Date.now } = {}) {
   let snapshot = { messages: [], busy: false, source: 'offline', reason: null, error: null };
   let generation = 0;
@@ -10,11 +13,14 @@ export function createConversation({ now = Date.now } = {}) {
   let sequence = 0;
   const update = fn => {
     const next = (typeof fn === 'function' ? fn(snapshot.messages) : fn).map(m => {
-      if (!['confirm', 'camera-confirm'].includes(m.kind) || m.confirmationId) return m;
-      return { ...m, confirmationId: `confirmation-${++sequence}`, expiresAt: now() + 5 * 60_000 };
+      if (!CONFIRM_KINDS.includes(m.kind) || m.confirmationId) return m;
+      return { ...m, confirmationId: `confirmation-${++sequence}`, expiresAt: now() + (m.kind === 'program' ? 30 : 5) * 60_000 };
     });
-    const pending = next.findLast(m => ['confirm', 'camera-confirm'].includes(m.kind));
-    patch({ messages: next.map(m => ['confirm', 'camera-confirm'].includes(m.kind) && m !== pending
+    // One pending card per group: a newer workout change replaces an older one; program cards
+    // (plans you read before saving) only replace older program cards.
+    const pendingChange = next.findLast(m => CHANGE_KINDS.includes(m.kind));
+    const pendingProgram = next.findLast(m => m.kind === 'program');
+    patch({ messages: next.map(m => (CHANGE_KINDS.includes(m.kind) && m !== pendingChange) || (m.kind === 'program' && m !== pendingProgram)
       ? { kind: 'notice', text: 'That proposal was replaced by your newer request.' } : m) });
   };
   return {
@@ -23,7 +29,7 @@ export function createConversation({ now = Date.now } = {}) {
     update,
     claimConfirmation(index, validate = () => true) {
       const message = snapshot.messages[index];
-      if (!message || !['confirm', 'camera-confirm'].includes(message.kind)) return null;
+      if (!message || !CONFIRM_KINDS.includes(message.kind)) return null;
       const intent = message.intent ?? message;
       const valid = message.expiresAt > now() && validate(intent);
       update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: valid ? 'Applying your confirmed change…' : 'This proposal expired or changed. Please ask Jim again.' } : m));
