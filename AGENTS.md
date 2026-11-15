@@ -35,6 +35,11 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - Wording: never accuse users of cheating; uncertain tracking is the camera's fault.
 - Coordinate file ownership when running agents in parallel (see "Hot files").
 
+## Opt-in AI plan personalization (branch feat/ai-opt-in-plan-personalization)
+- Added `/plan`: a bounded Claude preference pass only on explicit user button press. It can reorder deterministic exercises but cannot change sets, reps, durations or equipment. Home displays the result for separate save confirmation.
+- Local plan builder, normal chat/voice, camera analysis, and offline behavior remain unchanged. Backend/frontend tests specify rejection and local fallback.
+- This is **not** the complete personal-trainer integration brief; production auth, automatic post-set opt-in, richer voice interaction and mobile validation remain pending.
+
 ## How to verify
 | What | Command |
 |---|---|
