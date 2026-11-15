@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Text } from 'react-native';
-import { Card, Dropdown } from './kit.js';
+import { Card, Dropdown, PrimaryButton } from './kit.js';
 import { EXERCISES } from '../lib/exercises.js';
 import { defaultPair, periods, metrics } from '../lib/comparison.js';
 import { type } from '../theme.js';
 
 const FRAMES = [['workout', 'Workout to workout'], ['month', 'Month to month'], ['year', 'Year to year']];
 
-export function Comparisons({ history, unit }) {
+export function Comparisons({ history, unit, onSubmit }) {
   const [mode, setMode] = useState('workout');
   const [exercise, setExercise] = useState('bench');
   const [before, setBefore] = useState(null);
@@ -26,11 +26,27 @@ export function Comparisons({ history, unit }) {
     {groups.length < 2 ? <Text style={[type.body, { marginTop: 10 }]}>Complete workouts in two different {mode === 'workout' ? 'sessions' : mode+'s'} to compare.</Text> : <>
       <Dropdown testID="compare-from" label="From" value={a?.key} options={choices} onChange={setBefore} />
       <Dropdown testID="compare-to" label="To" value={b?.key} options={choices} onChange={setAfter} />
+      <PrimaryButton disabled={!a || !b || a.key === b.key} onPress={() => onSubmit({ exercise, mode, from: a.label, to: b.label, old, current, unit })}>Submit</PrimaryButton>
+      {a?.key === b?.key ? <Text style={type.small}>Choose two different periods to compare.</Text> : null}
+    </>}
+  </Card>;
+}
+
+export function ComparisonResults({ comparison, onBack }) {
+  const { exercise, from, to, old, current, unit } = comparison;
+  const display = n => n === null ? 'No data' : Math.round(n).toLocaleString();
+  const name = EXERCISES.find(e => e.id === exercise)?.name ?? exercise;
+  return <>
+    <PrimaryButton secondary onPress={onBack}>Back to comparison</PrimaryButton>
+    <Card style={{ marginTop: 14 }}>
+      <Text style={type.title}>{name} progress</Text>
+      <Text style={type.body}>From: {from}</Text>
+      <Text style={type.body}>To: {to}</Text>
       {['strength','volume'].map(key => <Text key={key} style={[type.body, { marginTop: 10 }]}>
         {key === 'strength' ? 'Best estimated 1RM' : 'Total volume'} ({unit}{key === 'volume' ? ' × reps' : ''}): {display(old[key])} → {display(current[key])}
         {old[key] > 0 && current[key] !== null ? ` (${((current[key]-old[key])/old[key]*100).toFixed(1)}%)` : ''}
       </Text>)}
       <Text style={[type.small, { marginTop: 8 }]}>Same exercise, converted to {unit}. Strength uses sets of 1–10 reps. Volume totals all logged sets; partial months and years may have fewer workouts.</Text>
-    </>}
-  </Card>;
+    </Card>
+  </>;
 }

@@ -23,6 +23,7 @@ Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 
 | Leaderboard | 📋 not started (privacy: on-device app; would need opt-in sharing) |
 | Supplied Jim mascot on Home and body-blue app theme (#98CCEA) | 🧪 codex/jim-blue-theme; transparent asset, palette contrast checks; device visual check pending |
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
+| Compare your training → Submit → dedicated comparison results page | 🧪 codex/compare-submit-page; distinct-period validation, back action; device check pending |
 
 ## Rules for agents
 Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
