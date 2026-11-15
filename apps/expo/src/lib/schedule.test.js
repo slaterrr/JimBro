@@ -110,3 +110,14 @@ describe('weekly schedule', () => {
     assert.ok(validateSchedule({ ...schedule, missedPolicy: 'whatever' }, program).length > 0);
   });
 });
+
+describe('a new schedule never starts with missed days', () => {
+  it('starts this week only when no training day has passed yet, otherwise next Monday', () => {
+    const at = (iso) => createSchedule(program, { timeZone: 'UTC', now: new Date(iso) }).startDate;
+    assert.equal(at('2026-11-09T12:00:00Z'), '2026-11-09'); // Monday: Monday is still ahead (today)
+    assert.equal(at('2026-11-14T12:00:00Z'), '2026-11-16'); // Saturday: Mon/Wed/Fri have passed
+    assert.equal(at('2026-11-10T12:00:00Z'), '2026-11-16'); // Tuesday: Monday passed
+    const fresh = createSchedule(program, { timeZone: 'UTC', now: new Date('2026-11-14T12:00:00Z') });
+    assert.equal(calendarMonth('2026-11', { schedule: fresh, program, today: '2026-11-14' }).days.filter((d) => d.status === 'missed').length, 0);
+  });
+});
