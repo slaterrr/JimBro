@@ -253,18 +253,25 @@ function latestSet(history, exercise) {
   return best;
 }
 
-function firstLoad(exercise, history, rpeHigh) {
-  const name = exerciseName(exercise).toLowerCase();
-  const last = latestSet(history, exercise);
-  if (last && last.weight > 0) {
-    const effort = last.rpe != null ? ` at RPE ${last.rpe}` : '';
-    const advice = last.rpe == null
-      ? ' Start there and rate the first set (RPE) so Jim can adjust.'
-      : last.rpe <= rpeHigh - 1.5 ? ' Start there; add the smallest step if the first set feels easy.' : ' Start there.';
-    return { text: `Last logged: ${last.reps} × ${last.weight} ${last.unit}${effort}.${advice}`, from: { setId: last.id, weight: last.weight, unit: last.unit, reps: last.reps, rpe: last.rpe ?? null } };
+export function programLoadText(exercise, from, deload = false) {
+  if (from?.weight > 0) {
+    const effort = from.rpe != null ? ` at RPE ${from.rpe}` : '';
+    const note = from.rpe == null
+      ? ' Use that as a reference and rate how your chosen load feels.'
+      : ' Use that as a reference for the load you choose.';
+    return `Last logged: ${from.reps} × ${from.weight} ${from.unit}${effort}.${note}`;
   }
-  if (isBodyweight(exercise)) return { text: 'Bodyweight: stop each set with about 2–3 good reps left in the tank.', from: null };
-  return { text: `No ${name} history yet: ramp up with warm-up sets, then use a weight you could lift 2–3 more times at the end of the set (about RPE 7). No max testing needed.`, from: null };
+  if (deload) return 'Use lighter working loads or easy bodyweight reps for this session.';
+  if (isBodyweight(exercise)) return 'Bodyweight: stop each set with about 2–3 good reps left in the tank.';
+  return 'Choose your working weight after warm-up sets. Use a load you could lift 2–3 more times at the end of the set.';
+}
+
+function firstLoad(exercise, history) {
+  const last = latestSet(history, exercise);
+  const from = last?.weight > 0
+    ? { setId: last.id, weight: last.weight, unit: last.unit, reps: last.reps, rpe: last.rpe ?? null }
+    : null;
+  return { text: programLoadText(exercise, from), from };
 }
 
 function fit(items, limit) {
@@ -343,9 +350,9 @@ function weekItems(base, week, deload, history, intake) {
     const rpe_high = deload ? 6 : Math.min(hi, round(lo + 1 + 0.5 * k));
     const sets = deload ? Math.max(1, Math.round(b.sets * 0.6)) : b.sets + (withBump && b.role === 'accessory' ? 1 : 0);
     const load = week === 1
-      ? firstLoad(b.exercise, history, rpe_high)
+      ? firstLoad(b.exercise, history)
       : deload ? { text: "Deload: about 90% of last week's working weight (or easy bodyweight reps).", from: null }
-        : { text: "Progress from last week's result using the progression rules.", from: null };
+        : { text: "Choose your load using your latest logged set as a reference.", from: null };
     const { base_rpe, ...item } = b; // eslint-disable-line no-unused-vars
     return { ...item, sets, rpe_low, rpe_high, load };
   });
@@ -371,7 +378,7 @@ const TEMPLATE_NAME = (i) => (i.daysPerWeek >= 4
   : `full-body ${GOALS[i.goal].toLowerCase()}`);
 
 /** Build a validated program. Throws on an invalid intake instead of guessing. */
-export function buildProgram(intake, { history = [], unit = 'lb', id = `program-${Date.now().toString(36)}`, now = new Date().toISOString(), version = 1 } = {}) {
+export function buildProgram(intake, { history = [], id = `program-${Date.now().toString(36)}`, now = new Date().toISOString(), version = 1 } = {}) {
   const problems = validateIntake(intake);
   if (problems.length) throw new Error(problems.join('; '));
   const clean = { goal: intake.goal, experience: intake.experience, daysPerWeek: intake.daysPerWeek, minutes: intake.minutes, equipment: [...intake.equipment], avoid: [...(intake.avoid ?? [])], weeks: intake.weeks };
@@ -391,21 +398,20 @@ export function buildProgram(intake, { history = [], unit = 'lb', id = `program-
       : `Build week ${((w - 1) % 4) + 1} of 3: main lifts at RPE ${main?.rpe_low ?? 6}–${main?.rpe_high ?? 8}.`;
     weeks.push({ week: w, deload, phase: deload ? 'deload' : 'build', note, sessions });
   }
-  const step = unit === 'kg' ? ['1–2.5 kg', '2.5–5 kg'] : ['5 lb', '5–10 lb'];
   return {
     schema: PROGRAM_SCHEMA, id, version, createdAt: now,
     name: `${clean.weeks}-week ${TEMPLATE_NAME(clean)} block (${clean.daysPerWeek} days)`,
     intake: clean,
     weeks,
     progression: {
-      increase: `Every set reaches the top of the rep range at or below the target RPE: add the smallest step next session (about ${step[0]} upper body, ${step[1]} lower body).`,
-      hold: 'Reps inside the range at the target RPE: keep the weight and aim for one more rep per set.',
+      increase: 'Choose your own working weight. The program uses logged loads as a reference.',
+      hold: 'When effort is in range, repeat your working weight and rep target.',
       reduce: 'Below the bottom of the range, RPE above 9 on a set meant to be easier, or reps slowing down a lot on camera: reduce the weight 5–10% next session.',
       stop: 'Sharp or unusual pain (not normal effort): stop that exercise, use a listed substitution and get it checked if it persists.',
     },
     deload: 'Every 4th week and the final week: about 60% of the sets at RPE 5–6 with about 90% of your working weights.',
     principles: ['Compound strength lifts first, hypertrophy accessories after.', 'Push, pull, squat and hinge every week where your equipment and limitations allow.', 'Effort (RPE) targets instead of guessed weights.', 'Planned deloads; no max testing.'],
-    notes: ['Original JimBro plan built from general training principles. Not medical advice.', 'Starting loads come only from your logged sets. Rate your sets (RPE) so Jim can progress you.'],
+    notes: ['Original JimBro plan built from general training principles. Not medical advice.', 'Starting loads come only from your logged sets. Rate your sets (RPE) so Jim can guide your rest and effort.'],
     changes: [],
   };
 }

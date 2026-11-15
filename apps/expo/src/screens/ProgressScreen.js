@@ -142,8 +142,8 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
               <View key={u} style={{ marginTop: 14 }}>
                 <Text style={type.title}>Top weight ({u})</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
-                  <Text style={type.bigGreen}>{pct(tr.top_weight_change_pct)}</Text>
-                  <Text style={type.body}>first → latest session</Text>
+                  <Text style={type.bigGreen}>{tr.best_logged_weight > 0 ? fmt(tr.best_logged_weight, u) : "Bodyweight"}</Text>
+                  <Text style={type.body}>heaviest logged set</Text>
                 </View>
                 <LineChart points={tr.points.slice(-8).map((p) => ({ label: p.date.slice(5), value: p.top_weight }))} />
                 {tr.tut_change_pct !== null ? <Text style={type.small}>Est. TUT per rep {pct(tr.tut_change_pct)} (camera sets)</Text> : null}

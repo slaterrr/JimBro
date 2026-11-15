@@ -7,12 +7,10 @@
 export const ACTIONS = ['increase', 'same', 'decrease', 'more_rest', 'fewer_reps', 'none'];
 
 const INCREMENT = { kg: 0.5, lb: 2.5 }; // same steps as Jim's next-set suggestion (coach.js)
-const MAX_UP = 0.05; // at most +5%
 const DOWN = 0.075; // a missed set backs off ~7.5%
 const EXTRA_REST_S = 60;
 const VERY_HARD_RPE = 9.5;
 const EASY_RPE = 7;
-const BEAT_TARGET_BY = 2; // reps over target that justify an increase without an effort rating
 const MEASURED_HARD_PCT = 30; // camera slowdown that counts as 'hard'
 const MEASURED_STEADY_PCT = 15;
 
@@ -105,16 +103,7 @@ export function recommendNext({ exercise, unit = 'lb', weight, target, completed
   if (lastIncreaseTooHard(history, exercise)) {
     return out('same', {}, ['Your last increase on this lift turned out too hard last time, so hold this weight a little longer.']);
   }
-  const beat = completed >= target + BEAT_TARGET_BY;
-  if ((easy && (level === 'normal' || level === 'uncertain')) || (!rated && beat)) {
-    let up = Math.floor((weight * (1 + MAX_UP)) / inc) * inc;
-    if (up <= weight) up = weight + inc;
-    return out('increase', { weight: round2(up) }, [
-      easy ? `All ${target} reps at ${rpe != null ? `RPE ${rpe}` : `${rir} reps left`}.` : `${completed} reps against a target of ${target}.`,
-      `A small step to ${round2(up)} ${unit} is reasonable${midWorkout ? ' for the next set' : ' next session'}.`,
-    ]);
-  }
-  if (!rated) return out('same', {}, ['All reps done. Rate how hard it was so I can suggest a change.']);
+  if (!rated) return out('same', {}, ['All reps done. Rate how hard it was so I can guide your rest and effort.']);
   return out('same', {}, [`All ${target} reps at a solid effort. Keep ${weight} ${unit}.`]);
 }
 

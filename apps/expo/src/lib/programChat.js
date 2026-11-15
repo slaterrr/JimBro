@@ -2,7 +2,7 @@
 // "Why this exercise?", "Swap this movement" and "Make this session shorter" from the program
 // itself. Pure functions; the chat screen shows the cards and asks before saving anything.
 import { EXERCISES, exerciseName } from './exercises.js';
-import { nextQuestion, parseProgramRequest, prefillIntake, programNext, programSubstitutes, shortenSession } from './program.js';
+import { nextQuestion, parseProgramRequest, prefillIntake, programLoadText, programNext, programSubstitutes, shortenSession } from './program.js';
 
 /** Start a program conversation, or null when the message isn't a program request. */
 export function startProgramChat(message, { settings = {} } = {}) {
@@ -72,7 +72,7 @@ export function programQuery(message, { plan, history = [], active = null } = {}
     const week = program.weeks[(t?.week ?? 1) - 1];
     const item = [week, ...program.weeks].flatMap((w) => w?.sessions ?? []).flatMap((s) => s.items).find((i) => i.exercise === id);
     if (!item) return { type: 'why', reply: `${exerciseName(id)} isn't in your program. Ask me to swap it in if you want it.` };
-    return { type: 'why', exercise: id, reply: `${exerciseName(id)}: ${item.why} In week ${t?.week ?? 1} it's ${itemLine(item).replace(`${exerciseName(id)} `, '')}. ${item.load.text}` };
+    return { type: 'why', exercise: id, reply: `${exerciseName(id)}: ${item.why} In week ${t?.week ?? 1} it's ${itemLine(item).replace(`${exerciseName(id)} `, '')}. ${programLoadText(item.exercise, item.load.from, t?.deload)}` };
   }
 
   if (/\b(swap|replace|substitute|switch out|alternative to|instead of)\b/i.test(text)) {

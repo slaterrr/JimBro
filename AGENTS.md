@@ -205,3 +205,7 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+## Logged working weights
+
+Jim uses completed sets as load references and leaves weight increases to the lifter. The Strength view shows the heaviest completed set by exercise and unit, with the actual session weights below. Existing history and user-approved safety reductions remain available.

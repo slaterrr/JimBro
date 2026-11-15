@@ -27,7 +27,7 @@ describe('persona voice', () => {
   it('coach replies keep the numbers for every persona and seed', () => {
     for (const seed of [0, 1, 2, 3]) {
       const outs = samePersonaContract((p) => coachReply('what next?', p, history, seed).text);
-      for (const s of outs) assert.match(s, /21/);
+      for (const s of outs) assert.match(s, /20/);
     }
   });
   it('varies wording across seeds', () => {
