@@ -6,8 +6,8 @@ import { exerciseName } from './exercises.js';
 import { EXERCISE_MUSCLES, MUSCLE_GROUPS } from './muscles.js';
 
 // [sets, reps_low, reps_high, rest_min]
-const SCHEME = { strength: [4, 3, 5, 3], muscle: [4, 8, 12, 1.5], endurance: [3, 12, 20, 1], fat_loss: [3, 10, 15, 1], general: [3, 6, 10, 1.5] };
-const LABEL = { strength: 'strength', muscle: 'muscle', endurance: 'endurance', fat_loss: 'fat-loss', general: 'general' };
+const SCHEME = { strength: [4, 3, 5, 3], muscle: [4, 8, 12, 1.5], endurance: [3, 12, 20, 1], general: [3, 6, 10, 1.5] };
+const LABEL = { strength: 'strength', muscle: 'muscle', endurance: 'endurance', general: 'general' };
 const CATEGORIES = [['squat', 'deadlift', 'lunge'], ['bench', 'shoulder_press'], ['pull_up', 'curl']];
 const ORDER = Object.keys(EXERCISE_MUSCLES);
 const MUSCLE_IDS = new Set(MUSCLE_GROUPS.map((m) => m.id));

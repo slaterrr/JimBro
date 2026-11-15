@@ -44,3 +44,12 @@ describe('opt-in AI plan personalization', () => {
     assert.deepEqual(r.plan, buildPlan(request));
   });
 });
+
+describe('endurance goal', () => {
+  it('accepts endurance plans and keeps their high-rep scheme', async () => {
+    const endurance = { ...request, goal: 'endurance' };
+    const r = await handlePlan({ request: endurance, recentSets: [] }, client({ priorities: ['squat'], explanation: 'Squats first.' }));
+    assert.equal(r.ok, true);
+    assert.ok(r.plan.days.every((d) => d.items.every((i) => i.reps_low >= 12)));
+  });
+});

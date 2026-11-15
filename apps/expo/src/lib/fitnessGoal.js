@@ -6,17 +6,17 @@ import { MUSCLE_GROUPS } from './muscles.js';
 export const FITNESS_GOALS = [
   { id: 'strength', label: 'Get stronger', short: 'Strength', plan: 'strength' },
   { id: 'muscle', label: 'Build muscle', short: 'Muscle', plan: 'hypertrophy' },
-  { id: 'endurance', label: 'Improve endurance', short: 'Endurance', plan: 'general' },
-  { id: 'fat_loss', label: 'Lose fat', short: 'Fat loss', plan: 'general' },
+  { id: 'endurance', label: 'Improve endurance', short: 'Endurance', plan: 'endurance' },
   { id: 'general', label: 'General fitness', short: 'General fitness', plan: 'general' },
 ];
+// The fat-loss option was removed; old saves with 'fat_loss' migrate to 'general'.
 export const FITNESS_GOAL_IDS = FITNESS_GOALS.map((g) => g.id);
 export const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
 
 export const DEFAULT_GOAL_SETTINGS = { fitnessGoal: 'general', physiqueGoal: '', focusMuscles: [], activityLevel: null };
 
 const MUSCLE_IDS = new Set(MUSCLE_GROUPS.map((m) => m.id));
-const byId = (id) => FITNESS_GOALS.find((g) => g.id === id) ?? FITNESS_GOALS[4];
+const byId = (id) => FITNESS_GOALS.find((g) => g.id === id) ?? FITNESS_GOALS.find((g) => g.id === 'general');
 
 export const normalizeFitnessGoal = (id) => (FITNESS_GOAL_IDS.includes(id) ? id : 'general');
 export const fitnessGoalLabel = (id) => byId(id).label;

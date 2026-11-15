@@ -1,13 +1,13 @@
 import React from 'react';
-import { ScrollView, Text } from 'react-native';
-import { Card, PrimaryButton } from '../components/kit.js';
+import { ScrollView, Text, TouchableOpacity } from 'react-native';
+import { Card, Icon } from '../components/kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { type } from '../theme.js';
+import { T, type } from '../theme.js';
 
 export function ProgramScreen({ plan, onBack }) {
   const weeks = plan?.program?.weeks ?? [{ week: 1, sessions: plan?.days ?? [] }];
   return <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-    <PrimaryButton secondary onPress={onBack}>Back to Jim</PrimaryButton>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to previous page" onPress={onBack} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="arrow-left" size={24} color={T.text} /></TouchableOpacity>
     <Text style={[type.h1, { marginTop: 16 }]}>Program</Text>
     <Text style={type.body}>{plan?.program?.name ?? plan?.name ?? 'Your current split'}</Text>
     {weeks.map((week, wi) => <React.Fragment key={wi}>

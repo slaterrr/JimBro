@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 import { canDo, exerciseInfo } from './exercises.js';
 import { nextWorkout } from './homeActions.js';
 import {
-  answerIntake, buildProgram, nextQuestion, parseProgramRequest, prefillIntake, programNext, programToPlan,
+  GOALS, answerIntake, buildProgram, nextQuestion, parseProgramRequest, prefillIntake, programNext, programToPlan,
   shortenSession, swapExercise, validateIntake, validateProgram, weeklySets,
 } from './program.js';
 
@@ -254,7 +254,7 @@ describe('every combination produces a valid program', () => {
     const gear = [FULL_GYM, ['dumbbells', 'bench'], [], ['barbell', 'bench'], ['cable', 'machine'], ['kettlebell', 'pullup_bar']];
     const avoids = [[], ['squat', 'lunge'], ['hinge'], ['vertical_push', 'dip']];
     let n = 0;
-    for (const goal of ['powerbuilding', 'strength', 'muscle', 'general', 'endurance', 'fat_loss'])
+    for (const goal of ['powerbuilding', 'strength', 'muscle', 'general', 'endurance'])
       for (const experience of ['new', 'returning', 'experienced'])
         for (const daysPerWeek of [2, 3, 4, 5])
           for (const minutes of [30, 40, 45, 60, 90])
@@ -266,6 +266,63 @@ describe('every combination produces a valid program', () => {
                 assert.ok(p.weeks.every((w) => w.sessions.every((s) => s.items.length >= 1)), JSON.stringify(intake));
                 n += 1;
               }
-    assert.equal(n, 6 * 3 * 4 * 5 * 6 * 4);
+    assert.equal(n, 5 * 3 * 4 * 5 * 6 * 4);
+  });
+});
+
+describe('goal options', () => {
+  it('has no fat-loss option; "lose fat" is asked again', () => {
+    assert.equal('fat_loss' in GOALS, false);
+    assert.equal(answerIntake({}, 'goal', 'I want to lose fat').ok, false);
+    assert.ok(validateIntake({ ...base, goal: 'fat_loss' }).length > 0);
+  });
+});
+
+describe('get stronger', () => {
+  const strength = { ...base, goal: 'strength' };
+  const p = buildProgram(strength, opts);
+  const main = (w) => p.weeks[w - 1].sessions[0].items[0];
+
+  it('is valid and named as a strength block', () => {
+    assert.deepEqual(validateProgram(p, strength), []);
+    assert.match(p.name, /strength/i);
+  });
+
+  it('main lifts get heavier across waves: fewer reps each 4-week wave', () => {
+    assert.equal(main(1).role, 'main');
+    assert.ok(main(1).reps_high > main(5).reps_high && main(5).reps_high > main(9).reps_high, `${main(1).reps_high} ${main(5).reps_high} ${main(9).reps_high}`);
+    assert.ok(main(9).reps_low >= 2);
+  });
+
+  it('puts most sets into compound lifts, with long rests on them', () => {
+    const items1 = p.weeks[0].sessions.flatMap((s) => s.items);
+    const compound = items1.filter((i) => i.role !== 'accessory').reduce((t, i) => t + i.sets, 0);
+    const accessory = items1.filter((i) => i.role === 'accessory').reduce((t, i) => t + i.sets, 0);
+    assert.ok(compound > accessory, `${compound} vs ${accessory}`);
+    assert.ok(items1.filter((i) => i.role === 'main').every((i) => i.rest_sec >= 180));
+  });
+
+  it('progresses load, and beginners still stay at 5+ reps', () => {
+    assert.match(p.progression.increase, /lb|kg/);
+    const beginner = buildProgram({ ...strength, experience: 'new' }, opts);
+    assert.ok(items(beginner).every((i) => i.reps_low >= 5 && i.rpe_high <= 7.5));
+  });
+});
+
+describe('improve endurance', () => {
+  const endurance = { ...base, goal: 'endurance' };
+  const p = buildProgram(endurance, opts);
+
+  it('is valid and uses high reps', () => {
+    assert.deepEqual(validateProgram(p, endurance), []);
+    assert.match(p.name, /endurance/i);
+    for (const i of p.weeks[0].sessions.flatMap((s) => s.items)) assert.ok(i.reps_low >= 10 && i.reps_high >= 15, `${i.exercise} ${i.reps_low}-${i.reps_high}`);
+  });
+
+  it('progresses by shortening rest across each build wave (never under 30 s)', () => {
+    const rest = (w) => p.weeks[w - 1].sessions[0].items.map((i) => i.rest_sec);
+    assert.ok(rest(3).every((r, k) => r < rest(1)[k]), `${rest(1)} -> ${rest(3)}`);
+    assert.ok(items(p).every((i) => i.rest_sec >= 30));
+    assert.match(p.progression.increase, /rest/i);
   });
 });

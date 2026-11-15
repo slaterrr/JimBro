@@ -13,7 +13,7 @@ import { EXERCISES, exerciseName } from '../lib/exercises.js';
 import { describeGoal, goalProgress, GOAL_TYPES, weeklyCheckIn } from '../lib/goals.js';
 import { MUSCLE_GROUPS } from '../lib/muscles.js';
 import { personalRecords, trend } from '../lib/progress.js';
-import { overview, weeklyVolume } from '../lib/stats.js';
+import { overview, weeklyVolume, toUnit } from '../lib/stats.js';
 import { estimate1RM, repeatPlan } from '../lib/tools.js';
 import { R, T, type } from '../theme.js';
 
@@ -67,7 +67,7 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
   const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
   const [adding, setAdding] = useState(false);
   const [health, setHealth] = useState(false);
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(initialTab === 'strength' ? 'overview' : initialTab);
   const [exercise, setExercise] = useState('bench');
   const unit = settings.unit;
   const workouts = useMemo(() => [...history, ...(active?.sets.length ? [active] : [])], [history, active]);
@@ -99,7 +99,7 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={[type.h1, { marginBottom: 16 }]}>Progression</Text>
-      <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
+      <Segmented options={[['overview', 'Overview'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
       {['volume', 'prs'].includes(tab) ? <PrimaryButton secondary onPress={() => setTab('overview')}>Back to Overview</PrimaryButton> : null}
 
       {tab === 'overview' ? <Comparisons history={history} unit={unit} onSubmit={setComparison} /> : null}
@@ -199,19 +199,8 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
 
       {tab === 'goals' ? (
         <>
-          <CheckInCard checkIn={weeklyCheckIn({ history, active, plan, goals })} />
-          <Card style={{ marginTop: 12 }} onPress={() => setHealth(true)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Icon name="heart-pulse" color={T.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={type.title}>Estimate my activity level</Text>
-                <Text style={type.small}>
-                  {settings.activityLevel ? `Saved: ${ACTIVITY_LABELS[settings.activityLevel] ?? settings.activityLevel}` : 'From your health app history, on this phone only.'}
-                </Text>
-              </View>
-            </View>
-          </Card>
-          <HealthConnect visible={health} onClose={() => setHealth(false)} />
+          <CheckInCard checkIn={weeklyCheckIn({ history, active, plan, goals })} plan={plan} />
+
           <Text style={[type.h2, { marginTop: 24 }]}>Goals</Text>
           {!goals.length ? <Text style={[type.body, { marginTop: 8 }]}>Set a measurable goal; it's checked against what you log.</Text> : null}
           {goals.map((g) => (
@@ -248,73 +237,39 @@ function Delta({ label, value }) {
 const fmt = (v, unit) => (v === null || v === undefined ? '—' : `${v} ${unit}`);
 
 /** Full workout history plus workout-to-workout and month/year comparisons. */
-function HistoryTab({ workouts, history, unit, active, onRepeat, onDelete }) {
-  const [exercise, setExercise] = useState('curl');
-  const [period, setPeriod] = useState('month');
-  const s = useMemo(() => compareSessions(workouts, exercise, unit), [workouts, exercise, unit]);
-  const p = useMemo(() => comparePeriods(workouts, { period, unit }), [workouts, period, unit]);
-  const list = useMemo(() => historyNewestFirst(history), [history]);
-  const line = (x) => `${x.label}: ${fmt(x.topWeight, unit)} top · e1RM ${fmt(x.e1rm, unit)} · vol ${fmt(x.volume, unit)}`;
-  return (
-    <>
-      <Card style={{ marginTop: 14 }}>
-        <Text style={type.title}>Workout to workout</Text>
-        <View style={{ marginTop: 8 }}>
-          <Chips options={EXERCISES.map((e) => [e.id, e.name])} value={exercise} onChange={setExercise} />
-        </View>
-        {!s ? (
-          <Text style={[type.body, { marginTop: 12 }]}>No {exerciseName(exercise).toLowerCase()} logged yet.</Text>
-        ) : (
-          <>
-            <Text style={[type.body, { marginTop: 12 }]}>{s.text}</Text>
-            {s.previous ? (
-              <>
-                <View style={{ flexDirection: 'row', marginTop: 10 }}>
-                  <Delta label="Top weight" value={s.change.topWeightPct} />
-                  <Delta label="Est. 1RM" value={s.change.e1rmPct} />
-                  <Delta label="Volume" value={s.change.volumePct} />
-                </View>
-                <Text style={[type.small, { marginTop: 8 }]}>{line(s.current)}</Text>
-                <Text style={type.small}>{line(s.previous)}</Text>
-              </>
-            ) : null}
-          </>
-        )}
-      </Card>
-
-      <Card style={{ marginTop: 12 }}>
-        <Text style={type.title}>{period === 'month' ? 'Month to month' : 'Year to year'}</Text>
-        <Dropdown testID="history-frame" label="Compare by" value={period} options={[['month', 'Month to month'], ['year', 'Year to year']]} onChange={setPeriod} />
-        <Text style={[type.body, { marginTop: 12 }]}>{p.text}</Text>
-        {p.previous ? (
-          <View style={{ flexDirection: 'row', marginTop: 10 }}>
-            <Delta label="Sessions" value={p.change.sessionsPct} />
-            <Delta label="Total e1RM" value={p.change.e1rmPct} />
-            <Delta label="Volume" value={p.change.volumePct} />
-          </View>
-        ) : null}
-        <Text style={[type.small, { marginTop: 8 }]}>
-          {p.current.label}: {p.current.sessions} sessions · vol {fmt(p.current.volume, unit)}
-          {p.previous ? ` · ${p.previous.label}: ${p.previous.sessions} sessions · vol ${fmt(p.previous.volume, unit)}` : ''}
-        </Text>
-        {p.exercises.map((e) => (
-          <Text key={e.exercise} style={[type.body, { marginTop: 6 }]}>
-            {exerciseName(e.exercise)}: e1RM {fmt(e.current?.bestE1rm, unit)}
-            {e.previous ? ` (was ${fmt(e.previous.bestE1rm, unit)}, ${pct(e.change?.e1rmPct)})` : ' (no previous data)'}
-            {e.current ? ` · vol ${fmt(e.current.volume, unit)}` : ' · none this period'}
-            {e.change ? ` (${pct(e.change.volumePct)})` : ''}
-          </Text>
-        ))}
-      </Card>
-
-      <Text style={[type.h2, { marginTop: 24 }]}>All workouts</Text>
-      {!list.length ? <Text style={[type.body, { marginTop: 8 }]}>Finished workouts show up here.</Text> : null}
-      {list.map((w) => (
-        <HistoryItem key={w.id} workout={w} canRepeat={!active} onRepeat={() => onRepeat(w)} onDelete={() => onDelete(w)} />
-      ))}
-      <Text style={[type.small, { marginTop: 10 }]}>Tap a workout to see its sets. Bodyweight sets add no volume or e1RM.</Text>
-    </>
-  );
+function HistoryTab({ history, unit }) {
+  const [selected, setSelected] = useState(null);
+  const list = historyNewestFirst(history);
+  const name = w => w.planned?.name ?? w.name ?? 'Workout';
+  if (selected) {
+    const previous = list.filter(w => new Date(w.startedAt) < new Date(selected.startedAt) && name(w) === name(selected))[0];
+    const exercises = [...new Set(selected.sets.map(s => s.exercise))];
+    return <>
+      <PrimaryButton secondary onPress={() => setSelected(null)}>Back to sessions</PrimaryButton>
+      <Text style={[type.h2, { marginTop: 16 }]}>{name(selected)}</Text>
+      <Text style={type.small}>{new Date(selected.startedAt).toLocaleDateString()}</Text>
+      {exercises.map(exercise => {
+        const sets = selected.sets.filter(s => s.exercise === exercise);
+        const before = previous?.sets.filter(s => s.exercise === exercise) ?? [];
+        const reps = sets.reduce((n,s) => n+s.reps,0), oldReps = before.reduce((n,s) => n+s.reps,0);
+        const load = Math.max(...sets.map(s => toUnit(s.weight, s.unit, unit)));
+        const oldLoad = before.length ? Math.max(...before.map(s => toUnit(s.weight, s.unit, unit))) : null;
+        return <Card key={exercise} style={{ marginTop: 12 }}>
+          <Text style={type.title}>{exerciseName(exercise)}</Text>
+          {sets.map((s,i) => <Text key={s.id ?? i} style={type.body}>{s.reps} reps × {s.weight} {s.unit}</Text>)}
+          <Text style={type.small}>{before.length ? 'Total reps: '+oldReps+' → '+reps+' ('+(reps-oldReps >= 0 ? '+' : '')+(reps-oldReps)+') vs previous '+name(previous)+' session' : 'First comparable session for this exercise.'}</Text>
+          {oldLoad !== null && (load > 0 || oldLoad > 0) ? <Text style={type.small}>Top load: {oldLoad} → {load} {unit} vs previous session</Text> : null}
+        </Card>;
+      })}
+    </>;
+  }
+  return <>
+    {!list.length ? <Text style={type.body}>Finished sessions will appear here.</Text> : null}
+    {list.map(w => <Card key={w.id} style={{ marginTop: 12 }} onPress={() => setSelected(w)}>
+      <Text style={type.title}>{name(w)}</Text>
+      <Text style={type.body}>{new Date(w.startedAt).toLocaleDateString()}</Text>
+    </Card>)}
+  </>;
 }
 
 function Badge({ onTrack }) {
@@ -349,7 +304,7 @@ function GoalCard({ goal, progress: p, onRemove }) {
   );
 }
 
-function CheckInCard({ checkIn: c }) {
+function CheckInCard({ checkIn: c, plan }) {
   const a = c.adherence;
   return (
     <Card style={{ marginTop: 14 }}>
@@ -359,7 +314,7 @@ function CheckInCard({ checkIn: c }) {
           <Text style={[type.statGreen, { marginTop: 4 }]}>{a.completed} / {a.planned} planned sessions</Text>
           {a.days.map((d) => (
             <Text key={d.day} style={[type.body, { marginTop: 4 }]}>
-              {d.done ? '✓' : '○'} Day {d.day}: {d.items.map((i) => `${exerciseName(i.exercise)} ${i.loggedSets}/${i.plannedSets}`).join(' · ')}
+              {d.done ? '✓' : '○'} {plan?.days?.find(day => day.day === d.day)?.name ?? `Day ${d.day}`} · {d.done ? 'Complete' : 'Not completed'}
             </Text>
           ))}
         </>

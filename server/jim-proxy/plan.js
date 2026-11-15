@@ -4,7 +4,7 @@ import { buildPlan } from '../../apps/expo/src/lib/plans.js';
 import { MODEL } from './jim.js';
 
 class BadRequest extends Error { constructor(message) { super(message); this.name = 'BadRequest'; } }
-const GOALS = new Set(['strength', 'hypertrophy', 'general']);
+const GOALS = new Set(['strength', 'hypertrophy', 'endurance', 'general']);
 const EQUIPMENT = new Set(['barbell', 'dumbbells', 'pullup_bar', 'bodyweight']);
 
 function validateRequest(body) {

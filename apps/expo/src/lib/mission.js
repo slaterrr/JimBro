@@ -61,7 +61,7 @@ export const FOCUS_EXERCISES = {
 const AREA_MUSCLES = { chest: ['chest'], legs: ['quads', 'glutes', 'hamstrings'], back: ['lats', 'lower_back'], arms: ['biceps', 'triceps'], shoulders: ['shoulders'] };
 const BODYWEIGHT = new Set(['push_up', 'pull_up', 'lunge']);
 // [sets, reps] per fitness goal (same intent as planFromGoal's schemes).
-const SCHEME = { strength: [4, 5], muscle: [3, 10], endurance: [3, 15], fat_loss: [3, 12], general: [3, 8] };
+const SCHEME = { strength: [4, 5], muscle: [3, 10], endurance: [3, 15], general: [3, 8] };
 const WARMUP_S = 180;
 const SEC_PER_REP = 4;
 const SET_SETUP_S = 20;
