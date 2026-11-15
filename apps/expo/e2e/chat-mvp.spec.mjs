@@ -9,6 +9,8 @@ import { startChatFixture } from './chat-mvp-fixture.mjs';
 let fixture;
 let staticServer;
 const pageErrors = new WeakMap();
+const ACCOUNT = 'review.lifter@example.com';
+const DATA_KEY = `jimbro.data.v2:${ACCOUNT}`;
 const exportRoot = resolve(process.env.CHAT_E2E_EXPORT || 'dist-chat');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.ttf': 'font/ttf', '.png': 'image/png', '.json': 'application/json' };
 const squatRecording = JSON.parse(await readFile(new URL('../../../tools/vision-lab/fixtures/fs_squat_rear.landmarks.json', import.meta.url), 'utf8'));
@@ -32,12 +34,14 @@ test.beforeEach(async ({ page }) => {
   const errors = [];
   pageErrors.set(page, errors);
   page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(() => {
-    // One-time initialization preserves real writes when the test reloads.
-    if (!localStorage.getItem('jimbro.data.v2')) localStorage.setItem('jimbro.data.v2', JSON.stringify({
+  await page.addInitScript(([account, key]) => {
+    // Auth itself is covered by the unseeded login journeys. Each test account
+    // keeps its real writes across reloads; no workout data enters production.
+    localStorage.setItem('jimbro.session.v1', account);
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({
       history: [], active: null, plan: null, goals: [], settings: { onboarded: true, speak: false, unit: 'kg' },
     }));
-  });
+  }, [ACCOUNT, DATA_KEY]);
   await page.goto('/');
   await expect(page.getByLabel('Message Jim', { exact: true })).toBeVisible();
 });
@@ -47,7 +51,13 @@ const message = async (page, text) => {
   await page.getByLabel('Message Jim', { exact: true }).fill(text);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 };
-const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('jimbro.data.v2')));
+const saved = page => page.evaluate(key => JSON.parse(localStorage.getItem(key)), DATA_KEY);
+const startWorkout = async page => {
+  await message(page, 'Start a workout');
+  await expect.poll(async () => Boolean((await saved(page)).active?.id)).toBe(true);
+  await message(page, 'stop camera');
+  await expect(page.getByTestId('chat-panel-camera')).toHaveCount(0);
+};
 const allSets = data => [...(data?.history || []), ...(data?.active ? [data.active] : [])].flatMap(w => w.sets || []);
 
 test('API rejects unauthenticated requests and exposes a safe health response', async () => {
@@ -57,6 +67,7 @@ test('API rejects unauthenticated requests and exposes a safe health response', 
 });
 
 test('Claude proposes a set, user confirms once, and the actual set survives reload', async ({ page }) => {
+  await startWorkout(page);
   const before = fixture.calls.length;
   await message(page, 'Log 8 squats at 20 kg');
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeVisible();
@@ -71,7 +82,36 @@ test('Claude proposes a set, user confirms once, and the actual set survives rel
   expect(allSets(await saved(page))).toHaveLength(1);
 });
 
+
+test('logging without an active workout cannot save or claim success', async ({ page }) => {
+  await message(page, 'Log 8 squats at 20 kg');
+  const confirm = page.getByRole('button', { name: 'Confirm', exact: true });
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toBeDisabled();
+  expect((await saved(page)).active).toBeNull();
+  expect(allSets(await saved(page))).toHaveLength(0);
+  await expect(page.getByText(/^Saved /)).toHaveCount(0);
+});
+
+test('a log proposal cannot move to a different workout', async ({ page }) => {
+  await startWorkout(page);
+  const firstWorkout = (await saved(page)).active.id;
+  await message(page, 'Log 8 squats at 20 kg');
+  await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toBeVisible();
+  await message(page, 'Finish workout');
+  await message(page, 'Start a workout');
+  await expect.poll(async () => (await saved(page)).active?.id).not.toBe(firstWorkout);
+  const confirm = page.getByRole('button', { name: 'Confirm', exact: true });
+  if (await confirm.count()) {
+    if (await confirm.isEnabled()) await confirm.click();
+    else await expect(confirm).toBeDisabled();
+  }
+  expect(allSets(await saved(page))).toHaveLength(0);
+  await expect(page.getByText(/^Saved /)).toHaveCount(0);
+});
+
 test('cancelling the write proposal changes no workouts', async ({ page }) => {
+  await startWorkout(page);
   await message(page, 'Log 8 squats at 20 kg');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Confirm', exact: true })).toHaveCount(0);
@@ -79,6 +119,7 @@ test('cancelling the write proposal changes no workouts', async ({ page }) => {
 });
 
 test('correction and deletion use the real set id and each require confirmation', async ({ page }) => {
+  await startWorkout(page);
   await message(page, 'Log 8 squats at 20 kg');
   await page.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect.poll(async () => allSets(await saved(page)).length).toBe(1);

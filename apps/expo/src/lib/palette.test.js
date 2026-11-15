@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ACCENT, BG, SURFACES, contrast } from './palette.js';
+import { ACCENT, BG, SURFACES, CHAT, TEXT, contrast } from './palette.js';
 
 const report = [];
 
@@ -11,10 +11,11 @@ describe('palette', () => {
     assert.equal(contrast('#000000', '#ffffff').toFixed(1), '21.0');
     assert.equal(contrast('#ffffff', '#ffffff'), 1);
   });
-  it('uses warm coral from the supplied red mascot', () => {
+  it('uses the mascot body blue and coordinated blue shades', () => {
+    assert.equal(ACCENT.accent, '#98ccea');
     for (const hex of [ACCENT.accent, ACCENT.accentDeep, ACCENT.accentText]) {
-      const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
-      assert.ok(r > g && r > b && Math.abs(g - b) < 30, `${hex} should be warm coral`);
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      assert.ok(b > g && g > r, `${hex} should be blue`);
     }
   });
   it('accent text tokens pass AA (>= 4.5:1) on the background and cards', () => {
@@ -32,4 +33,13 @@ describe('palette', () => {
     assert.ok(r >= 4.5);
     if (process.env.PALETTE_REPORT) console.log(report.join('\n'));
   });
+});
+
+// Review workspace must use the shared palette instead of stale green hardcoded colors.
+it('review workspace text and blue actions remain readable on every surface', () => {
+  for (const bg of [BG, SURFACES.surface, SURFACES.cardSolid, CHAT.background, CHAT.sidebar, CHAT.raised, CHAT.selected, CHAT.tinted, CHAT.composer]) {
+    for (const text of [TEXT.text, TEXT.textDim, TEXT.textMute, ACCENT.accent, ACCENT.accentText]) {
+      assert.ok(contrast(text, bg) >= 4.5, `${text} on ${bg} must pass AA`);
+    }
+  }
 });

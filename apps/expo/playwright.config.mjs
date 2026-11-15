@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: 'e2e',
-  testMatch: /.*\.spec\.mjs$/,
+  testMatch: 'journeys.spec.mjs', // chat-mvp has its own HTTP fixture/config
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never', outputFolder: 'e2e-artifacts/playwright' }]] : 'list',
