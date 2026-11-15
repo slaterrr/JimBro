@@ -41,7 +41,6 @@ function base(exercise, reps) {
 // - strength: long rests on compounds (2-5 min) so the next heavy set is as strong as possible.
 // - muscle (hypertrophy): about 60-120 s.
 // - endurance: about 30-60 s (muscular-endurance work keeps rests short on purpose).
-// - fat_loss: short rests (about 30-75 s) to keep the session dense.
 // - general (default, and old saves): the moderate per-exercise rules in base() above.
 // Beginners/comeback users and sedentary users get +15 s while they ease in.
 const GOAL_REST = {
@@ -49,7 +48,6 @@ const GOAL_REST = {
   strength: [180, 150, 90, 60, 120],
   muscle: [120, 90, 60, 45, 75],
   endurance: [60, 45, 30, 30, 45],
-  fat_loss: [75, 60, 45, 30, 60],
 };
 const KIND = ['heavy lift', 'compound lift', 'isolation lift', 'core work', 'this lift'];
 const kindOf = (e) => (HEAVY.has(e) ? 0 : COMPOUND.has(e) ? 1 : ISOLATION.has(e) ? 2 : CORE.has(e) ? 3 : 4);

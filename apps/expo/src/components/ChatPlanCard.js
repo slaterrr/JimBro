@@ -6,7 +6,7 @@ import { exerciseName } from '../lib/exercises.js';
 import { buildPlan } from '../lib/plans.js';
 import { requestAIPlan } from '../lib/aiPlan.js';
 import { T, type } from '../theme.js';
-const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['strength', 'Get stronger']];
+const GOALS = [['hypertrophy', 'Build muscle'], ['strength', 'Get stronger'], ['endurance', 'Improve endurance'], ['general', 'General fitness']];
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 export function PlanCard({ goal: initialGoal = 'hypertrophy', proxyUrl: aiUrl, proxyKey: aiKey, onStart }) {
   const { savePlan, startWorkout, active, plan: saved, history } = useApp();

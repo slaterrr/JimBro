@@ -9,7 +9,7 @@ const POOL = [
   ['curl', ['barbell', 'dumbbells']],
 ];
 const NEEDS = Object.fromEntries(POOL);
-const SCHEME = { strength: [4, 3, 5, 3], hypertrophy: [3, 8, 12, 1.5], general: [3, 6, 10, 1.5] };
+const SCHEME = { strength: [4, 3, 5, 3], hypertrophy: [3, 8, 12, 1.5], endurance: [3, 12, 20, 0.75], general: [3, 6, 10, 1.5] };
 const WARMUP_MIN = 5;
 const WORK_MIN_PER_SET = 1;
 const MAX_ITEMS = 4;
@@ -18,7 +18,9 @@ const minutes = (items) => WARMUP_MIN + items.reduce((t, i) => t + i.sets * (WOR
 
 export function buildPlan({ goal, days_per_week, minutes_per_session, equipment }) {
   if (!equipment?.length) throw new Error('choose at least one equipment option');
-  const [sets, lo, hi] = SCHEME[goal] ?? SCHEME.general;
+  const [sets, lo, hi, endRest] = SCHEME[goal] ?? SCHEME.general;
+  // Endurance keeps rests short on purpose; other goals use the per-exercise rest rules.
+  const restMin = (exercise) => (goal === 'endurance' ? endRest : restSeconds(exercise, hi) / 60);
   const available = POOL.filter(([, needs]) => needs.some((n) => equipment.includes(n))).map(([e]) => e);
   if (!available.length) throw new Error('no exercises match that equipment');
   const days = [];
@@ -27,11 +29,11 @@ export function buildPlan({ goal, days_per_week, minutes_per_session, equipment 
     const order = [...available.slice(off), ...available.slice(0, off)];
     let items = [];
     for (const exercise of order.slice(0, MAX_ITEMS)) {
-      const item = { exercise, sets, reps_low: lo, reps_high: hi, rest_min: restSeconds(exercise, hi) / 60 };
+      const item = { exercise, sets, reps_low: lo, reps_high: hi, rest_min: restMin(exercise) };
       if (minutes([...items, item]) <= minutes_per_session) items.push(item);
     }
     if (!items.length) {
-      const item = { exercise: order[0], sets, reps_low: lo, reps_high: hi, rest_min: restSeconds(order[0], hi) / 60 };
+      const item = { exercise: order[0], sets, reps_low: lo, reps_high: hi, rest_min: restMin(order[0]) };
       while (item.sets > 1 && minutes([item]) > minutes_per_session) item.sets -= 1;
       items = [item];
     }

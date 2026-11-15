@@ -11,7 +11,7 @@ const CHAT_BODY = 64 * 1024;
 const PHYSIQUE_BODY = Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 16 * 1024;
 const MAX_GOAL_CHARS = 300;
 const MEDIA_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const GOALS = new Set(['strength', 'muscle', 'endurance', 'fat_loss', 'general']);
+const GOALS = new Set(['strength', 'muscle', 'endurance', 'general']); // older clients' removed fat-loss goal falls back to general
 const MUSCLE_IDS = MUSCLE_GROUPS.map((m) => m.id);
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 

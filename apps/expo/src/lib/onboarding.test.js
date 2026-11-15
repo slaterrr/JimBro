@@ -18,7 +18,7 @@ test('four short questions: experience, goal (5 fitness goals), look (optional),
 test('settings: goal, look and focus muscles are saved', () => {
   const r = onboardingResult({ experience: 'experienced', goal: 'endurance', look: { text: '  Leaner, run a 10k  ', muscles: ['quads', 'calves', 'wings'] }, pain: 'no' });
   assert.deepEqual(r.settings, { fitnessGoal: 'endurance', physiqueGoal: 'Leaner, run a 10k', focusMuscles: ['quads', 'calves'], experience: 'experienced' });
-  assert.equal(r.plan.goal, 'general');
+  assert.equal(r.plan.goal, 'endurance'); // endurance now has its own plan scheme
 });
 
 test('settings: look is optional; every goal maps to a valid plan', () => {
