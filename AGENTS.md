@@ -35,6 +35,12 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - Wording: never accuse users of cheating; uncertain tracking is the camera's fault.
 - Coordinate file ownership when running agents in parallel (see "Hot files").
 
+## Proxy network boundary hardening (draft PR)
+- `server/jim-proxy/httpSecurity.js` rejects untrusted forwarding headers by default; `TRUST_CLOUDFLARE_IP=1` requires verified Cloudflare-only ingress.
+- Production startup fails without `JIM_PROXY_KEY`. This is only an interim guard, not per-user authentication. The shared Expo key is extractable; a real identity-aware gateway, backend-owned workout context and per-user quotas remain necessary for public release.
+- Byte limits apply to UTF-8 request bytes, not string character count. Tests live in `httpSecurity.test.js`.
+- No change to offline coach, AI tools or user-confirmation semantics. Device verification and authenticated production rollout remain pending.
+
 ## How to verify
 | What | Command |
 |---|---|
