@@ -210,6 +210,18 @@ test('camera permission failure never creates measured reps or logs a set', asyn
   expect(allSets(await saved(page))).toHaveLength(0);
 });
 
+async function replaySquats(iframe) {
+  const frames = squatRecording.frames.map(({ t, pose }) => ({ t, pose: pose.map(([x, y, visibility]) => ({ x, y, visibility })) }));
+  await iframe.contentFrame().locator('body').evaluate(async (_, frames) => {
+    parent.postMessage(JSON.stringify({ type: 'ready' }), '*');
+    for (const frame of frames) {
+      parent.postMessage(JSON.stringify({ type: 'frame', ...frame }), '*');
+      // Yield so React observes frames in order as it would on the real bridge.
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+  }, frames);
+}
+
 test('recorded real squat landmarks travel through the camera bridge, count twice, and save only on request', async ({ page, context }) => {
   await context.grantPermissions(['camera']);
   // Replay the repository's real recorded landmarks. Block model downloads so
@@ -221,15 +233,7 @@ test('recorded real squat landmarks travel through the camera bridge, count twic
   const iframe = page.locator('iframe[title="Camera and pose tracking"]');
   await expect(iframe).toBeVisible();
   const modelCallsBeforeFrames = fixture.calls.length;
-  const frames = squatRecording.frames.map(({ t, pose }) => ({ t, pose: pose.map(([x, y, visibility]) => ({ x, y, visibility })) }));
-  await iframe.contentFrame().locator('body').evaluate(async (_, frames) => {
-    parent.postMessage(JSON.stringify({ type: 'ready' }), '*');
-    for (const frame of frames) {
-      parent.postMessage(JSON.stringify({ type: 'frame', ...frame }), '*');
-      // Yield so React observes frames in order as it would on the real bridge.
-      await new Promise(resolve => setTimeout(resolve, 1));
-    }
-  }, frames);
+  await replaySquats(iframe);
   await expect(camera.getByTestId('camera-rep-count')).toContainText('2');
   expect(fixture.calls.length).toBe(modelCallsBeforeFrames);
   expect(allSets(await saved(page))).toHaveLength(0);
@@ -245,6 +249,35 @@ test('recorded real squat landmarks travel through the camera bridge, count twic
   expect(set).toMatchObject({ exercise: 'squat', reps: 2, source: 'camera', weight: 20, rpe: 7 });
   expect(set.reps_detail).toHaveLength(2);
   expect(set.reps_detail.every(rep => Number.isFinite(rep.concentric_ms) && rep.concentric_ms > 0 && Number.isFinite(rep.eccentric_ms))).toBe(true);
+});
+
+test('reports a contextual camera set in Coach, asks for the actual load, and starts rest', async ({ page, context }) => {
+  await context.grantPermissions(['camera']);
+  await page.route('https://cdn.jsdelivr.net/**', route => route.abort());
+  await message(page, 'Open the camera for squats');
+  const camera = page.getByTestId('chat-panel-camera');
+  const composer = camera.getByLabel('Message workout coach');
+  const send = camera.getByRole('button', { name: 'Send workout message' });
+  const iframe = camera.locator('iframe[title="Camera and pose tracking"]');
+  await expect(iframe).toBeVisible();
+  await replaySquats(iframe);
+  await expect(camera.getByTestId('camera-rep-count')).toContainText('2');
+
+  await composer.fill('2, little grind');
+  await send.click();
+  await expect(camera.getByText(/What weight did you use/)).toBeVisible();
+  expect(allSets(await saved(page))).toHaveLength(0);
+  await composer.fill('20 kg');
+  await send.click();
+  await expect(camera.getByText('Logged Squat · 2 reps · 20 kg · little grind')).toBeVisible();
+  await expect(camera.getByText(/^Rest · /)).toBeVisible();
+  await expect(camera.getByText(/^Next: Squat/)).toBeVisible();
+  expect(allSets(await saved(page))).toMatchObject([{ exercise: 'squat', reps: 2, weight: 20, effortNote: 'little grind', source: 'camera' }]);
+
+  await composer.fill('2');
+  await send.click();
+  await expect(camera.getByText(/You’re resting/)).toBeVisible();
+  expect(allSets(await saved(page))).toHaveLength(1);
 });
 
 test('pain or dizziness is handled locally before any model call', async ({ page }) => {
