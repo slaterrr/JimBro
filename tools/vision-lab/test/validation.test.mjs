@@ -42,11 +42,12 @@ describe('validateClip (through the engine API)', () => {
   it('wrong-mode runs: counts there are false counts, and mismatches are reported', () => {
     const clip = { ...loadClip({ clip: 'sim_squat', movement: 'squat', source: 'sim', reps: [], frames: [] }), ...(() => {
       const s = simulateSet('squat', { reps: 5 });
-      return { frames: s.frames, reps: s.trueEnds.map((end_ms) => ({ end_ms })), wrongModes: ['curl', 'deadlift'] };
+      return { frames: s.frames, reps: s.trueEnds.map((end_ms) => ({ end_ms })), wrongModes: ['shoulder_press', 'deadlift', 'curl'] };
     })() };
     const r = validateClip(clip);
     assert.equal(r.tp, 5);
     assert.equal(r.wrongMode.length, 2);
+    assert.deepEqual(r.wrongMode.map((w) => w.mode), ['shoulder_press', 'deadlift']); // retired curl is not offered as a camera mode
     for (const w of r.wrongMode) assert.equal(w.falseCounts, 0, w.mode);
   });
 });
@@ -82,6 +83,9 @@ describe('real clips in every other camera mode', () => {
       for (const w of r.wrongMode) assert.equal(w.falseCounts, 0, `${n} in ${w.mode} mode`);
     }
     const modes = Object.keys(ANALYZERS).filter(countsWithCamera).length;
-    assert.equal(runs, 4 * (modes - 1)); // 4 clips x every other camera mode (24 with lunge)
+    assert.equal(modes, 6); // squat, shoulder press, push-up, pull-up, deadlift, lunge
+    // Squat and press each have 5 other modes. The two archived curl clips each
+    // exercise all 6 active modes because their original mode is retired.
+    assert.equal(runs, 2 * (modes - 1) + 2 * modes);
   });
 });
