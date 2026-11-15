@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Comparisons } from '../components/Comparisons.js';
+import { MuscleProgress } from '../components/MuscleProgress.js';
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
 import { HealthConnect } from '../components/HealthConnect.js';
@@ -61,7 +62,7 @@ function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
   );
 }
 
-export function ProgressScreen({ go, initialTab = 'overview' }) {
+export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null, onClearMuscle }) {
   const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
   const [adding, setAdding] = useState(false);
   const [health, setHealth] = useState(false);
@@ -79,6 +80,13 @@ export function ProgressScreen({ go, initialTab = 'overview' }) {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: () => deleteWorkout(w.id) },
     ]);
+
+  if (muscleGroup) return (
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+      <Text style={type.h1}>Progression</Text>
+      <MuscleProgress group={muscleGroup} workouts={workouts} unit={unit} onClear={onClearMuscle} />
+    </ScrollView>
+  );
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>

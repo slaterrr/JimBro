@@ -203,6 +203,10 @@ export function HomeScreen({ openLog, openActivity, go }) {
       return;
     }
     if (intent.type === 'log') {
+      if (!active) {
+        push({ me: false, text: 'Start a workout before confirming these sets.' });
+        return;
+      }
       intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
     } else if (intent.type === 'correct') {
       updateSet(intent.target.setId, intent.changes);
@@ -295,8 +299,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 <Card key={i} style={{ marginTop: 10 }}>
                   <Text style={type.title}>{{ log: 'Log this?', correct: 'Fix this set?', delete: 'Delete this set?' }[m.intent.type]}</Text>
                   <Text style={type.body}>{m.intent.summary}</Text>
+                  {m.intent.type === 'log' && !active ? <Text style={type.small}>Start a workout on Home before confirming these sets.</Text> : null}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
+                    <PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
                     <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Cancel</PrimaryButton>
                   </View>
                 </Card>
@@ -312,7 +317,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 ) : null}
                 <Text style={{ color: T.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
                 {m.suggestion ? (
-                  <TouchableOpacity onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8 }}>
+                  <TouchableOpacity disabled={!active} onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8, opacity: active ? 1 : 0.5 }}>
                     <Text style={{ color: T.accent, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -328,7 +333,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
       <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
         <Glow />
         <View style={st.composer}>
-          <TouchableOpacity accessibilityLabel="Log a set" onPress={() => openLog()}>
+          <TouchableOpacity accessibilityLabel={active ? 'Log a set' : 'Start a workout to log sets'} accessibilityState={{ disabled: !active }} disabled={!active} style={{ opacity: active ? 1 : 0.5 }} onPress={() => openLog()}>
             <Icon name="plus" size={26} color={T.text} />
           </TouchableOpacity>
           <TextInput
