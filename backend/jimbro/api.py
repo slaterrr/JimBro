@@ -22,9 +22,6 @@ from fastapi import (
 from fastapi.responses import FileResponse
 
 from . import __version__
-from .v2.accounts import Accounts
-from .v2.routes import router as v2_router
-from .v2.store import Store
 from .coach import (
     CoachReply,
     CoachRequest,
@@ -56,6 +53,9 @@ from .schemas import (
     SetIn,
     SetOut,
 )
+from .v2.accounts import Accounts
+from .v2.routes import router as v2_router
+from .v2.store import Store
 
 LOW_DISK_BYTES = 200 * 1024 * 1024
 VERSION_FILE = Path(__file__).resolve().parents[2] / "VERSION"
