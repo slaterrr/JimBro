@@ -51,7 +51,7 @@ export function Segmented({ options, value, onChange }) {
   const items = options.map(([v, label]) => {
     const on = v === value;
     return (
-      <TouchableOpacity key={v} testID={`seg-${v}`} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label}
+      <TouchableOpacity key={v} testID={`seg-${v}`} role="tab" aria-selected={on} accessibilityState={{ selected: on }} accessibilityLabel={label}
         onPress={() => onChange(v)} onLayout={(e) => { xs.current[v] = e.nativeEvent.layout.x; }} style={[st.segmentItem, scroll && st.segmentScrollItem, on && st.segmentOn]}>
         <Text numberOfLines={scroll ? undefined : 1} style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
       </TouchableOpacity>

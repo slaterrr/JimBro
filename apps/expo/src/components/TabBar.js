@@ -22,6 +22,7 @@ export function TabBar({ tab, onChange }) {
             accessibilityRole="tab"
             accessibilityLabel={t.id}
             accessibilityState={{ selected: on }}
+            aria-selected={on}
             onPress={() => onChange(t.id)}
             style={[st.item, on && st.itemOn]}
           >
