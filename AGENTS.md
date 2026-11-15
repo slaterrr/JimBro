@@ -180,6 +180,15 @@ Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-
 | Spoken welcome once per launch, mute (saved) + replay, Enable Jim's voice fallback, speech stops on typing/new reply | 🧪 feat/chat-mvp-review | `lib/welcome.js`, `lib/sound.js` onError, HomeScreen | unit + Playwright (speech calls stubbed) | hear it on an iPhone and Android phone |
 See `docs/PROGRAMS_AND_VOICE.md`.
 
+## Attendance, split and auto sets (feat/split-attendance)
+| Feature | Status | Where | Tested how | Still needs |
+|---|---|---|---|---|
+| Gym days (one per local day, finished workouts with sets), week/month/lifetime, day streak + best | 🧪 | `lib/attendance.js`, `components/TodayCard.js` | unit (time zones, duplicates, rest days) + Playwright `e2e/training.spec.mjs` | cross-device sync (backend) |
+| Named splits (PPL 3/6, bro 5, upper/lower 4, full body 2–3), weekday schedule, missed policy, swaps, calendar | 🧪 | `lib/program.js`, `lib/schedule.js`, `screens/TrainingScreen.js` | unit + Playwright | device check |
+| Pre-filled sets/reps/rest/weight, one-tap confirm, actual edits; double progression from history | 🧪 | `lib/prescription.js`, `lib/progression.js`, `components/WorkoutChecklist.js` | unit + Playwright | coach review of steps |
+| Four-sheet Excel export with formulas, deterministic, no duplicates | 🧪 | `lib/workbook.js`, `lib/exportFile.js` | unit (openpyxl loads it) + Playwright | phone share sheet check |
+See `docs/TRAINING.md`.
+
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
 2. ✅ **Proxy shared secret** (`X-Jim-Key`, #47). Host it with `render.yaml` (Render blueprint), then set `EXPO_PUBLIC_JIM_PROXY_URL` / `EXPO_PUBLIC_JIM_PROXY_KEY` in the Expo `preview` environment.
