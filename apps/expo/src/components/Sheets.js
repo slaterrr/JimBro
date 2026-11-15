@@ -97,7 +97,7 @@ export function SetReportCard({ report, clips = [], movement }) {
 }
 
 export function LogSetSheet({ visible, onClose, initial, camera }) {
-  const { settings, allSets, logSet, say } = useApp();
+  const { settings, allSets, logSet, say, active } = useApp();
   const [exercise, setExercise] = useState('bench');
   const [weight, setWeight] = useState('');
   const [unit, setUnit] = useState(settings.unit);
@@ -120,6 +120,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
   const plates = BARBELL.has(exercise) && Number(weight) > 0 ? plateBreakdown(Number(weight), unit) : undefined;
 
   const save = () => {
+    if (!active) { setError('Start a workout before recording a set.'); return; }
     const w = Number(weight || 0);
     const r = Number(reps);
     if (!Number.isFinite(w) || w < 0 || !Number.isInteger(r) || r < 0) {
@@ -138,7 +139,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
     });
     const rec = recommendNext({ exercise, unit, weight: w, target: target ?? r, completed: r, rpe: rpeN, fatigue, history: prior, metrics: fatigue.metrics });
     const m = fatigue.metrics;
-    const { isPR } = logSet({
+    const result = logSet({
       exercise, weight: w, unit, reps: r, rpe: rpeN,
       source: fromCamera ? 'camera' : initial?.source ?? 'manual',
       reps_detail: fromCamera ? camera.reps : [],
@@ -147,6 +148,8 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
       fatigue: fatigue.level,
       rec: rec.action === 'none' ? null : { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: false },
     });
+    if (!result) { setError('Start a workout before recording a set.'); return; }
+    const { isPR } = result;
     const report = fromCamera
       ? setReport({ movement: exercise, reps: camera.reps, quality: camera.quality, rpe: rpe === '' ? null : Number(rpe), target: camera.target })
       : null;
@@ -197,7 +200,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
             <Text style={[type.small, { marginTop: 10 }]}>📷 {camera.reps.length} camera-counted reps with timing attached.</Text>
           ) : null}
           {error ? <Text style={{ color: T.red, marginTop: 10 }}>{error}</Text> : null}
-          <PrimaryButton onPress={save}>Save set</PrimaryButton>
+          <PrimaryButton disabled={!active} onPress={save}>Save set</PrimaryButton>
         </>
       )}
     </Sheet>

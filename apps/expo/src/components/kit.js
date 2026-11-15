@@ -11,7 +11,7 @@ export const Icon = ({ name, size = 22, color = T.text, style }) => (
   <MaterialCommunityIcons name={name} size={size} color={color} style={style} />
 );
 
-/** Jim's mark: five rounded voice bars in seafoam. */
+/** Jim's voice indicator: five rounded bars in the current accent. */
 export function JimBars({ height = 22, color = T.accent }) {
   const bars = [0.45, 0.75, 1, 0.75, 0.45];
   const w = height * 0.16;
@@ -51,7 +51,7 @@ export function Segmented({ options, value, onChange }) {
   const items = options.map(([v, label]) => {
     const on = v === value;
     return (
-      <TouchableOpacity key={v} testID={`seg-${v}`} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label}
+      <TouchableOpacity key={v} testID={`seg-${v}`} role="tab" aria-selected={on} accessibilityState={{ selected: on }} accessibilityLabel={label}
         onPress={() => onChange(v)} onLayout={(e) => { xs.current[v] = e.nativeEvent.layout.x; }} style={[st.segmentItem, scroll && st.segmentScrollItem, on && st.segmentOn]}>
         <Text numberOfLines={scroll ? undefined : 1} style={[st.segmentText, on && { color: T.onAccent }]}>{label}</Text>
       </TouchableOpacity>

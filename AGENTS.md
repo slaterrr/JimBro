@@ -21,7 +21,7 @@ Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 
 | Rest timer curated per exercise (not a setting) | 🚧 agent (feat/rest-and-compare) |
 | Progress: scroll past workouts; workout/month/year strength + volume comparisons | 🚧 agent (feat/rest-and-compare) |
 | Leaderboard | 📋 not started (privacy: on-device app; would need opt-in sharing) |
-| Mascot art (blue, round, cartoon "Jim") | 📋 needs a human/design tool; agents can't generate images here |
+| Supplied Jim mascot on Home and body-blue app theme (#98CCEA) | 🧪 codex/jim-blue-theme; transparent asset, palette contrast checks; device visual check pending |
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 
 ## Rules for agents
@@ -43,6 +43,7 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 | Vision lab tests (simulator + scoring) | `cd tools/vision-lab && npm ci && npm test` (15 pass) |
 | Real-video replay | `cd tools/vision-lab && node run.mjs` (needs Chrome + ffmpeg; videos downloaded per `labels/*.json` `source`) |
 | UI smoke (every screen at 320/390px: overlap, clipped, off-screen, covered, invisible labels, tap targets, dropdowns) | `cd apps/expo && npm run test:ui` (needs Chrome; CI job `ui-smoke`, screenshots artifact) |
+| User journeys (Playwright: first-run setup, log a set, chat + confirm/cancel, safety, last-workout answer, mission → Coach, plan, Progress tabs/dropdowns, muscles, persona, persistence) | `cd apps/expo && npm run test:e2e` (needs Chrome; runs in CI job `ui-smoke`) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
 ## Feature status
@@ -53,6 +54,7 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 |---|---|---|---|---|
 | Four-screen UI (Home, Muscles, Coach, Progress) | ✅ main | `apps/expo/src/screens` | logic tests, web screenshots | — |
 | Home header shows only Jim's name; persona remains available in settings | 🧪 codex/home-jim-header | `screens/HomeScreen.js` | JSX parse and existing persona/Home checks | device visual check |
+| Sets require an active workout; Muscles opens per-exercise progress and instruction sits above body | 🧪 codex/workout-only-muscle-progress | AppState, Muscles/Progress, muscleProgress.js | logging guard and trend unit tests; UI checks | phone validation |
 | Seafoam accent theme (`T.accent*`, legacy `T.purple*` aliases), AA contrast | ✅ feat/team-ui-home | `theme.js`, `lib/palette.js` | contrast tests (accent 8.2–9.6:1, accentText 13.4–15.7:1) | device check |
 | Home options: Start a Workout (next plan day → Coach), Create a New Plan (goal picker), Review My Progress | 🧪 feat/team-ui-home | `HomeScreen.js`, `lib/homeActions.js` | 4 unit tests, web screenshot | device tap-through |
 | Muscles: arm groups fill the arm, invisible tap areas | 🧪 feat/team-ui-home | `components/BodyMap.js` | web screenshot | device tap check |

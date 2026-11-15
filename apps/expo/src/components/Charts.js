@@ -1,5 +1,5 @@
 // Line chart (Total Strength) and bar chart (weekly volume), styled like the mockup:
-// seafoam 2px line with dot markers over a gradient area, recessive axis labels.
+// accent line with dot markers over a gradient area, recessive axis labels.
 import React from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Line, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
@@ -12,7 +12,9 @@ function scale(values, ticks = 6) {
   const span = hi - lo || Math.max(10, hi * 0.1);
   const step = Math.max(1, Math.ceil(span / (ticks - 1) / 5) * 5);
   const min = Math.floor((lo - step * 0.5) / step) * step;
-  return { min, max: min + step * (ticks - 1), step };
+  // Rounding the lower bound down must not place the highest point above the chart.
+  const max = Math.max(min + step * (ticks - 1), Math.ceil((hi + step * 0.5) / step) * step);
+  return { min, max, step };
 }
 
 export function LineChart({ points, height = 150, width = 300 }) {
@@ -22,7 +24,7 @@ export function LineChart({ points, height = 150, width = 300 }) {
   const L = 34;
   const B = 22;
   const { min, max, step } = scale(points.map((p) => p.value));
-  const x = (i) => L + 8 + (i * (width - L - 16)) / Math.max(1, points.length - 1);
+  const x = (i) => L + 8 + (i * (width - L - 40)) / Math.max(1, points.length - 1);
   const y = (v) => 12 + ((max - v) / (max - min)) * (height - B - 18);
   const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.value)}`).join(' ');
   const area = `${line} L${x(points.length - 1)},${height - B} L${x(0)},${height - B} Z`;

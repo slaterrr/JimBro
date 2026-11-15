@@ -99,3 +99,22 @@ describe('not a context question', () => {
     assert.equal(answerContext('log 3x10 curls at 25', { history: [] }), null);
   });
 });
+
+describe('what did I train last time?', () => {
+  const s = (exercise, weight, reps) => ({ exercise, weight, reps, unit: 'lb' });
+  const history = [
+    { id: 'w1', name: 'Legs', startedAt: '2026-11-08T12:00:00Z', sets: [s('squat', 185, 5)] },
+    { id: 'w2', name: 'Push', startedAt: '2026-11-12T12:00:00Z', sets: [s('bench', 135, 8), s('bench', 135, 8), s('shoulder_press', 65, 10)] },
+  ];
+  for (const q of ['what did I train last time?', 'what was my last workout', 'what did I do last session?']) {
+    it(`"${q}" names the newest workout, its exercises and set counts`, () => {
+      const a = answerContext(q, { history });
+      assert.match(a, /Push/);
+      assert.match(a, /bench press 2 sets/i);
+      assert.doesNotMatch(a, /squat/i);
+    });
+  }
+  it('no history: says so', () => {
+    assert.match(answerContext('what did I train last time?', { history: [] }), /no workouts/i);
+  });
+});

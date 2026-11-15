@@ -102,7 +102,8 @@ const ROUTES = [
   ['coach', ['Coach']],
   ['coach-short', ['Coach'], { height: 568 }], // iPhone SE height: camera card + controls must still fit/scroll
   ['start-workout', ['Start a Workout']],
-  ['log-set-sheet', ['Log a set']],
+  ['log-set-sheet', ['Start a Workout', 'Home', 'Log a set']],
+  ['muscle-progress', ['Muscles', 'muscle:chest', 'Progress']],
   ['activity-sheet', ['Activity and settings']],
   ['create-plan', ['Create a New Plan']],
   ['progress-overview', ['Progress']],
@@ -125,21 +126,50 @@ async function run() {
   try {
     for (const width of WIDTHS) {
       for (const [route, steps, opts = {}] of ROUTES) {
+        if (process.env.UI_ROUTES && !process.env.UI_ROUTES.split(',').includes(route)) continue;
         const page = await browser.newPage();
         const errors = [];
         page.on('pageerror', (e) => errors.push(`page error: ${e.message}`));
         page.on('console', (m) => { if (m.type() === 'error') errors.push(`console error: ${m.text().slice(0, 200)}`); });
         await page.setViewport({ width, height: opts.height ?? 800, deviceScaleFactor: 1 });
-        await page.evaluateOnNewDocument((seed) => { localStorage.setItem('jimbro.data.v2', seed); }, SEED);
+        const seed = route === 'muscle-progress' ? JSON.stringify({
+          history: demo.history.map((w, i) => ({ ...w, sets: [...w.sets, { id: `pushup-${i}`, exercise: 'push_up', reps: 10 + i, weight: 0, unit: 'lb' }] })),
+          settings: { onboarded: true, speak: false },
+        }) : SEED;
+        await page.evaluateOnNewDocument((seed) => { localStorage.setItem('jimbro.data.v2', seed); }, seed);
         await page.goto(url, { waitUntil: 'networkidle0' });
         await settle(1200);
         for (const step of steps) {
+          if (step === 'muscle:chest') {
+            // Tap the chest on the front body figure using its normalized anatomy coordinates.
+            const box = await page.$eval('svg[viewBox="0 0 200 400"]', el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+            await page.mouse.click(box.x + box.width * 0.44, box.y + box.height * 0.24);
+            await settle();
+            continue;
+          }
           const ok = step.startsWith('id:') ? await page.evaluate((id) => { const el = document.querySelector(`[data-testid="${id}"]`); el?.click(); return Boolean(el); }, step.slice(3)) : await tap(page, step);
           if (!ok) errors.push(`missing button: ${step}`);
           await settle();
         }
+        if (route === 'home') {
+          const disabled = await page.$eval('[aria-label="Start a workout to log sets"]', el => el.getAttribute('aria-disabled') === 'true');
+          if (!disabled) errors.push('logging enabled without a workout');
+        }
+        if (route === 'muscle-progress') {
+          const text = await page.evaluate(() => document.body.innerText);
+          if (!text.includes('Chest progress')) errors.push('missing muscle progress query');
+          if (!text.includes('Bench press')) errors.push('missing exercise chart');
+          if (!text.includes('Push-up')) errors.push('missing separate push-up chart');
+          if (await page.$$eval('svg[viewBox="0 0 300 150"]', els => els.length) !== 2) errors.push('expected two separate exercise line charts');
+        }
         const problems = [...errors, ...(await page.evaluate(audit))];
         await page.screenshot({ path: join(OUT, `${route}-${width}.png`), fullPage: true });
+        if (route === 'log-set-sheet') {
+          const saved = await tap(page, 'Save set');
+          await settle();
+          const count = await page.evaluate(() => JSON.parse(localStorage.getItem('jimbro.data.v2')).active?.sets.length);
+          if (!saved || count !== 1) problems.push('set was not saved to the explicitly started workout');
+        }
         for (const p of problems) failures.push(`[${route} @${width}px] ${p}`);
         await page.close();
       }

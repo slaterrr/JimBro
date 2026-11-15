@@ -14,6 +14,7 @@ const WHY_SLOW = /\bwhy\b.*\b(reps?|repetitions|set)\b.*\b(slow|slower|slowing|s
 const INSTEAD = /\b(instead of|alternatives? (to|for)|substitute (for )?|swap (out )?|replace)\b/i;
 const PROGRESS = /\b(how (has|is|have|did) my .+ (progress|progressed|progressing|improv\w*|going|gone)|progress (on|in|with|for) )/i;
 const SHORTER = /\b(shorter|quicker|cut (it|the workout|today) (down|short))\b/i;
+const LAST_WORKOUT = /\b(what did i (train|do|lift) last (time|session|workout)|(what was )?my last (workout|session)|last time i (trained|worked out))\b/i;
 const REST = /\b(how long (should|do|can) i rest|how much rest|rest time)\b/i;
 
 const ALL_EQUIPMENT = ['barbell', 'dumbbells', 'kettlebell', 'bench', 'pullup_bar', 'dip_bars', 'cable', 'machine'];
@@ -52,6 +53,15 @@ export function answerContext(text, { history = [], active = null, plan = null, 
     const next = nextWorkout(plan, history);
     if (!next.planned) return "You don't have a plan yet. Tap Create a New Plan, or tell me how long you have, like \"I have 30 minutes\".";
     return `Today is ${next.name}: ${list(next.planned.items.map((i) => `${lower(i.exercise)} ${i.sets} sets of ${i.reps_low === i.reps_high ? i.reps_low : `${i.reps_low}–${i.reps_high}`}`))}.`;
+  }
+
+  if (LAST_WORKOUT.test(text)) {
+    const last = [...history].sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt))).at(-1);
+    if (!last) return 'No workouts logged yet. Start one from Home and I will remember it.';
+    const counts = new Map();
+    for (const x of last.sets ?? []) counts.set(x.exercise, (counts.get(x.exercise) ?? 0) + 1);
+    const when = new Date(last.startedAt).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    return `Your last workout was ${last.name ?? 'a session'} on ${when}: ${list([...counts].map(([e, n]) => `${lower(e)} ${n} ${n === 1 ? 'set' : 'sets'}`))}.`;
   }
 
   if (SETS_LEFT.test(text)) {

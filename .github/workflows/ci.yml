@@ -105,6 +105,11 @@ jobs:
           CHROME_PATH: /usr/bin/google-chrome
           E2E_OUT: e2e-artifacts
         run: npm run test:ui
+      - name: User journeys (Playwright, same web export)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          CI: "true"
+        run: npm run test:e2e:only
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4

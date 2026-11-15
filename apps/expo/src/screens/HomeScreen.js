@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useApp, useLiveCamera } from '../AppState.js';
@@ -10,6 +10,7 @@ import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
 import { confirmedText, missionIntro, planIntro, staleText } from '../lib/homeReplies.js';
+import { proxyStatusLine } from '../lib/aiStatus.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
@@ -24,15 +25,6 @@ const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['stre
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
 
-// Honest one-liner for the header: why Jim is (or isn't) using the AI service.
-function proxyStatusLine(proxy, source) {
-  if (source === 'offline') return 'Offline coach · Jim AI did not answer the last message';
-  if (proxy.state === 'ok') return 'Connected to Jim AI';
-  if (proxy.state === 'checking') return 'Connecting to Jim AI… the server may be waking up';
-  if (proxy.reason === 'timeout') return 'Offline coach · Jim AI server is taking too long to wake up';
-  if (proxy.reason === 'unreachable') return 'Offline coach · Jim AI server unreachable';
-  return 'Offline coach · AI service not connected';
-}
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
@@ -95,12 +87,12 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const setMessages = conversation.update;
   const [talk, setTalk] = useState(false);
   // One /health ping on mount wakes a sleeping host (free tier) before the first chat.
-  const [proxy, setProxy] = useState(() => (PROXY_URL ? { state: 'checking' } : { state: 'down', reason: 'not configured' }));
+  const [proxy, setProxy] = useState(() => (PROXY_URL ? { configured: true, state: 'checking' } : { configured: false, state: 'down', reason: 'not configured' }));
   useEffect(() => {
     if (!PROXY_URL) return undefined;
     let live = true;
     checkProxy({ url: PROXY_URL, key: PROXY_KEY }).then((r) => {
-      if (live) setProxy(r.ok ? { state: 'ok', ms: r.ms } : { state: 'down', reason: r.reason });
+      if (live) setProxy(r.ok ? { configured: true, state: 'ok', ms: r.ms } : { configured: true, state: 'down', reason: r.reason });
     });
     return () => { live = false; };
   }, []);
@@ -156,7 +148,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
     if (r && mounted.current) speak(r.reply || r.proposals?.[0]?.summary);
   };
 
-  useEffect(() => { scroll.current?.scrollToEnd({ animated: true }); }, [messages, thinking]);
+  useEffect(() => {
+    if (messages.length || thinking) scroll.current?.scrollToEnd({ animated: true });
+  }, [messages, thinking]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; talkRef.current = false; voice.stop(); }; }, [voice]);
 
   // Home options: start (next plan day or quick workout) -> Coach, plan builder, progress tab.
@@ -203,6 +197,10 @@ export function HomeScreen({ openLog, openActivity, go }) {
       return;
     }
     if (intent.type === 'log') {
+      if (!active) {
+        push({ me: false, text: 'Start a workout before confirming these sets.' });
+        return;
+      }
       intent.sets.forEach((x) => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
     } else if (intent.type === 'correct') {
       updateSet(intent.target.setId, intent.changes);
@@ -253,9 +251,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
           <Icon name="chevron-right" size={20} color={T.textMute} />
         </TouchableOpacity>
         {!messages.length ? (
-          <View style={{ alignItems: 'center', marginTop: 40 }}>
-            <JimBars height={64} />
-            <Text style={[type.h1, { marginTop: 28, fontSize: 32 }]}>Hey, I'm Jim</Text>
+          <View style={{ alignItems: 'center', marginTop: compact ? 8 : 20 }}>
+            <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Jim holding a barbell" resizeMode="contain" style={{ width: 220, height: 150 }} />
+            <Text style={[type.h1, { marginTop: 16, fontSize: 32 }]}>Hey, I'm Jim</Text>
             <Text style={[type.body, { textAlign: 'center', marginTop: 10, fontSize: 17, lineHeight: 25 }]}>
               {HOME_SUBTITLE}
             </Text>
@@ -295,8 +293,9 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 <Card key={i} style={{ marginTop: 10 }}>
                   <Text style={type.title}>{{ log: 'Log this?', correct: 'Fix this set?', delete: 'Delete this set?' }[m.intent.type]}</Text>
                   <Text style={type.body}>{m.intent.summary}</Text>
+                  {m.intent.type === 'log' && !active ? <Text style={type.small}>Start a workout on Home before confirming these sets.</Text> : null}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <PrimaryButton style={{ flex: 1 }} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
+                    <PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(i, m.intent)}>Confirm</PrimaryButton>
                     <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setMessages((cur) => cur.filter((_, j) => j !== i))}>Cancel</PrimaryButton>
                   </View>
                 </Card>
@@ -312,7 +311,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
                 ) : null}
                 <Text style={{ color: T.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
                 {m.suggestion ? (
-                  <TouchableOpacity onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8 }}>
+                  <TouchableOpacity disabled={!active} onPress={() => openLog({ ...m.suggestion })} style={{ marginTop: 8, opacity: active ? 1 : 0.5 }}>
                     <Text style={{ color: T.accent, fontWeight: '700' }}>Log {m.suggestion.weight} {m.suggestion.unit} × {m.suggestion.reps} →</Text>
                   </TouchableOpacity>
                 ) : null}
@@ -321,14 +320,14 @@ export function HomeScreen({ openLog, openActivity, go }) {
           })
         )}
         {thinking ? <PrimaryButton secondary onPress={() => { conversation.cancel(); voice.stop(); }}>Stop reply</PrimaryButton> : null}
-        {reason && source === 'offline' ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
+        {reason && source === 'offline' && PROXY_URL ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
         {error ? <Text accessibilityRole="alert" style={[type.body, { color: T.amber }]}>{error}</Text> : null}
       </ScrollView>
 
       <View style={{ height: 110, justifyContent: 'flex-end', paddingHorizontal: 16, paddingBottom: 10 }}>
         <Glow />
         <View style={st.composer}>
-          <TouchableOpacity accessibilityLabel="Log a set" onPress={() => openLog()}>
+          <TouchableOpacity accessibilityLabel={active ? 'Log a set' : 'Start a workout to log sets'} accessibilityState={{ disabled: !active }} disabled={!active} style={{ opacity: active ? 1 : 0.5 }} onPress={() => openLog()}>
             <Icon name="plus" size={26} color={T.text} />
           </TouchableOpacity>
           <TextInput
