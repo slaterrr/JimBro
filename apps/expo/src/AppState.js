@@ -95,7 +95,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const voice = useMemo(() => createVoice(
-    { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
+    { speak: () => {}, stop: () => Speech.stop() },
     () => settingsRef.current,
     { enabled: false },
   ), []);
