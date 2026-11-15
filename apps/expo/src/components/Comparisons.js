@@ -42,7 +42,7 @@ export function ComparisonResults({ comparison, onBack }) {
   return <View style={{ opacity: imageReady ? 1 : 0 }} pointerEvents={imageReady ? 'auto' : 'none'}>
     <PrimaryButton secondary onPress={onBack}>Back to comparison</PrimaryButton>
     <Card style={{ marginTop: 14 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingRight: 8 }}>
         <Text style={[type.title, { flex: 1, minWidth: 0 }]}>{name} progress</Text>
         <Image
           source={JIM_MASCOT}
@@ -51,7 +51,7 @@ export function ComparisonResults({ comparison, onBack }) {
           onError={() => setImageReady(true)}
           accessibilityLabel="Jim holding a barbell"
           resizeMode="contain"
-          style={{ width: 112, height: 82 }}
+          style={{ width: 144, height: 112, flexShrink: 0 }}
         />
       </View>
       <Text style={type.body}>From: {from}</Text>
