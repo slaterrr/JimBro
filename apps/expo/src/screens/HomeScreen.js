@@ -25,6 +25,7 @@ import { createWelcome, WELCOME_TEXT } from '../lib/welcome.js';
 import { CoachScreen } from './CoachScreen.js';
 import { MusclesScreen } from './MusclesScreen.js';
 import { ProgressScreen } from './ProgressScreen.js';
+import { ProgramScreen } from './ProgramScreen.js';
 import { T, type } from '../theme.js';
 
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
@@ -77,6 +78,9 @@ export function HomeScreen({ openLog, openActivity }) {
   const { snapshot: liveCamera, clear: clearCamera } = useLiveCamera();
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
   const [text, setText] = useState('');
+  const [page, setPage] = useState(null);
+  const [progressGroup, setProgressGroup] = useState(null);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
   const [talk, setTalk] = useState(false);
   const [menu, setMenu] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -115,6 +119,9 @@ export function HomeScreen({ openLog, openActivity }) {
   };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
   const openPanel = (panel, exercise, options = {}) => {
+    if (panel === 'camera') { setCameraEnabled(false); setPage('workout-choice'); return; }
+    if (panel === 'progress') { setProgressGroup(options.muscleGroup ?? null); setPage('progress'); return; }
+    if (panel === 'muscles') { setPage('muscles'); return; }
     // Keep just one live camera mounted. Closing it releases the camera stream.
     conversation.update(cur => [...cur.map(m => m.kind === 'panel' && m.panel === panel ? { kind: 'notice', text: `${PANEL_LABELS[panel]} reopened below.` } : m), { kind: 'panel', panel, ...options, ...(exercise ? { exercise } : {}) }]);
     setMenu(false);
@@ -177,7 +184,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const programAnswer = q => {
     const tools = { kind: 'tools', calls: [{ name: 'get_program', status: 'completed' }] };
     const text = { me: false, text: q.reply };
-    if (q.type === 'today' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week }];
+    if (q.type === 'today' && q.session) return [tools, text];
     if (q.type === 'shorter' && q.session) return [tools, text, { kind: 'session', session: q.session, name: q.name, week: q.week, short: true }];
     if (q.type === 'swap' && q.options.length) return [tools, text, { kind: 'swap', from: q.from, options: q.options, fromWeek: q.fromWeek }];
     return [tools, text];
@@ -187,7 +194,7 @@ export function HomeScreen({ openLog, openActivity }) {
     if (!card) return;
     const replaced = Boolean(plan);
     savePlan(programToPlan(card.program));
-    const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Ask "What's today's workout?" when you're ready.`;
+    const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Say "Start workout" when you're ready.`;
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: line } : m));
     speak(`Saved. ${card.program.name}.`);
   };
@@ -210,6 +217,16 @@ export function HomeScreen({ openLog, openActivity }) {
   const send = async raw => {
     const message = raw.trim();
     if (!message) return;
+    if (/^(start (a |my |the )?workout)[.!]?$/i.test(message)) {
+      setText(''); setMenu(false); setCameraEnabled(false); setPage('workout-choice'); return;
+    }
+    if (/^(review my progress|show progress|open progress)[.!]?$/i.test(message)) {
+      setText(''); setMenu(false); setProgressGroup(null); setPage('progress'); return;
+    }
+    if (/^(muscles|show muscles|open muscles|muscle map)[.!]?$/i.test(message)) { setText(''); setMenu(false); setPage('muscles'); return; }
+    if (/^(training program|open (my )?program)[.!]?$/i.test(message) && plan) {
+      setText(''); setMenu(false); setPage('program'); return;
+    }
     const preempts = SAFETY.test(message) || /^(stop|stop workout|stop camera|pause camera)[.!]?$/i.test(message);
     if (conversation.getSnapshot().busy && preempts) conversation.cancel();
     if (conversation.getSnapshot().busy) return;
@@ -262,13 +279,21 @@ export function HomeScreen({ openLog, openActivity }) {
       }
       const action = chatAction(message);
       if (action) {
-        if (action.panel === 'camera' && !active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); }
+        if (['camera', 'progress', 'muscles'].includes(action.panel)) {
+          openPanel(action.panel, action.exercise);
+          return { source: 'local', reply: action.panel === 'camera' ? 'Choose camera tracking or manual logging to start your workout.' : `Opened ${PANEL_LABELS[action.panel]}.`, proposals: [] };
+        }
         return { source: 'local', reply: action.panel === 'camera' ? 'Let’s get moving. Allow your camera below and keep your body in frame. Video stays on this device; only your rep measurements are saved when you confirm.' : `Here’s ${PANEL_LABELS[action.panel].toLowerCase()}, right here in our conversation.`, actions: [action], toolCalls: [{ name: 'show_panel', status: 'completed' }] };
       }
       const mutation = /\b(log|save|correct|change|delete|remove|fix)\b/i.test(message);
       const answer = mutation ? null : answerPerformance(message, { history, active }) ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
       if (answer) return { source: 'local', reply: answer, proposals: [], toolCalls: [{ name: 'get_workout_context', status: 'completed' }] };
       const response = await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY });
+      const navigation = response.actions?.find(a => ['camera', 'progress', 'muscles'].includes(a.panel));
+      if (navigation) {
+        openPanel(navigation.panel, navigation.exercise);
+        return { ...response, actions: response.actions.filter(a => !['camera', 'progress', 'muscles'].includes(a.panel)), workoutId: active?.id ?? null };
+      }
       return { ...response, workoutId: active?.id ?? null };
     });
     // Model-triggered panels use the same renderer and camera lifecycle as local actions.
@@ -309,7 +334,7 @@ export function HomeScreen({ openLog, openActivity }) {
       ['camera-outline', 'Workout studio', () => send('Start a workout')],
       ['chart-line', 'Progress & history', () => send('Review my progress')],
       ['human-handsup', 'Muscle & recovery', () => send('Show my muscles')],
-      ['calendar-outline', 'Training program', () => send('Build me a training program')],
+      ['calendar-outline', 'Training program', () => plan ? setPage('program') : send('Build me a training program')],
       ['tray-arrow-up', 'Import workouts', () => send('Import my workouts')],
     ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} key={label} onPress={action} style={[st.navItem, i === 0 && st.navActive]}><Icon name={icon} size={19} color={i === 0 ? T.accentText : T.textMute} /><Text style={[st.navText, i === 0 && { color: T.text }]}>{label}</Text>{i === 0 ? <View style={st.dot} /> : null}</TouchableOpacity>)}
     <View style={st.sideDivider} />
@@ -321,6 +346,26 @@ export function HomeScreen({ openLog, openActivity }) {
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={st.profile}><View style={st.avatar}><Icon name="account-outline" color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={{ color: T.text, fontWeight: '600', fontSize: 13 }}>Your training space</Text><Text style={{ color: T.textMute, fontSize: 11, marginTop: 3 }}>Local storage · {settings.unit}</Text></View><Icon name="cog-outline" size={18} color={T.textMute} /></TouchableOpacity>
   </View>;
 
+  if (page === 'program') return <ProgramScreen plan={plan} onBack={() => setPage(null)} />;
+  if (page === 'progress') return <View style={{ flex: 1 }}><PrimaryButton secondary onPress={() => setPage(null)}>Back to Jim</PrimaryButton><ProgressScreen go={() => setPage(null)} muscleGroup={progressGroup} onClearMuscle={() => setProgressGroup(null)} /></View>;
+  if (page === 'muscles') return <View style={{ flex: 1 }}><PrimaryButton secondary onPress={() => setPage(null)}>Back to Jim</PrimaryButton><MusclesScreen openHistory={() => { setProgressGroup(null); setPage('progress'); }} openProgress={group => { setProgressGroup(group); setPage('progress'); }} /></View>;
+  if (page === 'workout-choice') return <ScrollView contentContainerStyle={{ padding: 20 }}>
+    <PrimaryButton secondary onPress={() => setPage(null)}>Back to Jim</PrimaryButton>
+    <Text style={[type.h1, { marginTop: 20 }]}>Start workout</Text>
+    <Text style={type.body}>Choose how you want to record your sets.</Text>
+    <PrimaryButton onPress={() => { if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); } setCameraEnabled(true); setPage('workout'); }}>Use camera</PrimaryButton>
+    <PrimaryButton secondary onPress={() => { if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); } setCameraEnabled(false); setPage('workout'); }}>Without camera</PrimaryButton>
+  </ScrollView>;
+  if (page === 'workout') return <View style={{ flex: 1 }}>
+    <PrimaryButton secondary onPress={() => { clearCamera(); setPage(null); }}>Back to Jim</PrimaryButton>
+    {cameraEnabled ? <CoachScreen openLog={openLog} /> : <ScrollView contentContainerStyle={{ padding: 20 }}>
+      <Text style={type.h1}>{active?.name ?? 'Workout'}</Text>
+      <Text style={type.body}>Camera is off. Record your sets manually.</Text>
+      <PrimaryButton disabled={!active} onPress={() => openLog()}>Log a set</PrimaryButton>
+      <PrimaryButton secondary onPress={() => setCameraEnabled(true)}>Use camera instead</PrimaryButton>
+      <PrimaryButton secondary onPress={() => { finishWorkout(); endMission(); setPage(null); }}>Finish workout</PrimaryButton>
+    </ScrollView>}
+  </View>;
   return <KeyboardAvoidingView style={st.workspace} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {desktop ? sidebar : null}
     <View style={st.main}>
