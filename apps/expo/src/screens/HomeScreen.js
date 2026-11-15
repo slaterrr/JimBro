@@ -320,7 +320,7 @@ export function HomeScreen({ openLog, openActivity, go }) {
           })
         )}
         {thinking ? <PrimaryButton secondary onPress={() => { conversation.cancel(); voice.stop(); }}>Stop reply</PrimaryButton> : null}
-        {reason && source === 'offline' ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
+        {reason && source === 'offline' && PROXY_URL ? <Text style={[type.small, { marginTop: 10 }]}>Jim AI is unavailable. This reply uses the offline coach; try your question again when connected.</Text> : null}
         {error ? <Text accessibilityRole="alert" style={[type.body, { color: T.amber }]}>{error}</Text> : null}
       </ScrollView>
 
