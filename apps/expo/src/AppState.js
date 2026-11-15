@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
+import { Alert } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
@@ -95,7 +96,17 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const voice = useMemo(() => createVoice(
-    { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
+    {
+      speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync,
+      enableVoice: () => {
+        settingsRef.current = { ...settingsRef.current, speak: true };
+        setData(d => ({ ...d, settings: { ...d.settings, speak: true } }));
+      },
+      requestVoice: done => Alert.alert('Jim is muted', 'Enable voice to hear Jim, or keep using the app silently.', [
+        { text: 'Keep muted', style: 'cancel', onPress: () => done(false) },
+        { text: 'Enable voice', onPress: () => done(true) },
+      ], { cancelable: true, onDismiss: () => done(false) }),
+    },
     () => settingsRef.current,
   ), []);
   useEffect(() => { voice.enableAudio(); }, [voice]);

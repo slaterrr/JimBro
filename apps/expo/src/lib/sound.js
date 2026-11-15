@@ -10,7 +10,7 @@ export const VOICE_SETTINGS_VERSION = 1;
 export function migrateVoiceSettings(settings) {
   const s = { ...(settings ?? {}) };
   if (s.voiceVersion !== VOICE_SETTINGS_VERSION) {
-    s.speak = true;
+    s.speak = typeof s.speak === 'boolean' ? s.speak : true;
     s.voiceVersion = VOICE_SETTINGS_VERSION;
   }
   return s;
@@ -22,11 +22,25 @@ export function migrateVoiceSettings(settings) {
  */
 export function createVoice(engine, getSettings) {
   let audioReady = null;
+  let prompting = false;
+  let keptMuted = false;
   let voices = null; // device voices once loaded (lib/voices.js); null = use the device default
   const opts = (persona, extra) => ({ ...speechOptions(persona), ...extra });
 
-  const say = (text, { force = false, persona, interrupt = force, onDone, onError, voiceId } = {}) => {
+  const say = (text, { force = false, persona, interrupt = force, onDone, onError, voiceId, consent = false } = {}) => {
     const s = getSettings() ?? {};
+    if (s.speak) keptMuted = false;
+    if (text && force && !s.speak && !consent && engine.requestVoice) {
+      if (prompting || keptMuted) return false;
+      prompting = true;
+      engine.requestVoice(enabled => {
+        prompting = false;
+        if (!enabled) { keptMuted = true; return; }
+        engine.enableVoice?.();
+        say(text, { force: true, persona, interrupt, onDone, onError, voiceId, consent: true });
+      });
+      return false;
+    }
     if (!text || !(force || s.speak)) return false;
     if (interrupt) engine.stop();
     const voice = resolveVoice(voiceId ?? s.voiceId, voices);
