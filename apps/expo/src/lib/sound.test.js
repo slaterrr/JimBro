@@ -60,3 +60,23 @@ test('enableAudio configures playback in iOS silent mode exactly once and never 
   const broken = createVoice({ ...fakeEngine(), setAudioMode: async () => { throw new Error('no audio module'); } }, () => ({}));
   await broken.enableAudio();
 });
+
+test('Daniel by default, the chosen voice when the device has it, persona speed and pitch kept', () => {
+  const engine = fakeEngine();
+  let settings = { speak: true, persona: 'coach', voiceId: null };
+  const v = createVoice(engine, () => settings);
+  v.say('before voices load');
+  assert.equal(engine.calls.at(-1)[2].voice, undefined); // device default until the list loads
+  v.setAvailableVoices([{ identifier: 'daniel-id', name: 'Daniel', language: 'en-GB' }, { identifier: 'samantha-id', name: 'Samantha', language: 'en-US' }]);
+  v.say('hi');
+  assert.equal(engine.calls.at(-1)[2].voice, 'daniel-id');
+  assert.equal(engine.calls.at(-1)[2].pitch, 1.0);
+  settings = { ...settings, voiceId: 'samantha-id' };
+  v.say('hi');
+  assert.equal(engine.calls.at(-1)[2].voice, 'samantha-id');
+  settings = { ...settings, voiceId: 'removed-id' };
+  v.say('hi');
+  assert.equal(engine.calls.at(-1)[2].voice, 'daniel-id');
+  v.say('preview', { force: true, voiceId: 'samantha-id' });
+  assert.equal(engine.calls.at(-1)[2].voice, 'samantha-id');
+});
