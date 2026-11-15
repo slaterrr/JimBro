@@ -48,6 +48,12 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - Byte limits apply to UTF-8 request bytes, not string character count. Tests live in `httpSecurity.test.js`.
 - No change to offline coach, AI tools or user-confirmation semantics. Device verification and authenticated production rollout remain pending.
 
+## Hackathon Coach chat and target recovery (PR #89)
+- Integrated unmerged PR #79 (short Coach chat reports, local set logging + rest) and PR #75 (editable camera rep/set goals) onto the merged PR #87 training dashboard.
+- Preserved AppState schedule and attendance methods from #87, and kept existing mission goal rules. All camera measurements remain on-device and no new Claude calls were introduced.
+- The former PR heads do not merge cleanly directly into current main. PR #89 is the integrated replacement. Run Expo tests, exports, and UI tests; physical-device behavior remains unverified. Do not merge unless CI green.
+- PR #88 (backend sync) and conflicting noncritical UI work remain separate.
+
 ## How to verify
 | What | Command |
 |---|---|

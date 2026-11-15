@@ -11,6 +11,8 @@ import { assessFatigue } from '../lib/performance.js';
 import { afterSetLines, recLine } from '../lib/perfCoach.js';
 import { recommendNext } from '../lib/recommend.js';
 import { T, type } from '../theme.js';
+import { coachSetBody } from '../lib/coachSetChat.js';
+import { CoachSetChat } from './CoachSetChat.js';
 import { Card, Chips, Field, PrimaryButton } from './kit.js';
 
 const CHECK_AUTO_MS = 8000; // the quick check confirms itself (hands-free) unless a weight is needed
@@ -52,23 +54,27 @@ export function MissionCard({ mission, onStart, onCancel }) {
  * Runs the mission on the Coach screen. Props come from the camera counter:
  * `count`, `lastRepAt` (ms), `tracking` ('ok'|...), `repsDetail()` and `resetCounter()`.
  */
-export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCounter, setQuality, voiceOn }) {
-  const { mission, stepMission, endMission, logSet, finishWorkout, voice, history } = useApp();
+export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCounter, setQuality, voiceOn, paused, setPaused }) {
+  const { mission, stepMission, endMission, saveCoachSet, finishWorkout, voice, history } = useApp();
   const s = mission.state;
   const t = currentTarget(s);
+  const [chatFocused, setChatFocused] = useState(false);
   const [taps, setTaps] = useState(0);
   const [rir, setRir] = useState(null); // user-reported only; never guessed from video
   const [q, setQ] = useState(null); // camera set quality (partials, unfinished attempt)
   // Seeded from the mission state so a remount (tab switch) mid-check keeps the counted reps.
   const [reps, setReps] = useState(s.pending?.reps ?? 0);
   const [weight, setWeight] = useState(t?.weight == null ? '' : String(t.weight));
-  const [restLeft, setRestLeft] = useState(s.phase === 'rest' ? t?.rest_s ?? 0 : 0); // non-zero on a remount mid-rest, so rest isn't skipped
+  const [extraRest, setExtraRest] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  const fallbackRestUntil = useRef(Date.now() + (t?.rest_s ?? 0) * 1000);
+  const restLeft = s.phase === 'rest' ? Math.max(0, Math.ceil(((s.restUntil ?? fallbackRestUntil.current) + extraRest - now) / 1000)) : 0;
   const okSince = useRef(null);
   const say = (line) => voiceOn && line && voice.say(line, { force: true });
 
   // Position: start the set once the camera has you (1.5 s of good tracking), or right away for tap lifts.
   useEffect(() => {
-    if (s.phase !== 'position' || !t) return undefined;
+    if (paused || s.phase !== 'position' || !t) return undefined;
     if (!t.camera) {
       const id = setTimeout(() => go(), 2500);
       return () => clearTimeout(id);
@@ -87,16 +93,16 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
       stepMission({ type: 'ready' });
       say(announce(t));
     }
-  }, [s.phase, s.i, s.setNo, tracking]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.phase, s.i, s.setNo, tracking, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set: end it hands-free (target reached + pause, or a long pause).
   useEffect(() => {
-    if (s.phase !== 'set' || !t?.camera) return undefined;
+    if (paused || s.phase !== 'set' || !t?.camera) return undefined;
     const id = setInterval(() => {
       if (count > 0 && ((count >= t.reps && Date.now() - lastRepAt >= 2000) || Date.now() - lastRepAt >= 6000)) finishSet(count, repsDetail());
     }, 300);
     return () => clearInterval(id);
-  }, [s.phase, count, lastRepAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.phase, count, lastRepAt, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Everything Jim concludes about a set comes from these measurements and what the user reports.
   const pastSets = [...history.flatMap((w) => w.sets ?? []), ...s.log.map((e) => ({ ...e }))];
@@ -135,44 +141,59 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
 
   const confirm = (accepted = false) => {
     const w = usedWeight;
-    if (!(w >= 0)) return;
-    const pending = s.pending;
-    const camera = t.camera && pending?.reps_detail?.length === reps;
-    const m = view?.fatigue.metrics;
+    if (paused || w == null || !Number.isFinite(w) || w < 0) return;
+
     const rec = view && view.rec.action !== 'none' ? view.rec : null;
-    const logged = logSet({
-      exercise: t.exercise, weight: w, unit: t.unit, reps, rpe: rir == null ? null : 10 - rir, rir,
-      source: camera ? 'camera' : 'manual',
-      reps_detail: camera ? pending.reps_detail : [],
-      target: t.reps,
-      // Performance record (relative measurements; see lib/performance.js) and Jim's suggestion.
-      ...(camera && m ? { metrics: { calibrated: false, meanLiftMs: m.meanLiftMs, velocityLossPct: m.velocityLossPct, romLossPct: m.romLossPct, consistencyCv: m.consistencyCv } } : {}),
-      fatigue: view?.fatigue.level ?? null,
-      rec: rec ? { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: Boolean(accepted && offer) } : null,
-    }, `Mission: ${s.mission.title}`);
-    if (!logged) return;
-    stepMission({ type: 'confirm', rpe: rir == null ? null : 10 - rir, weight: w, rec, accepted: Boolean(accepted && offer) });
+    saveCoachSet({
+      slot,
+      set: {
+        ...coachSetBody(t, { reps, weight: w, rir }, s.pending?.reps_detail),
+        fatigue: view?.fatigue.level ?? null,
+        rec: rec ? { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: Boolean(accepted && offer) } : null,
+      },
+      event: { rec, accepted: Boolean(accepted && offer) },
+    });
+  };
+
+  const slot = { startedAt: mission.startedAt, index: s.i, setNo: s.setNo };
+  const sendReport = (report) => {
+    const detail = s.phase === 'check' ? s.pending?.reps_detail ?? [] : repsDetail();
+    const quality = s.phase === 'check' ? q : setQuality?.();
+    const body = coachSetBody(t, { ...report, rir: s.phase === 'check' ? rir : null }, detail);
+    const { fatigue, rec } = judge({ n: body.reps, detail: body.reps_detail, quality, rirNow: body.rir, w: body.weight });
+    return saveCoachSet({
+      slot,
+      set: {
+        ...body,
+        fatigue: fatigue.level,
+        rec: rec.action === 'none' ? null : { action: rec.action, weight: rec.weight, reps: rec.reps, accepted: false },
+      },
+      event: { rec, accepted: false },
+    });
   };
 
   // Check: saves itself after a few seconds, keeping the plan unchanged (changes need a tap).
   useEffect(() => {
-    if (s.phase !== 'check' || needsWeight) return undefined;
+    if (paused || chatFocused || s.phase !== 'check' || needsWeight) return undefined;
     const id = setTimeout(() => confirm(false), CHECK_AUTO_MS);
     return () => clearTimeout(id);
-  }, [s.phase, rir, reps, needsWeight]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.phase, rir, reps, needsWeight, paused, chatFocused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rest: count down, say what changes next, then go back to position.
   useEffect(() => {
     if (s.phase !== 'rest' || !t) return undefined;
-    setRestLeft(t.rest_s);
-    say(`${s.note ?? ''} Rest ${clock(t.rest_s)}. Next: ${exerciseName(t.exercise)}, ${load(t)}, ${t.reps} reps.`);
-    const id = setInterval(() => setRestLeft((x) => x - 1), 1000);
+    fallbackRestUntil.current = Date.now() + t.rest_s * 1000;
+    setExtraRest(0);
+    setNow(Date.now());
+    say((s.note ?? '') + ' Rest ' + clock(t.rest_s) + '. Next: ' + exerciseName(t.exercise) + ', ' + load(t) + ', ' + t.reps + ' reps.');
+    const id = setInterval(() => setNow(Date.now()), 250);
     return () => clearInterval(id);
   }, [s.phase, s.i, s.setNo]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (s.phase === 'rest' && restLeft <= 0 && t) stepMission({ type: 'rest_done' });
-    if (s.phase === 'rest' && restLeft === 10) say('10 seconds.');
-  }, [restLeft]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (paused || s.phase !== 'rest' || !t) return;
+    if (restLeft <= 0) stepMission({ type: 'rest_done' });
+    if (restLeft === 10) say('10 seconds.');
+  }, [restLeft, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Done: check the result against the plan and say it.
   const [summary, setSummary] = useState(null);
@@ -220,22 +241,27 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
       </Text>
       <Text style={type.body}>{t.reps} reps · {load(t)} {t.camera ? '· camera counts' : '· tap to count'}</Text>
 
+      <CoachSetChat
+        target={t} phase={s.phase} slotKey={[mission.startedAt, s.i, s.setNo, t.exercise].join(':')}
+        measured={t.camera ? (s.phase === 'check' ? s.pending?.reps : count) : taps}
+        paused={paused} setPaused={setPaused} sendSet={sendReport} voiceOn={voiceOn} onFocusChange={setChatFocused}
+      />
       {s.phase === 'position' ? (
         <Text style={[type.small, { marginTop: 8 }]}>
           {t.camera ? (tracking === 'ok' ? 'Got you. Starting…' : 'Get into frame, side-on. The set starts when I can see you.') : 'Get set up. Starting in a moment…'}
         </Text>
       ) : null}
-      {s.phase === 'position' && t.camera ? (
+      {!paused && s.phase === 'position' && t.camera ? (
         <PrimaryButton secondary onPress={() => { resetCounter(); setTaps(0); stepMission({ type: 'ready' }); say(announce(t)); }}>Start set now</PrimaryButton>
       ) : null}
 
-      {s.phase === 'set' && !t.camera ? (
+      {!paused && s.phase === 'set' && !t.camera ? (
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
           <PrimaryButton style={{ flex: 2 }} onPress={() => setTaps((n) => n + 1)}>+1 rep ({taps})</PrimaryButton>
           <PrimaryButton secondary style={{ flex: 1 }} onPress={() => finishSet(taps)}>Done</PrimaryButton>
         </View>
       ) : null}
-      {s.phase === 'set' && t.camera ? (
+      {!paused && s.phase === 'set' && t.camera ? (
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 10 }}>
           <Text style={[type.small, { flex: 1 }]}>The set ends by itself when you finish. {count}/{t.reps}</Text>
           <PrimaryButton secondary onPress={() => finishSet(count, repsDetail())}>Done</PrimaryButton>
@@ -267,14 +293,14 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
               <Text style={[type.body, { color: T.text, fontWeight: '700' }]}>{recLine(offer)}</Text>
               <Text style={type.small}>{offer.reasons.join(' ')}</Text>
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                <PrimaryButton style={{ flex: 1 }} disabled={needsWeight && usedWeight == null} onPress={() => confirm(true)}>Use it</PrimaryButton>
-                <PrimaryButton secondary style={{ flex: 1 }} disabled={needsWeight && usedWeight == null} onPress={() => confirm(false)}>Keep plan</PrimaryButton>
+                <PrimaryButton style={{ flex: 1 }} disabled={paused || (needsWeight && usedWeight == null)} onPress={() => confirm(true)}>Use it</PrimaryButton>
+                <PrimaryButton secondary style={{ flex: 1 }} disabled={paused || (needsWeight && usedWeight == null)} onPress={() => confirm(false)}>Keep plan</PrimaryButton>
               </View>
             </View>
           ) : (
             <>
               {view?.rec?.reasons?.length && view.rec.action !== 'none' ? <Text style={[type.small, { marginTop: 8 }]}>{view.rec.reasons.join(' ')}</Text> : null}
-              <PrimaryButton disabled={needsWeight && !(Number(weight) >= 0 && weight !== '')} onPress={() => confirm(false)}>
+              <PrimaryButton disabled={paused || needsWeight && !(Number(weight) >= 0 && weight !== '')} onPress={() => confirm(false)}>
                 {needsWeight ? 'Save set' : 'Save set (auto in a few seconds)'}
               </PrimaryButton>
             </>
@@ -284,10 +310,10 @@ export function MissionPanel({ count, lastRepAt, tracking, repsDetail, resetCoun
 
       {s.phase === 'rest' ? (
         <View style={{ alignItems: 'center', marginTop: 8 }}>
-          <Text style={{ color: T.text, fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(restLeft > 0 ? restLeft : t.rest_s)}</Text>
+          <Text style={{ color: T.text, fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{clock(restLeft)}</Text>
           {s.note ? <Text style={[type.small, { textAlign: 'center' }]}>{s.note}</Text> : null}
           <View style={{ flexDirection: 'row', gap: 10, alignSelf: 'stretch' }}>
-            <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setRestLeft((x) => x + 30)}>+30s</PrimaryButton>
+            <PrimaryButton secondary style={{ flex: 1 }} onPress={() => setExtraRest((x) => x + 30000)}>+30s</PrimaryButton>
             <PrimaryButton secondary style={{ flex: 1 }} onPress={() => stepMission({ type: 'rest_done' })}>Skip rest</PrimaryButton>
           </View>
         </View>

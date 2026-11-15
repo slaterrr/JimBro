@@ -8,6 +8,7 @@
 //   verify      missionSummary(): planned vs done, time, camera-verified reps, what changes next time
 // Pure functions (no React, no storage), so every step is unit-tested.
 import { suggestNext } from './coach.js';
+import { showSetTarget, workoutTarget } from './workoutTargets.js';
 import { EXERCISES, exerciseName } from './exercises.js';
 import { fitnessGoalShort, normalizeFitnessGoal } from './fitnessGoal.js';
 import { EXERCISE_MUSCLES } from './muscles.js';
@@ -204,6 +205,18 @@ function nextItem(s, note) {
 export function missionStep(s, e) {
   const item = s.mission.items[s.i];
   switch (e.type) {
+    case 'adjust_targets': {
+      if (!item || item.exercise !== e.exercise || s.phase === 'check' || s.phase === 'done') return s;
+      const reps = e.reps == null ? s.cur.reps : workoutTarget('reps', e.reps);
+      const sets = e.sets == null || !showSetTarget(item.exercise)
+        ? item.sets
+        : Math.max(s.setNo, workoutTarget('sets', e.sets));
+      if (reps === s.cur.reps && sets === item.sets) return s;
+      const items = s.mission.items.map((entry, index) => (
+        index === s.i ? { ...entry, reps, sets } : entry
+      ));
+      return { ...s, mission: { ...s.mission, items }, cur: { ...s.cur, reps } };
+    }
     case 'ready':
       return s.phase === 'position' ? { ...s, phase: 'set' } : s;
     case 'set_done':
