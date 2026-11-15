@@ -52,7 +52,7 @@ class SnapshotIn(BaseModel):
 
 
 @router.post("/auth/register", status_code=201)
-def register(body: Credentials, service: Service) -> dict:
+def register(body: Credentials, service: Service) -> dict[str, str]:
     try:
         return service.register(body.email, body.password)
     except ValueError as exc:
@@ -62,7 +62,7 @@ def register(body: Credentials, service: Service) -> dict:
 
 
 @router.post("/auth/login")
-def login(body: Credentials, service: Service) -> dict:
+def login(body: Credentials, service: Service) -> dict[str, str]:
     try:
         return {"access_token": service.login(body.email, body.password), "token_type": "bearer"}
     except InvalidCredentials:
@@ -70,7 +70,7 @@ def login(body: Credentials, service: Service) -> dict:
 
 
 @router.post("/auth/logout")
-def logout(service: Service, token: Token) -> dict:
+def logout(service: Service, token: Token) -> dict[str, bool]:
     try:
         service.logout(token)
     except Unauthorized:
@@ -79,13 +79,17 @@ def logout(service: Service, token: Token) -> dict:
 
 
 @router.get("/sync")
-def get_sync(service: Service, who: User) -> dict:
+def get_sync(service: Service, who: User) -> dict[str, Any]:
     return service.get_snapshot(who)
 
 
 @router.put("/sync")
-def put_sync(body: SnapshotIn, service: Service, who: User,
-             idempotency_key: Annotated[str | None, Header()] = None) -> dict:
+def put_sync(
+    body: SnapshotIn,
+    service: Service,
+    who: User,
+    idempotency_key: Annotated[str | None, Header()] = None,
+) -> dict[str, Any]:
     if idempotency_key is None:
         raise HTTPException(400, detail="Idempotency-Key required")
     try:
