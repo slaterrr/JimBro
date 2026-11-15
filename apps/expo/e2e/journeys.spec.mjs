@@ -27,6 +27,10 @@ test('persistent navigation: mobile menu switches directly between every page an
   expect((await saved(page)).active.id).toBe(workoutId);
   await navigate('Chat with Jim');
   await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await navigate('Progress & history');
+  await navigate('Import workouts');
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await expect(page.getByTestId('chat-panel-import')).toBeVisible();
   expect((await saved(page)).active.id).toBe(workoutId);
   expect(errors).toEqual([]);
 });

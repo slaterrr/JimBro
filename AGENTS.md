@@ -27,6 +27,11 @@ Workout navigation PR: Start workout offers camera/manual choice; Progress and M
 | Demo data (demo-workouts.json) | ✅ verified, fixture + tests (`apps/expo/src/lib/fixtures`) |
 | Compare your training → Submit → dedicated comparison results page | 🧪 codex/compare-submit-page; distinct-period validation, back action; device check pending |
 
+## Persistent workspace navigation (codex/persistent-page-navigation)
+- Dedicated Progress, Muscles, Program, Calendar, workout-choice and workout pages retain the mobile menu and desktop sidebar. Menu selections close the drawer; Chat with Jim and Import return directly to chat, preserving active workouts.
+- Home no longer shows the offline AI notice beneath Jim's name. Local/connected/busy status and fallback explanations on actual replies remain available.
+- Browser regressions cover mobile page-to-page navigation, workout continuity, desktop navigation and the offline header. Physical-device validation remains pending.
+
 ## Rules for agents
 Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
 
