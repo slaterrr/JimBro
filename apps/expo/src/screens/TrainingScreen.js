@@ -149,15 +149,15 @@ export function TrainingScreen({ onBack }) {
       ) : null}
 
       <Card style={{ marginTop: 16 }}>
-        <Text style={type.title}>Attendance, last 8 weeks</Text>
-        <BarChart points={weekly} unit="days" />
+        <Text style={type.title}>Gym days per week, last 8 weeks</Text>
+        <BarChart points={weekly} />
       </Card>
 
       <Card style={{ marginTop: 16 }}>
         <Text style={type.title}>Exercise progress</Text>
         {exercises.length ? exercises.map((e) => (
           <View key={e.id} testID={`progress-${e.id}`} style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 8 }}>
-            <Text style={type.label}>{exerciseName(e.id)} · {e.sessions} sessions · {e.rec.trend}</Text>
+            <Text style={type.label}>{exerciseName(e.id)} · {e.sessions} session{e.sessions === 1 ? '' : 's'} · {e.rec.trend}</Text>
             <Text style={type.small}>First {e.first} → latest {e.last}{e.heaviest > 0 ? ` · heaviest ${e.heaviest} ${settings.unit}` : ''}</Text>
             <Text style={[type.small, { color: T.textDim }]}>Next: {e.rec.why}</Text>
           </View>
