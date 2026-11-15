@@ -4,6 +4,7 @@ import * as Speech from 'expo-speech';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyDelete, applyUpdate } from './lib/intents.js';
+import { applyCoachSet } from './lib/coachSetChat.js';
 import { appendWorkoutSet } from './lib/workoutLogging.js';
 import { DEFAULT_GOAL_SETTINGS, migrateGoalSettings } from './lib/fitnessGoal.js';
 import { migrateGoals } from './lib/goals.js';
@@ -162,6 +163,26 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     });
   const endMission = () => setData((d) => ({ ...d, mission: null }));
 
+  // Coach saves the workout set and advances the session in one state update.
+  const saveCoachSet = (request) => {
+    const workoutId = data.active?.id;
+    if (!workoutId) return null;
+    const body = request.set;
+    const workouts = [...data.history, data.active];
+    const record = personalRecords(workouts, body).find((r) => r.exercise === body.exercise && r.unit === body.unit);
+    const now = Date.now();
+    const set = {
+      ...body, id: newId(), loggedAt: new Date(now).toISOString(),
+      pr: Boolean(record && (record.is_new_heaviest || record.is_new_volume)),
+    };
+    setData((d) => applyCoachSet(d, { ...request, workoutId, set, now }));
+    return set.id;
+  };
+  const clearCoachRest = (until) => setData((d) => {
+    if (d.active?.coachRest?.until !== until) return d;
+    return { ...d, active: { ...d.active, coachRest: null } };
+  });
+
   // Saving keeps the previous plan in planVersions (lib/planVersions.js).
   const savePlan = (plan) => setData((d) => withSavedPlan(d, plan));
   // Goals: measurable targets checked against logged history (see lib/goals.js).
@@ -177,7 +198,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice,
     active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
-    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, saveCoachSet, clearCoachRest, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
   };
   return (
     <Ctx.Provider value={value}>
