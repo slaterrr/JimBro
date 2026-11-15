@@ -5,6 +5,9 @@ import { restSeconds } from './rest.js';
 test('comparison converts units, isolates exercises and handles missing data', () => {
  const period = {workouts:[{sets:[{exercise:'bench',weight:100,unit:'kg',reps:5},{exercise:'curl',weight:20,unit:'kg',reps:10}]}]};
  assert.equal(metrics(period,'bench','kg').volume,500);
+ assert.equal(metrics(period,'bench','kg').reps,5);
+ assert.equal(metrics(period,'bench','lb').reps,5);
+ assert.equal(metrics(period,'squat','kg').reps,null);
  assert.ok(Math.abs(metrics(period,'bench','lb').volume-1102.31)<0.1);
  assert.equal(metrics(period,'squat','kg').strength,null);
 });
