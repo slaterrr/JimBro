@@ -145,6 +145,22 @@ test('follow-up turns reach the HTTP service with conversation history', async (
   await expect(page.getByText('Your previous question was: Explain what you can help with', { exact: true })).toBeVisible();
 });
 
+test('Shift+Enter inserts a line break and Enter submits the composed message once', async ({ page }) => {
+  const composer = page.getByLabel('Message Jim', { exact: true });
+  const before = fixture.calls.length;
+  await composer.fill('Explain');
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
+  await composer.press('Shift+Enter');
+  await composer.pressSequentially('my training');
+  await expect(composer).toHaveValue('Explain\nmy training');
+  expect(fixture.calls.length).toBe(before);
+  await composer.press('Enter');
+  await expect(page.getByText('I can help you plan a workout, count camera reps, and review the sets you have logged.', { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue('');
+  expect(fixture.calls.length).toBe(before + 1);
+  expect(fixture.calls.at(-1).messages.at(-1).content).toBe('Explain\nmy training');
+});
+
 test('malformed model tool input is rejected with no confirmation and no data mutation', async ({ page }) => {
   await message(page, 'Try a malformed tool request');
   await expect(page.getByText('The tool request was rejected. Your workout was not changed.', { exact: true })).toBeVisible();

@@ -23,13 +23,19 @@ async function open(page, seed, { signedIn = true } = {}) {
 }
 // Tap the top-most visible control with this text or accessible name (modals render last).
 async function tap(page, name) {
+  // The mobile workspace keeps account/settings controls inside its menu.
+  if (name === 'Activity and settings' && !(await page.getByLabel(name, { exact: true }).locator('visible=true').count())) {
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+  }
   const byText = page.getByText(name, { exact: true }).locator('visible=true');
   const target = (await byText.count()) ? byText.last() : page.getByLabel(name, { exact: true }).locator('visible=true').last();
   await target.click();
+  if (name === 'Skip for now') await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 const saved = (page) => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}'), KEY);
 const say = async (page, text) => {
   await page.getByLabel('Message Jim').fill(text);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await page.getByLabel('Message Jim').press('Enter');
 };
 
@@ -159,8 +165,9 @@ test('muscles: tapping a muscle opens its progress', async ({ page }) => {
   await say(page, 'Show my muscles');
   await expect(page.getByTestId('chat-panel-muscles')).toBeVisible();
   const body = page.locator('svg[viewBox="0 0 200 400"]').first();
-  const box = await body.boundingBox();
-  await page.mouse.click(box.x + box.width * 0.44, box.y + box.height * 0.24); // chest on the front figure
+  // Target the visible chest shape itself; absolute screen coordinates can
+  // drift while the conversation scroll animation finishes.
+  await body.locator('path[d^="M99 76"]').first().click();
   await expect(page.getByText(/chest/i).locator('visible=true').last()).toBeVisible();
   await tap(page, 'Progress');
   await expect(page.getByText('Chest progress', { exact: true })).toBeVisible();
@@ -237,6 +244,7 @@ test('login: each account keeps its own workouts', async ({ page }) => {
   await tap(page, 'Skip for now');
   await say(page, 'Start a workout');
   await say(page, 'stop camera');
+  await expect.poll(async () => page.evaluate(() => Boolean(JSON.parse(localStorage.getItem('jimbro.data.v2:one@example.com') ?? '{}').active))).toBe(true);
   await tap(page, 'Activity and settings');
   await tap(page, 'Sign out');
   await signUp(page, 'two@example.com', 'gains123');

@@ -57,6 +57,25 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 | User journeys (Playwright: first-run setup, log a set, chat + confirm/cancel, safety, last-workout answer, mission → Coach, plan, Progress tabs/dropdowns, muscles, persona, persistence) | `cd apps/expo && npm run test:e2e` (needs Chrome; runs in CI job `ui-smoke`) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
+## Isolated team review prototype (feat/chat-mvp-review)
+
+- Worktree `/workspace/JimBro-review`; existing prototype rebased onto `fca85e0`.
+  Original checkout/main stay unchanged; no merge, deployment or shared EAS update.
+- User confirmed the mascot is **blue**. Keep main's supplied blue asset; shared
+  body-blue/graphite/cream theme with pale-yellow highlights replaces old chat
+  green hardcodes. AA checks cover all review surfaces. Muse is labeled an
+  interpretation because no exact layout reference was supplied.
+- Retains current main's local login/account-scoped data, active-workout guard,
+  muscle progress, comparison results, opt-in AI plan personalization and proxy
+  hardening. Chat cards bind to their original workout; stale cards cannot migrate
+  a write into a new session.
+- Checks: app609, proxy51, vision51, chat Playwright23, user journeys16 passed.
+  Both native exports build; actual web preview signup/chat/reload smoke passed.
+  SDK tests are mocked; the2rep camera case is recorded-landmark replay. Live
+  Claude and physical-phone testing remain separate/unverified.
+- Local web: `npm run preview:review` in apps/expo (port8081). No public deployment.
+  Handoff and screenshots: `docs/REVIEW_PROTOTYPE.md`; draft body `REVIEW_PR.md`.
+
 ## Chat-centered MVP integration (codex/chat-mvp)
 
 - Builds on main `70891a3` and merged Claude contributions #47/#55/#62.
