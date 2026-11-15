@@ -29,7 +29,7 @@ export async function requestAIPlan({ request, history = [], url, key = null, fe
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(`${url.replace(/\\/+$/, '')}/plan`, {
+    const response = await fetchImpl(`${url.replace(/\/+$/, '')}/plan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(key ? { 'X-Jim-Key': key } : {}) },
       body: JSON.stringify({ request, recentSets }),
