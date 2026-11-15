@@ -1,5 +1,5 @@
 // Jim on the phone: a port of backend/jimbro/coach.py. Code computes the facts and a
-// bounded (<=5%) next-set suggestion; the persona only changes wording; pain short-circuits.
+// conservative next-set suggestion; the persona only changes wording; pain short-circuits.
 import { exerciseName } from './exercises.js';
 import { personaFor } from './personas.js';
 import { pick } from './voice.js';
@@ -26,16 +26,11 @@ export function suggestNext(history) {
     } else {
       why = `Bodyweight at RPE ${fmt(rpe)}: hold reps and own the form.`;
     }
-  } else if (rpe <= 7) {
-    const up = Math.floor((weight * (1 + MAX_STEP)) / inc) * inc;
-    weight = up > weight ? up : weight + inc;
-    why = `Last set was RPE ${fmt(rpe)} - room to add a little load.`;
   } else if (rpe >= 9.5) {
     weight = Math.max(0, Math.ceil((weight * (1 - MAX_STEP)) / inc) * inc);
     why = `Last set was RPE ${fmt(rpe)} - back off slightly and keep reps clean.`;
   } else {
-    reps += 1;
-    why = `RPE ${fmt(rpe)} is a good working effort: same load, one more rep.`;
+    why = `Last set was RPE ${fmt(rpe)}. Keep the logged load and rep target.`;
   }
   return { exercise: last.exercise, weight: Math.round(weight * 100) / 100, unit: last.unit, reps, rationale: why };
 }
@@ -75,7 +70,7 @@ const TEMPLATES = {
   ],
   analyst: [
     (n, w, u, r, why) => `${w} ${u} x ${r} is the next ${n} target. ${why} Log RPE to keep the trend accurate.`,
-    (n, w, u, r, why) => `${w} ${u} for ${r} reps on ${n}. ${why} That keeps progression within the step cap.`,
+    (n, w, u, r, why) => `${w} ${u} for ${r} reps on ${n}. ${why} Keep the reps controlled.`,
     (n, w, u, r, why) => `${r} reps at ${w} ${u} for ${n}. ${why} Rate it after so the numbers stay honest.`,
   ],
 };

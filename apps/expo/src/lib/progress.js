@@ -15,7 +15,7 @@ const tutOf = (s) =>
 export function trend(workouts, exercise) {
   const byUnit = {};
   for (const w of [...workouts].sort((a, b) => a.startedAt.localeCompare(b.startedAt))) {
-    const sets = w.sets.filter((s) => s.exercise === exercise);
+    const sets = w.sets.filter((s) => s.exercise === exercise && s.reps > 0 && Number.isFinite(s.weight) && s.weight >= 0);
     for (const unit of new Set(sets.map((s) => s.unit))) {
       const u = sets.filter((s) => s.unit === unit);
       const tuts = u.map(tutOf).filter((x) => x !== null);
@@ -34,6 +34,7 @@ export function trend(workouts, exercise) {
     const many = points.length > 1;
     out[unit] = {
       points,
+      best_logged_weight: points.reduce((best, point) => Math.max(best, point.top_weight), 0),
       top_weight_change_pct: many ? percentChange(a.top_weight, b.top_weight) : null,
       volume_change_pct: many ? percentChange(a.volume, b.volume) : null,
       tut_change_pct: many ? percentChange(a.avg_tut_ms, b.avg_tut_ms) : null,

@@ -92,14 +92,14 @@ function setsOf(history, exercise, unit) {
 }
 
 function itemFor(exercise, { history, unit, sets, reps, goal }) {
-  const past = setsOf(history, exercise, unit);
-  const sug = past.length ? suggestNext(past) : null;
+  const last = setsOf(history, exercise, unit).filter((set) => set.reps > 0).at(-1);
   let weight;
   let why;
-  if (sug) {
-    weight = sug.weight;
-    const last = past.at(-1);
-    why = `Last time ${last.weight > 0 ? `${last.weight} ${unit} × ${last.reps}` : `${last.reps} reps, bodyweight`}. ${sug.rationale}`;
+  if (last) {
+    weight = last.weight;
+    why = last.weight > 0
+      ? `Last logged: ${last.weight} ${unit} × ${last.reps}. Use that load or choose a different one.`
+      : `Last time ${last.reps} reps, bodyweight.`;
   } else if (BODYWEIGHT.has(exercise)) {
     weight = 0;
     why = 'Bodyweight to start; rate the first set and Jim adjusts.';
@@ -107,9 +107,8 @@ function itemFor(exercise, { history, unit, sets, reps, goal }) {
     weight = null;
     why = 'No history yet: start light, rate the first set, and Jim adjusts from there.';
   }
-  const r = sug && sug.weight > 0 ? sug.reps : reps;
-  const rest = restFor({ exercise, reps: r, fitnessGoal: goal }).seconds;
-  return { exercise, sets, reps: r, weight, unit, rest_s: rest, camera: isCamera(exercise), why: `${why}${isCamera(exercise) ? ' The camera counts it.' : ''}` };
+  const rest = restFor({ exercise, reps, fitnessGoal: goal }).seconds;
+  return { exercise, sets, reps, weight, unit, rest_s: rest, camera: isCamera(exercise), why: `${why}${isCamera(exercise) ? ' The camera counts it.' : ''}` };
 }
 
 const itemSeconds = (i) => i.sets * (i.reps * SEC_PER_REP + SET_SETUP_S + i.rest_s);

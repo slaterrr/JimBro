@@ -6,7 +6,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 
 import { Card, Chips, Icon, PrimaryButton } from './kit.js';
 import { exerciseName } from '../lib/exercises.js';
-import { EXPERIENCE, GOALS } from '../lib/program.js';
+import { EXPERIENCE, GOALS, programLoadText } from '../lib/program.js';
 import { itemLine } from '../lib/programChat.js';
 import { T, type } from '../theme.js';
 
@@ -32,7 +32,7 @@ export function IntakeCard({ field, onAnswer, onCancel }) {
   );
 }
 
-function Session({ session, expandedDefault = false }) {
+function Session({ session, deload, expandedDefault = false }) {
   const [open, setOpen] = useState(expandedDefault);
   return (
     <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: T.border, paddingTop: 10 }}>
@@ -48,7 +48,7 @@ function Session({ session, expandedDefault = false }) {
           {session.items.map((i, k) => (
             <View key={k} style={{ marginTop: 4 }}>
               <Text style={{ color: T.text, fontSize: 13, lineHeight: 19 }}>{k + 1}. {itemLine(i)}</Text>
-              <Text style={type.small}>{i.load.text}</Text>
+              <Text style={type.small}>{programLoadText(i.exercise, i.load.from, deload)}</Text>
               {i.substitutes.length ? <Text style={type.small}>Swap options: {i.substitutes.map((x) => exerciseName(x)).join(', ')}</Text> : null}
             </View>
           ))}
@@ -67,7 +67,7 @@ function Week({ week, expandedDefault }) {
         <Text style={[type.title, { fontSize: 15, flex: 1 }]}>Week {week.week}{week.deload ? ' · Deload' : ''}</Text>
         <Text style={type.small}>{week.sessions.reduce((t, s) => t + s.items.reduce((a, i) => a + i.sets, 0), 0)} sets</Text>
       </TouchableOpacity>
-      {open ? <View><Text style={[type.small, { marginLeft: 28 }]}>{week.note}</Text>{week.sessions.map((s) => <Session key={s.day} session={s} expandedDefault={expandedDefault && s.day === 1} />)}</View> : null}
+      {open ? <View><Text style={[type.small, { marginLeft: 28 }]}>{week.note}</Text>{week.sessions.map((s) => <Session key={s.day} session={s} deload={week.deload} expandedDefault={expandedDefault && s.day === 1} />)}</View> : null}
     </View>
   );
 }
@@ -85,14 +85,14 @@ export function ProgramCard({ message, currentPlan, onSave, onCancel }) {
       <Text style={[type.small, { marginTop: 6 }]}>{GOALS[i.goal]} · {EXPERIENCE[i.experience]} · {i.daysPerWeek} days/week · up to {i.minutes} min · {i.weeks} weeks · version {program.version}</Text>
       <Text style={[type.small, { marginTop: 6 }]}>Checked on your phone: every exercise is in the library and fits your equipment{i.avoid.length ? ' and limitations' : ''}; sessions fit the time; effort and weekly volume per muscle are within limits. Starting loads come only from your logged sets.</Text>
       {program.weeks.map((w) => <Week key={w.week} week={w} expandedDefault={w.week === 1} />)}
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={rules ? 'Hide progression rules' : 'Show progression rules'} onPress={() => setRules(!rules)} style={{ marginTop: 14, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={rules ? 'Hide training guidance' : 'Show training guidance'} onPress={() => setRules(!rules)} style={{ marginTop: 14, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Icon name={rules ? 'chevron-down' : 'chevron-right'} size={20} color={T.accent} />
-        <Text style={[type.title, { fontSize: 15 }]}>Progression, hold, reduce and deload</Text>
+        <Text style={[type.title, { fontSize: 15 }]}>Load and deload guidance</Text>
       </TouchableOpacity>
       {rules ? (
         <View style={{ paddingLeft: 28, gap: 6 }}>
-          <Text style={type.small}>Increase: {program.progression.increase}</Text>
-          <Text style={type.small}>Hold: {program.progression.hold}</Text>
+          <Text style={type.small}>Choose your working load. Use completed sets as a reference.</Text>
+          <Text style={type.small}>Hold: Repeat your working load and rep target when the effort feels right.</Text>
           <Text style={type.small}>Reduce: {program.progression.reduce}</Text>
           <Text style={type.small}>Stop: {program.progression.stop}</Text>
           <Text style={type.small}>Deload: {program.deload}</Text>

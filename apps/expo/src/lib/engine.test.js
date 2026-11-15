@@ -118,7 +118,7 @@ describe('coachReply', () => {
     const texts = TONES.map((t) => coachReply('what next?', t, history));
     assert.equal(new Set(texts.map((r) => r.text)).size, 4);
     for (const r of texts) {
-      assert.match(r.text, /21/);
+      assert.match(r.text, /20/);
       assert.equal(r.suggestion.exercise, 'curl');
     }
   });
@@ -211,3 +211,4 @@ describe('progress', () => {
     assert.deepEqual(weeklyProgress(days, 3, now), { done: 1, goal: 3 });
   });
 });
+
