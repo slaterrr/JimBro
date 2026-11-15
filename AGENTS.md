@@ -56,7 +56,8 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 
 ## Browser E2E repair (PR #90)
 - The old `e2e/chat-mvp.spec.mjs` suite expected camera/muscles to mount as inline chat panels; the shipped Home now uses dedicated screens and a camera/manual choice.
-- The seven failing scenarios were updated to navigate through the current UI and still assert no writes without confirmation, camera permission safety, measured-rep replay, clean camera unmount and cancellation of stale AI replies. No production UI changes.
+- The seven failing chat scenarios were updated for the current screens with real measured-rep and confirmation assertions. The independent user journeys were also updated for the current manual-workout, mission, plan, progress and muscles paths.
+- Fixed a real UI bug: when a user asks to open camera for a specific exercise (e.g. squat), the selected exercise now survives the camera/manual chooser and reaches the Coach screen. The browser count test now checks the measured count exactly, so "0 / 12" can never pass as two reps.
 - Validate with `cd apps/expo && npm run test:ui`; compare with CI main's prior seven legacy failures. Do not claim a pass until a successful CI run.
 
 ## How to verify
