@@ -206,3 +206,14 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+## When Jim uses Claude (feat/claude-routing)
+`apps/expo/src/lib/aiRouting.js` decides; the proxy adds a task prompt (`TASK_PROMPTS` in `server/jim-proxy/jim.js`). A chat notice tells the user why Claude was called.
+| Use Claude | Stay on the phone |
+|---|---|
+| Goal change → re-pick exercises for the new goal, explain each choice | Commands (start/stop/finish), navigation |
+| Conflict with saved goal/plan or pain → name trade-off, recommend a path/swap | Logging, corrections, deletes, yes/confirm (cards always confirm) |
+| Complex questions (why/should/which, multi-part, long) | Quick facts: reps counted, next set, rest, last workout |
+| Personalised workout review ("how did my workout go") | Safety phrases (always local, first) |
+| Weekly progress review → adapt next week | Anything when the proxy is off or fails (offline coach) |
+Tested: 8 routing tests + 3 proxy task tests. Still needs: live check with the deployed proxy.

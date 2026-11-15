@@ -169,7 +169,7 @@ function offline(message, state, reason) {
  * One chat turn. Returns { source: 'ai'|'offline'|'safety', reply, proposals, suggestion?, safety? }.
  * history: prior turns as [{role, content}] (see historyFor); message is the new user text.
  */
-export async function askJim({ message, history = [], state, url, key = null, fetchImpl = globalThis.fetch, timeoutMs = TIMEOUT_MS, now = new Date() }) {
+export async function askJim({ message, history = [], state, url, key = null, task = null, fetchImpl = globalThis.fetch, timeoutMs = TIMEOUT_MS, now = new Date() }) {
   if (SAFETY.test(message)) return { source: 'safety', reply: SAFETY_TEXT, proposals: [], suggestion: null, safety: true };
   if (!url || !fetchImpl) return offline(message, state, 'no proxy configured');
   const controller = new AbortController();
@@ -179,7 +179,7 @@ export async function askJim({ message, history = [], state, url, key = null, fe
     const res = await fetchImpl(`${url}/chat`, {
       method: 'POST',
       headers: headersFor(key),
-      body: JSON.stringify({ messages: [...history, { role: 'user', content: message }], context, persona: context.persona }),
+      body: JSON.stringify({ messages: [...history, { role: 'user', content: message }], context, persona: context.persona, ...(task ? { task } : {}) }),
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`proxy ${res.status}`);
@@ -189,7 +189,7 @@ export async function askJim({ message, history = [], state, url, key = null, fe
     const reply = body.reply.trim() || (proposals.length ? 'Check the card and confirm.' : '');
     if (!reply && !proposals.length) throw new Error('empty reply');
     const actions = Array.isArray(body.actions) ? body.actions.map(validateAction).filter(Boolean).slice(0, 1) : [];
-    return { source: body.safety ? 'safety' : 'ai', reply, proposals, actions, toolCalls: toolReceipts(body.toolCalls), suggestion: null, safety: Boolean(body.safety) };
+    return { source: body.safety ? 'safety' : 'ai', ...(task ? { task } : {}), reply, proposals, actions, toolCalls: toolReceipts(body.toolCalls), suggestion: null, safety: Boolean(body.safety) };
   } catch (e) {
     return offline(message, state, e?.message ?? 'error');
   } finally {

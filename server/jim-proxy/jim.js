@@ -28,8 +28,18 @@ const name = (ex) => exerciseName(ex).toLowerCase();
 const fmtSet = (s) => `${s.reps} × ${s.weight} ${s.unit}`;
 const okNum = (n, max) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max;
 
-export function buildSystemPrompt(personaId) {
+// Tasks the app routes to Claude (apps/expo/src/lib/aiRouting.js). Each adds how to reason.
+export const TASK_PROMPTS = {
+  goal_change: 'Task: the user is changing their training goal. Reason from the new goal, their recent sets and equipment: decide which exercises to prioritise, keep or drop, and explain each choice in one short clause. Read get_recent_sets and get_program first; change the plan only through tools so the user confirms it.',
+  conflict: 'Task: what the user wants conflicts with their saved goal, plan or a pain or limitation. Name the conflict plainly, give the trade-off, recommend one path and a safe exercise swap if needed. Sharp or worsening pain means stop and see a professional. Ask one question only if the choice is genuinely theirs.',
+  complex_question: 'Task: a multi-part training question. Check the relevant data with get_* tools, reason through the likely causes in order of evidence, then give one clear recommendation and why.',
+  workout_review: "Task: a personalised review of the user's workout. Use get_recent_sets, get_last_set_report and get_live_session. Say what went well, the one thing to change next time (load, reps, rest or form) and why, citing the numbers. Camera-measured and user-entered numbers are different; say which is which.",
+  weekly_review: 'Task: the weekly progress review. Use get_weekly_checkin and get_goal_progress. Cover wins, misses, plan adherence and trend toward the goal, then adapt next week with one concrete change and the reason. Never shame missed sessions.',
+};
+
+export function buildSystemPrompt(personaId, task) {
   const p = personaFor(personaId);
+  const extra = Object.hasOwn(TASK_PROMPTS, task ?? '') ? [TASK_PROMPTS[task]] : [];
   return [
     `You are ${p.name}, the voice of the JimBro gym app. Role: ${p.role}. ${p.purpose}`,
     `Style: ${p.style}`,
@@ -42,6 +52,7 @@ export function buildSystemPrompt(personaId) {
     '- Use the get_* tools for any number you cite. To log, fix or delete a set, call log_sets, correct_set or delete_set: they only PROPOSE the change and the user confirms it on screen, so say "confirm and I will..." rather than claiming it is done.',
     '- Everything happens in this chat. Use show_panel for camera, progress, muscles, plan or import. Camera and read operations are local and reversible. Never claim camera access is granted or video is recorded. get_live_session returns observed counts only; absent camera data means unknown. Saving a set always needs its confirmation card.',
     `- Exercises the app knows: ${EXERCISE_IDS.join(', ')}. For anything else, say you cannot log it yet.`,
+    ...extra,
   ].join('\n');
 }
 
@@ -208,7 +219,7 @@ export async function handleChat(body, client, { fallbacks = FALLBACKS_DEFAULT }
   const latest = messages.at(-1).content;
   if (SAFETY.test(latest)) return { reply: SAFETY_TEXT, proposals: [], safety: true };
   const context = body.context && typeof body.context === 'object' ? body.context : {};
-  const system = buildSystemPrompt(body.persona);
+  const system = buildSystemPrompt(body.persona, body.task);
   const proposals = [];
   const actions = [];
   const toolCalls = [];

@@ -16,6 +16,7 @@ import { healthSummary } from '../lib/healthSummary.js';
 import { nextWorkout } from '../lib/homeActions.js';
 import { parseMission, planMission } from '../lib/mission.js';
 import { answerContext } from '../lib/coachQA.js';
+import { routeToClaude } from '../lib/aiRouting.js';
 import { answerPerformance } from '../lib/perfCoach.js';
 import { SAFETY, SAFETY_TEXT } from '../lib/coach.js';
 import { chatAction } from '../lib/chatActions.js';
@@ -214,6 +215,16 @@ export function HomeScreen({ openLog, openActivity }) {
         : [{ kind: 'program', program: r.program, mode: 'swap', summary: `${exerciseName(m.from)} → ${exerciseName(to)} from week ${m.fromWeek} (${r.count} sessions). Starting loads for the new exercise are set by effort.` }])]);
   };
 
+  // A Claude reply: open any requested screen here, keep the rest in chat.
+  const fromJim = response => {
+    const navigation = response.actions?.find(a => ['camera', 'progress', 'muscles'].includes(a.panel));
+    if (navigation) {
+      openPanel(navigation.panel, navigation.exercise);
+      return { ...response, actions: response.actions.filter(a => !['camera', 'progress', 'muscles'].includes(a.panel)), workoutId: active?.id ?? null };
+    }
+    return { ...response, workoutId: active?.id ?? null };
+  };
+
   const send = async raw => {
     const message = raw.trim();
     if (!message) return;
@@ -267,6 +278,13 @@ export function HomeScreen({ openLog, openActivity }) {
         }
         return { source: 'local', ...answerProgram(intakeIndex, message) };
       }
+      // Reasoning and planning go to Claude (see lib/aiRouting.js); offline falls through to the phone.
+      const route = PROXY_URL ? routeToClaude(message, { settings, plan }) : { use: false };
+      if (route.use) {
+        conversation.update(cur => [...cur, { kind: 'notice', text: route.reason }]);
+        const response = await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY, task: route.task });
+        if (response.source !== 'offline') return fromJim(response);
+      }
       const pq = programQuery(message, { plan, history, active });
       if (pq) return { source: 'local', reply: pq.reply, messages: programAnswer(pq) };
       const started = startProgramChat(message, { settings });
@@ -288,13 +306,7 @@ export function HomeScreen({ openLog, openActivity }) {
       const mutation = /\b(log|save|correct|change|delete|remove|fix)\b/i.test(message);
       const answer = mutation ? null : answerPerformance(message, { history, active }) ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
       if (answer) return { source: 'local', reply: answer, proposals: [], toolCalls: [{ name: 'get_workout_context', status: 'completed' }] };
-      const response = await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY });
-      const navigation = response.actions?.find(a => ['camera', 'progress', 'muscles'].includes(a.panel));
-      if (navigation) {
-        openPanel(navigation.panel, navigation.exercise);
-        return { ...response, actions: response.actions.filter(a => !['camera', 'progress', 'muscles'].includes(a.panel)), workoutId: active?.id ?? null };
-      }
-      return { ...response, workoutId: active?.id ?? null };
+      return fromJim(await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY }));
     });
     // Model-triggered panels use the same renderer and camera lifecycle as local actions.
     if (result?.actions?.some(a => a.panel === 'camera')) {
