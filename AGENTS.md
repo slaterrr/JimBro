@@ -207,3 +207,7 @@ EAS project `@slaterr/jimbro` is linked. Main CI publishes to `preview` after al
 
 ## Progression date navigation
 Workouts retain unique IDs and full ISO timestamps; AppState normalizes completed history oldest-first on hydration, import and finish. Future database storage should query by timestamp plus ID, never use display dates as keys. Comparison dropdowns show date-only labels with Session 1/2 for same-day workouts. Progression tabs are Overview/Strength/History/Goals; Volume and PR cards open existing detail views with a return action. Settings header now reserves space for its gear beside Talk.
+
+## Live Coach targets
+
+Coach's set setup includes integer sliders for 1–25 target reps and 1–10 sets. Deadlift, shoulder press and pull-up keep rep targets and recorded history while hiding live set-count controls. Editing a guided workout changes its current exercise only and preserves completed sets.

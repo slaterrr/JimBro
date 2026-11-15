@@ -6,6 +6,7 @@ import { useApp, useLiveCamera } from '../AppState.js';
 import { CoachSetChat } from '../components/CoachSetChat.js';
 import { HowToSheet } from '../components/FormReview.js';
 import { MissionPanel } from '../components/Mission.js';
+import { TargetSlider } from '../components/TargetSlider';
 // No extension on purpose: Metro then loads PoseView.web.js on web and PoseView.js on phones.
 import { PoseView } from '../components/PoseView';
 import { Card, Chips, IconButton, JimBars, PrimaryButton, Sheet } from '../components/kit.js';
@@ -24,6 +25,7 @@ import { currentTarget } from '../lib/mission.js';
 import { poseHtml } from '../lib/poseHtml.js';
 import { restFor } from '../lib/rest.js';
 import { switchPlan } from '../lib/switchExercise.js';
+import { showSetTarget, workoutTarget } from '../lib/workoutTargets.js';
 import { R, T, type } from '../theme.js';
 
 // Neutral, plain-word reasons for a movement the counter did not count.
@@ -47,8 +49,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
   const [movement, setMovement] = useState(initialExercise ?? firstPlanned?.exercise ?? 'curl');
   const planned = plannedFor(active, movement);
-  const [target, setTarget] = useState(planned?.reps_high ?? 12);
-  const [sets, setSets] = useState(planned?.sets ?? 4);
+  const [target, setTarget] = useState(workoutTarget('reps', planned?.reps_high));
+  const [sets, setSets] = useState(workoutTarget('sets', planned?.sets));
   const [setup, setSetup] = useState(false);
   const [howTo, setHowTo] = useState(false);
   const [voice, setVoice] = useState(true);
@@ -91,10 +93,19 @@ export function CoachScreen({ openLog, initialExercise }) {
   }, [permission?.granted, active, startWorkout]);
 
   const doneSets = (active?.sets ?? []).filter((x) => x.exercise === movement).length;
-  const setNo = Math.min(doneSets + 1, Math.max(sets, doneSets + 1));
+  const setNo = mt?.setNo ?? doneSets + 1;
+  const setupExercise = mt?.exercise ?? movement;
+  const canAdjustTargets = !mission || (mt && !['check', 'done'].includes(mission.state.phase));
+  const closeSetup = () => {
+    if (mt && canAdjustTargets) {
+      stepMission({ type: 'adjust_targets', exercise: mt.exercise, reps: target, sets });
+    }
+    setSetup(false);
+  };
   const unit = settings.unit === 'kg' ? 'kg' : 'lb';
   const lastSet = (active?.sets ?? []).findLast((set) => set.exercise === movement && set.unit === unit);
-  const soloTarget = { exercise: movement, reps: target, sets, setNo, unit, weight: lastSet?.weight ?? (movement === 'push_up' ? 0 : null), camera: true };
+  const soloSets = showSetTarget(movement) ? sets : null;
+  const soloTarget = { exercise: movement, reps: target, sets: soloSets, setNo, unit, weight: lastSet?.weight ?? (movement === 'push_up' ? 0 : null), camera: true };
   const nextPlanned = active?.planned?.items?.find((item) => item.exercise !== movement
     && CAMERA_LIFTS.some(([id]) => id === item.exercise)
     && active.sets.filter((set) => set.exercise === item.exercise).length < item.sets);
@@ -122,8 +133,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   useEffect(() => {
     const p = plannedFor(active, movement);
     if (p) {
-      setTarget(p.reps_high);
-      setSets(p.sets);
+      setTarget(workoutTarget('reps', p.reps_high));
+      setSets(workoutTarget('sets', p.sets));
     }
     resetSet(movement);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,7 +220,7 @@ export function CoachScreen({ openLog, initialExercise }) {
     if (id) {
       resetSet();
       if (voice) {
-        const next = doneSets + 1 < sets ? { exercise: movement, reps: target }
+        const next = (soloSets === null || doneSets + 1 < soloSets) ? { exercise: movement, reps: target }
           : nextPlanned && { exercise: nextPlanned.exercise, reps: nextPlanned.reps_high };
         const summary = next ? 'Next: ' + exerciseName(next.exercise) + ', ' + next.reps + ' reps after rest.' : 'You reached your set target.';
         jim.say(summary, { force: true });
@@ -297,7 +308,7 @@ export function CoachScreen({ openLog, initialExercise }) {
         <PoseView ref={web} html={html} onMessage={onMessage} style={{ backgroundColor: '#000' }} />
         <TouchableOpacity style={[st.glass, st.exerciseBox]} onPress={() => setSetup(true)} accessibilityLabel="Change exercise">
           <Text style={{ color: T.text, fontSize: 18, fontWeight: '700' }}>{exerciseName(movement)}</Text>
-          <Text style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>Set {setNo} of {Math.max(sets, setNo)}</Text>
+          {showSetTarget(setupExercise) ? <Text style={{ color: T.textDim, fontSize: 14, marginTop: 4 }}>Set {setNo} of {Math.max(sets, setNo)}</Text> : null}
           {analyzerFor(movement)?.status !== 'tested_real' ? (
             // Honest about how well the camera has been tested for this lift.
             <Text style={{ color: T.amber, fontSize: 12, marginTop: 4 }} accessibilityLabel={cameraLabel(movement)}>
@@ -371,13 +382,13 @@ export function CoachScreen({ openLog, initialExercise }) {
           {restLeft > 0 ? (
             <Card style={{ marginTop: 10, gap: 8 }} accessibilityLiveRegion="polite">
               <Text style={type.title}>Rest · {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}</Text>
-              <Text style={type.body}>{doneSets < sets
+              <Text style={type.body}>{(soloSets === null || doneSets < soloSets)
                 ? 'Next: ' + exerciseName(movement) + ' · ' + target + ' reps · ' + coachLoadLabel(soloTarget)
                 : nextPlanned ? 'Next: ' + exerciseName(nextPlanned.exercise) + ' · ' + nextPlanned.reps_high + ' reps'
                   : 'You reached your set target.'}</Text>
               <PrimaryButton secondary onPress={() => clearCoachRest(restDeadline)}>Skip rest</PrimaryButton>
             </Card>
-          ) : doneSets >= sets && nextPlanned ? (
+          ) : soloSets !== null && doneSets >= soloSets && nextPlanned ? (
             <PrimaryButton secondary onPress={() => setMovement(nextPlanned.exercise)}>Next: {exerciseName(nextPlanned.exercise)}</PrimaryButton>
           ) : null}
           <CoachSetChat
@@ -401,15 +412,21 @@ export function CoachScreen({ openLog, initialExercise }) {
         Pose tracking runs on this device{speedText ? ` (${speedText})` : ''}. Bench press and lunges: log them with + on Home.
       </Text>
 
-      <Sheet visible={setup} onClose={() => setSetup(false)} title="This set">
-        <Text style={[type.label, { marginBottom: 8 }]}>Exercise (camera tracked)</Text>
-        <Chips options={CAMERA_LIFTS} value={movement} onChange={setMovement} />
-        <Text style={[type.label, { marginVertical: 8 }]}>Target reps</Text>
-        <Chips options={[5, 8, 10, 12, 15].map((n) => [n, String(n)])} value={target} onChange={setTarget} />
-        <Text style={[type.label, { marginVertical: 8 }]}>Sets</Text>
-        <Chips options={[1, 2, 3, 4, 5].map((n) => [n, String(n)])} value={sets} onChange={setSets} />
-        <PrimaryButton secondary onPress={() => { setSetup(false); setHowTo(true); }}>How to do it</PrimaryButton>
-        <PrimaryButton onPress={() => setSetup(false)}>Done</PrimaryButton>
+      <Sheet visible={setup} onClose={closeSetup} title="This set">
+        {mission ? <Text style={type.label}>{exerciseName(setupExercise)}</Text> : (
+          <>
+            <Text style={[type.label, { marginBottom: 8 }]}>Exercise (camera tracked)</Text>
+            <Chips options={CAMERA_LIFTS} value={movement} onChange={setMovement} />
+          </>
+        )}
+        {canAdjustTargets ? (
+          <>
+            <TargetSlider kind="reps" label="Target reps" value={target} onChange={setTarget} />
+            {showSetTarget(setupExercise) ? <TargetSlider kind="sets" label="Sets" value={sets} onChange={setSets} /> : null}
+          </>
+        ) : null}
+        <PrimaryButton secondary onPress={() => { closeSetup(); setHowTo(true); }}>How to do it</PrimaryButton>
+        <PrimaryButton onPress={closeSetup}>Done</PrimaryButton>
       </Sheet>
       <HowToSheet visible={howTo} onClose={() => setHowTo(false)} movement={movement} />
     </ScrollView>

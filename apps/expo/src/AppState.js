@@ -152,7 +152,15 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
       mission: { state: missionStart(planned), startedAt: Date.now() },
     }));
   const stepMission = (event) =>
-    setData((d) => (d.mission ? { ...d, mission: { ...d.mission, state: missionStep(d.mission.state, event) } } : d));
+    setData((d) => {
+      if (!d.mission) return d;
+      const state = missionStep(d.mission.state, event);
+      if (state === d.mission.state) return d;
+      const active = event.type === 'adjust_targets' && d.active?.planned?.mission
+        ? { ...d.active, planned: missionPlanned(state.mission) }
+        : d.active;
+      return { ...d, active, mission: { ...d.mission, state } };
+    });
   const endMission = () => setData((d) => ({ ...d, mission: null }));
 
   // Coach saves the workout set and advances the session in one state update.
