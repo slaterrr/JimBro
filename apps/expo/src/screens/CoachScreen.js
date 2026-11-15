@@ -40,7 +40,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   const { active, settings, voice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
-  const stageH = stageHeight(useWindowDimensions().height, { mission: !!mission }); // fits any screen; controls (or mission panel) stay visible
+  // The Studio is embedded in a bounded chat panel. Keep the camera and composer visible together.
+  const stageH = stageHeight(Math.min(useWindowDimensions().height, 820), { mission: true });
   const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
