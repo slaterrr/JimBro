@@ -5,12 +5,16 @@ import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 const demo = JSON.parse(readFileSync(new URL('../src/lib/fixtures/demo-workouts.json', import.meta.url), 'utf8'));
-const KEY = 'jimbro.data.v2';
+const USER = 'demo@jimbro.app';
+const KEY = `jimbro.data.v2:${USER}`;
+const SESSION = 'jimbro.session.v1';
 const READY = { onboarded: true, speak: false };
 
-async function open(page, seed) {
+// Signed in as the demo user (login is covered by its own journeys below).
+async function open(page, seed, { signedIn = true } = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  if (signedIn) await page.addInitScript(([k, u]) => localStorage.setItem(k, u), [SESSION, USER]);
   if (seed) await page.addInitScript(([k, v]) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem(k, v); sessionStorage.setItem('seeded', '1'); } }, [KEY, JSON.stringify(seed)]);
   await page.goto('/');
   await expect(page.getByLabel('Message Jim')).toBeVisible();
@@ -172,4 +176,62 @@ test('data: export then erase-free reload keeps everything on the phone', async 
   await page.reload();
   await expect(page.getByLabel('Message Jim')).toBeVisible();
   expect((await saved(page)).history.length).toBe(n);
+});
+
+async function signUp(page, email, password) {
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Password').fill(password);
+  await page.getByText('Create account', { exact: true }).click();
+}
+
+test('login: a new user signs up with email + password (no confirmation) and Jim starts setup', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByText('Meet Jim')).toBeVisible();
+  await signUp(page, 'new.lifter@example.com', 'gains123');
+  await expect(page.getByText("I'm new to this", { exact: true })).toBeVisible(); // straight into first-run setup
+  const stored = await page.evaluate(() => ({ ...localStorage }));
+  expect(stored['jimbro.session.v1']).toBe('new.lifter@example.com');
+  expect(JSON.stringify(stored)).not.toContain('gains123'); // password never stored
+  await page.reload();
+  await expect(page.getByLabel('Message Jim')).toBeVisible(); // stays signed in
+  expect(errors).toEqual([]);
+});
+
+test('login: bad email, short password and wrong password show clear messages', async ({ page }) => {
+  await page.goto('/');
+  await signUp(page, 'not-an-email', 'gains123');
+  await expect(page.getByText(/valid email/)).toBeVisible();
+  await signUp(page, 'a@example.com', '123');
+  await expect(page.getByText(/6 characters/)).toBeVisible();
+  await signUp(page, 'a@example.com', 'gains123');
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await tap(page, 'Skip for now');
+  await tap(page, 'Activity and settings');
+  await tap(page, 'Sign out');
+  await expect(page.getByText('Meet Jim')).toBeVisible();
+  await tap(page, 'I already have an account · Sign in');
+  await page.getByLabel('Email').fill('a@example.com');
+  await page.getByLabel('Password').fill('wrong99');
+  await page.getByText('Sign in', { exact: true }).click();
+  await expect(page.getByText(/Wrong password/)).toBeVisible();
+  await page.getByLabel('Password').fill('gains123');
+  await page.getByText('Sign in', { exact: true }).click();
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+});
+
+test('login: each account keeps its own workouts', async ({ page }) => {
+  await page.goto('/');
+  await signUp(page, 'one@example.com', 'gains123');
+  await tap(page, 'Skip for now');
+  await tap(page, 'Start a Workout');
+  await tap(page, 'Home');
+  await tap(page, 'Activity and settings');
+  await tap(page, 'Sign out');
+  await signUp(page, 'two@example.com', 'gains123');
+  await expect(page.getByText("I'm new to this", { exact: true })).toBeVisible(); // fresh account, fresh setup
+  const data = await page.evaluate(() => ({ one: JSON.parse(localStorage.getItem('jimbro.data.v2:one@example.com')), two: JSON.parse(localStorage.getItem('jimbro.data.v2:two@example.com') ?? '{}') }));
+  expect(data.one.active).toBeTruthy();
+  expect(data.two.active ?? null).toBeNull();
 });

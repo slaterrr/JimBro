@@ -97,6 +97,7 @@ const settle = (ms = 600) => new Promise((r) => setTimeout(r, ms));
 
 // Screens to visit: [name, steps]. A step is a button label; every label must exist and respond.
 const ROUTES = [
+  ['login', [], { signedOut: true }],
   ['home', []],
   ['muscles', ['Muscles']],
   ['coach', ['Coach']],
@@ -136,7 +137,8 @@ async function run() {
           history: demo.history.map((w, i) => ({ ...w, sets: [...w.sets, { id: `pushup-${i}`, exercise: 'push_up', reps: 10 + i, weight: 0, unit: 'lb' }] })),
           settings: { onboarded: true, speak: false },
         }) : SEED;
-        await page.evaluateOnNewDocument((seed) => { localStorage.setItem('jimbro.data.v2', seed); }, seed);
+        if (opts.signedOut) await page.evaluateOnNewDocument(() => localStorage.removeItem('jimbro.session.v1'));
+        else await page.evaluateOnNewDocument((seed) => { localStorage.setItem('jimbro.session.v1', 'demo@jimbro.app'); localStorage.setItem('jimbro.data.v2:demo@jimbro.app', seed); }, seed);
         await page.goto(url, { waitUntil: 'networkidle0' });
         await settle(1200);
         for (const step of steps) {
@@ -167,7 +169,7 @@ async function run() {
         if (route === 'log-set-sheet') {
           const saved = await tap(page, 'Save set');
           await settle();
-          const count = await page.evaluate(() => JSON.parse(localStorage.getItem('jimbro.data.v2')).active?.sets.length);
+          const count = await page.evaluate(() => JSON.parse(localStorage.getItem('jimbro.data.v2:demo@jimbro.app')).active?.sets.length);
           if (!saved || count !== 1) problems.push('set was not saved to the explicitly started workout');
         }
         for (const p of problems) failures.push(`[${route} @${width}px] ${p}`);

@@ -95,6 +95,8 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 | Home weekly health card (sessions · camera-verified reps · consistency x/y · next step) → Progress | 🧪 feat/beginner-health | `lib/healthSummary.js`, `HomeScreen.js` | 5 unit tests on demo fixture (hand-computed) | device check |
 | Integration of #21–#26 | ✅ | `feat/integration-v2` | 148 + 15 + 15 tests, Android + iOS bundles, real replay unchanged | merge decision (human) |
 
+| Login: email + password sign up / sign in, no email confirmation; on-device accounts (salted SHA-256, never the password), per-account data, sign out in settings | 🧪 feat/login | `lib/auth.js`, `components/Login.js`, `App.jsx` | 7 unit + 3 Playwright journeys | device check; accounts are per phone (no server sync) |
+
 ## Latest fixes and features (integration-v4)
 | Feature | Status | Where | Tested how | Still needs |
 |---|---|---|---|---|

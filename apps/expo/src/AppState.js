@@ -59,7 +59,7 @@ function LiveCameraProvider({ activeId, children }) {
   return <LiveCameraCtx.Provider value={value}>{children}</LiveCameraCtx.Provider>;
 }
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, storageKey = KEY, account = null, onSignOut = null }) {
   const conversationRef = useRef(null);
   if (!conversationRef.current) conversationRef.current = createConversation();
   const [data, setData] = useState(EMPTY);
@@ -70,7 +70,7 @@ export function AppProvider({ children }) {
   const [canSave, setCanSave] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(KEY)
+    AsyncStorage.getItem(storageKey)
       .then((raw) => {
         if (raw) {
           const saved = JSON.parse(raw);
@@ -82,8 +82,8 @@ export function AppProvider({ children }) {
       .finally(() => setReady(true));
   }, []);
   useEffect(() => {
-    if (ready && canSave) AsyncStorage.setItem(KEY, JSON.stringify(data)).catch(() => setNotice('Could not save to phone storage.'));
-  }, [data, ready, canSave]);
+    if (ready && canSave) AsyncStorage.setItem(storageKey, JSON.stringify(data)).catch(() => setNotice('Could not save to phone storage.'));
+  }, [data, ready, canSave, storageKey]);
 
   const settings = data.settings;
   const update = (patch) => setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
@@ -161,6 +161,7 @@ export function AppProvider({ children }) {
   const eraseAll = () => { conversationRef.current.clear(); setData({ ...EMPTY, settings: data.settings }); };
 
   const value = {
+    account, signOut: onSignOut,
     conversation: conversationRef.current,
     goals: data.goals ?? [], addGoal, removeGoal,
     mission: data.mission ?? null, startMission, stepMission, endMission,

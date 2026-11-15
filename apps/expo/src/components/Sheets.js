@@ -209,7 +209,7 @@ export function LogSetSheet({ visible, onClose, initial, camera }) {
 
 /** The bell: what happened lately, plus settings and data controls. */
 export function ActivitySheet({ visible, onClose, openSetup }) {
-  const { settings, update, history, allSets, exportJSON, eraseAll, importData } = useApp();
+  const { settings, update, history, allSets, exportJSON, eraseAll, importData, account, signOut } = useApp();
   const [pasted, setPasted] = useState('');
   const [msg, setMsg] = useState(null);
   const week = weeklyProgress(history, settings.weeklyGoal);
@@ -248,6 +248,12 @@ export function ActivitySheet({ visible, onClose, openSetup }) {
       <Chips options={[['lb', 'lb'], ['kg', 'kg']]} value={settings.unit} onChange={(unit) => update({ unit })} />
       <Text style={[type.label, { marginVertical: 8 }]}>Weekly goal</Text>
       <Chips options={[1, 2, 3, 4, 5, 6].map((n) => [n, String(n)])} value={settings.weeklyGoal} onChange={(weeklyGoal) => update({ weeklyGoal })} />
+
+      {account ? <>
+        <Text style={[type.h2, { marginTop: 24 }]}>Account</Text>
+        <Text style={type.body}>Signed in as {account}</Text>
+        <PrimaryButton secondary onPress={() => { onClose(); signOut?.(); }}>Sign out</PrimaryButton>
+      </> : null}
 
       <Text style={[type.h2, { marginTop: 24 }]}>Your data</Text>
       <Text style={type.body}>{history.length} workouts on this phone. Nothing is uploaded.</Text>

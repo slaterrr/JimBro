@@ -71,6 +71,19 @@ const WIRING = {
     [/TextInput/, 'free-text "what do you want to look like"'],
     [/MUSCLE_GROUPS/, 'tap-select focus muscles'],
   ],
+  'components/Login.js': [
+    [/signUp\(/, 'sign up with email + password'],
+    [/signIn\(/, 'sign in'],
+    [/secureTextEntry/, 'password is hidden'],
+    [/Create account/, 'Create account button'],
+  ],
+  'components/Sheets.js#auth': [
+    [/Sign out/, 'sign out from settings'],
+  ],
+  '../App.jsx#auth': [
+    [/<Login\b/, 'login screen before the app'],
+    [/dataKeyFor\(/, 'each account has its own data'],
+  ],
   '../App.jsx': [
     [/<Onboarding\b/, 'first-run setup mounted'],
     [/isOnboarded|settings\.onboarded/, 'setup only when not onboarded'],
