@@ -211,4 +211,3 @@ describe('progress', () => {
     assert.deepEqual(weeklyProgress(days, 3, now), { done: 1, goal: 3 });
   });
 });
-

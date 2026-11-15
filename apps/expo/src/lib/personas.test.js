@@ -95,4 +95,3 @@ describe('persona settings', () => {
     assert.deepEqual(speechOptions(undefined), { rate: 1.0, pitch: 1.0 });
   });
 });
-
