@@ -147,7 +147,7 @@ export function Chips({ options, value, onChange, multi = false }) {
 }
 
 /** Bottom sheet used for logging, settings, muscle details and plans. */
-export function Sheet({ visible, onClose, title, children }) {
+export function Sheet({ visible, onClose, title, children, hideKeyboardControl = false }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -156,7 +156,7 @@ export function Sheet({ visible, onClose, title, children }) {
           <View style={st.grabber} />
           <View style={st.sheetHeader}>
             <Text style={type.h2}>{title}</Text>
-            <TouchableOpacity accessibilityLabel="Hide keyboard" onPress={Keyboard.dismiss} style={{ padding: 8 }}><Icon name="keyboard-close" color={T.textDim} /></TouchableOpacity>
+            {!hideKeyboardControl ? <TouchableOpacity accessibilityLabel="Hide keyboard" onPress={Keyboard.dismiss} style={{ padding: 8 }}><Icon name="keyboard-close" color={T.textDim} /></TouchableOpacity> : null}
             <TouchableOpacity accessibilityLabel="Close" onPress={onClose} style={{ padding: 10 }}>
               <Icon name="close" color={T.textDim} />
             </TouchableOpacity>

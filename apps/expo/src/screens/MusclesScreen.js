@@ -14,18 +14,19 @@ const LEGEND = [
   ['rest', 'Rest', '(≥ 8d)'],
 ];
 
-export function MusclesScreen({ openProgress, openHistory }) {
+export function MusclesScreen({ openProgress, openHistory, embedded = false }) {
   const { history, active } = useApp();
   const workouts = useMemo(() => [...history, ...(active?.sets.length ? [active] : [])], [history, active]);
   const status = useMemo(() => muscleStatus(workouts), [workouts]);
   const [group, setGroup] = useState(null);
+  const [bodyWidth, setBodyWidth] = useState(null);
   const { width } = useWindowDimensions();
-  const figure = Math.min(200, (width - 56) / 2);
+  const figure = Math.min(180, ((bodyWidth ?? width - 56) - 8) / 2);
   const detail = group ? muscleDetail(workouts, group) : null;
   const name = MUSCLE_GROUPS.find((g) => g.id === group)?.name;
 
-  return (
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+  const content = (
+    <View style={st.content}>
       <View style={st.header}>
         <Text style={type.h1}>Muscles</Text>
         <TouchableOpacity accessibilityLabel="Workout history" onPress={openHistory} style={st.cal}>
@@ -33,8 +34,11 @@ export function MusclesScreen({ openProgress, openHistory }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={[type.title, { textAlign: 'center', fontWeight: '500', marginTop: 16 }]}>Tap a muscle group</Text>
-      <View style={st.figures}>
+      <Text style={[type.title, st.instruction]}>Tap a muscle group</Text>
+      <View style={st.figures} onLayout={(event) => {
+        const measuredWidth = event.nativeEvent.layout.width;
+        if (measuredWidth > 8) setBodyWidth(measuredWidth);
+      }}>
         <BodyFigure side="front" status={status} onSelect={setGroup} width={figure} />
         <BodyFigure side="back" status={status} onSelect={setGroup} width={figure} />
       </View>
@@ -51,7 +55,7 @@ export function MusclesScreen({ openProgress, openHistory }) {
         ))}
       </View>
 
-      <Sheet visible={Boolean(group)} onClose={() => setGroup(null)} title={name ?? ''}>
+      <Sheet hideKeyboardControl visible={Boolean(group)} onClose={() => setGroup(null)} title={name ?? ''}>
         {detail ? (
           <>
             <Card>
@@ -65,13 +69,16 @@ export function MusclesScreen({ openProgress, openHistory }) {
           </>
         ) : null}
       </Sheet>
-    </ScrollView>
+    </View>
   );
+  return embedded ? content : <ScrollView>{content}</ScrollView>;
 }
 
 const st = StyleSheet.create({
+  content: { padding: 14 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cal: { width: 44, height: 44, borderRadius: R.sm, borderWidth: 1, borderColor: T.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  figures: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
-  legend: { flexDirection: 'row', justifyContent: 'space-around', borderWidth: 1, borderColor: T.border, borderRadius: R.lg, paddingVertical: 14, marginTop: 24, backgroundColor: T.card },
+  instruction: { textAlign: 'center', fontWeight: '500', marginTop: 6 },
+  figures: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
+  legend: { flexDirection: 'row', justifyContent: 'space-around', borderWidth: 1, borderColor: T.border, borderRadius: R.lg, paddingVertical: 9, marginTop: 10, backgroundColor: T.card },
 });

@@ -295,7 +295,7 @@ export function HomeScreen({ openLog, openActivity }) {
     <View style={st.panelHeader}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={m.panel === 'camera' ? 'camera-outline' : 'view-dashboard-outline'} size={18} color={T.accent} /><Text style={st.panelTitle}>{PANEL_LABELS[m.panel]}</Text></View><SmallButton icon="close" label={`Close ${m.panel}`} onPress={() => closePanel(index)} /></View>
     {m.panel === 'camera' ? <View style={{ height: 620, maxHeight: 740 }}><CoachScreen openLog={captureSet} initialExercise={m.exercise} /></View>
       : m.panel === 'progress' ? <View style={{ height: 540 }}><ProgressScreen go={go} muscleGroup={m.muscleGroup} onClearMuscle={() => conversation.update(cur => cur.map((item, i) => i === index ? { ...item, muscleGroup: null } : item))} /></View>
-      : m.panel === 'muscles' ? <View style={{ height: 550 }}><MusclesScreen openProgress={group => openPanel('progress', undefined, { muscleGroup: group })} openHistory={() => go?.('Progress')} /></View>
+      : m.panel === 'muscles' ? <MusclesScreen embedded openProgress={group => openPanel('progress', undefined, { muscleGroup: group })} openHistory={() => go?.('Progress')} />
       : m.panel === 'plan' ? <View style={{ padding: 16 }}><PlanCard proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onStart={() => openPanel('camera')} /><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>
       : <View style={{ padding: 16 }}><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>}
   </View>;
