@@ -112,7 +112,7 @@ class Accounts:
             ).fetchone()
         if record is None:
             raise Unauthorized()
-        return record["user_id"]
+        return str(record["user_id"])
 
     def logout(self, token: str) -> None:
         user_id = self.who(token)
