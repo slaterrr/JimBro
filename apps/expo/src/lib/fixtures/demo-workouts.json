@@ -81,7 +81,7 @@
     },
     {
      "id": "demo-month-2026-10-14-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -93,7 +93,7 @@
     },
     {
      "id": "demo-month-2026-10-14-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -105,7 +105,7 @@
     },
     {
      "id": "demo-month-2026-10-14-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -315,7 +315,7 @@
     },
     {
      "id": "demo-month-2026-10-18-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -327,7 +327,7 @@
     },
     {
      "id": "demo-month-2026-10-18-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -339,7 +339,7 @@
     },
     {
      "id": "demo-month-2026-10-18-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -549,7 +549,7 @@
     },
     {
      "id": "demo-month-2026-10-23-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -561,7 +561,7 @@
     },
     {
      "id": "demo-month-2026-10-23-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 10,
      "unit": "lb",
@@ -573,7 +573,7 @@
     },
     {
      "id": "demo-month-2026-10-23-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 20,
      "reps": 9,
      "unit": "lb",
@@ -783,7 +783,7 @@
     },
     {
      "id": "demo-month-2026-10-27-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -795,7 +795,7 @@
     },
     {
      "id": "demo-month-2026-10-27-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -807,7 +807,7 @@
     },
     {
      "id": "demo-month-2026-10-27-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1017,7 +1017,7 @@
     },
     {
      "id": "demo-month-2026-11-01-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1029,7 +1029,7 @@
     },
     {
      "id": "demo-month-2026-11-01-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1041,7 +1041,7 @@
     },
     {
      "id": "demo-month-2026-11-01-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1251,7 +1251,7 @@
     },
     {
      "id": "demo-month-2026-11-05-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1263,7 +1263,7 @@
     },
     {
      "id": "demo-month-2026-11-05-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 10,
      "unit": "lb",
@@ -1275,7 +1275,7 @@
     },
     {
      "id": "demo-month-2026-11-05-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 22.5,
      "reps": 9,
      "unit": "lb",
@@ -1485,7 +1485,7 @@
     },
     {
      "id": "demo-month-2026-11-10-curl-0",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 25,
      "reps": 10,
      "unit": "lb",
@@ -1497,7 +1497,7 @@
     },
     {
      "id": "demo-month-2026-11-10-curl-1",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 25,
      "reps": 10,
      "unit": "lb",
@@ -1509,7 +1509,7 @@
     },
     {
      "id": "demo-month-2026-11-10-curl-2",
-     "exercise": "curl",
+     "exercise": "hammer_curl",
      "weight": 25,
      "reps": 10,
      "unit": "lb",

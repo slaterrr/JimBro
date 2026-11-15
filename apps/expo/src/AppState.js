@@ -19,6 +19,7 @@ import { chronologicalHistory } from './lib/historyOrder.js';
 import { withSavedPlan } from './lib/planVersions.js';
 import { createSchedule } from './lib/schedule.js';
 import { deviceTimeZone } from './lib/attendance.js';
+import { isRetiredExercise, migrateRetiredExercises, withoutRetiredExercises } from './lib/retiredExercises.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
@@ -77,7 +78,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     AsyncStorage.getItem(storageKey)
       .then((raw) => {
         if (raw) {
-          const saved = JSON.parse(raw);
+          const saved = migrateRetiredExercises(JSON.parse(raw));
           setData({ ...EMPTY, ...saved, history: chronologicalHistory(saved.history ?? []), settings: { ...DEFAULT_SETTINGS, ...migrateGoalSettings(migrateVoiceSettings(migrateSettings(saved.settings))), onboarded: isOnboarded(saved.settings, saved.history) }, goals: migrateGoals(saved.goals) });
         }
         setCanSave(true);
@@ -119,10 +120,11 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
 
   // A second start while a workout is open (double tap, retried request) keeps the open one.
   const startWorkout = (name, planned = null) =>
-    setData((d) => (d.active ? d : { ...d, active: { id: newId(), name: name || 'Strength session', startedAt: new Date().toISOString(), sets: [], planned } }));
+    setData((d) => (d.active ? d : { ...d, active: { id: newId(), name: name || 'Strength session', startedAt: new Date().toISOString(), sets: [], planned: withoutRetiredExercises(planned) } }));
 
   /** Logging requires an explicitly started workout. */
   const logSet = (body) => {
+    if (isRetiredExercise(body?.exercise)) { setNotice('That exercise is no longer available.'); return null; }
     if (!data.active) {
       setNotice('Start a workout before recording a set.');
       return null;
@@ -184,6 +186,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     const workoutId = data.active?.id;
     if (!workoutId) return null;
     const body = request.set;
+    if (isRetiredExercise(body?.exercise)) return null;
     const workouts = [...data.history, data.active];
     const record = personalRecords(workouts, body).find((r) => r.exercise === body.exercise && r.unit === body.unit);
     const now = Date.now();
@@ -200,7 +203,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   });
 
   // Saving keeps the previous plan in planVersions (lib/planVersions.js).
-  const savePlan = (plan) => setData((d) => withSavedPlan(d, plan));
+  const savePlan = (plan) => setData((d) => withSavedPlan(d, withoutRetiredExercises(plan)));
   // Weekly schedule for the saved program (lib/schedule.js). Edits don't create plan versions.
   const saveSchedule = (schedule) => setData((d) => (d.plan?.program?.id === schedule.programId ? { ...d, plan: { ...d.plan, schedule } } : d));
   const createDefaultSchedule = (program) => createSchedule(program, { timeZone: deviceTimeZone() });

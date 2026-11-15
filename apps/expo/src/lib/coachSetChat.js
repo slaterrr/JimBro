@@ -5,6 +5,7 @@ import { currentTarget, missionStep } from './mission.js';
 import { answerPerformance } from './perfCoach.js';
 import { repMetrics } from './performance.js';
 import { appendWorkoutSet } from './workoutLogging.js';
+import { isRetiredExercise } from './retiredExercises.js';
 
 const LOAD = /^(?:(\d{1,4}(?:\.\d{1,2})?)\s*(lb|lbs|pounds?|kg|kgs|kilos?|kilograms?)|body\s*weight)$/i;
 const EFFORT = /^(?:(?:the )?(?:last (?:rep|one)|(?:the )?\d{1,2}(?:st|nd|rd|th)(?: rep)?) (?:was )?(?:a )?)?(?:(?:a |a bit |of a |little |slight |very )*(?:grind(?:y)?|hard|tough|easy|controlled|smooth|slow|burn(?:ed|ing)?|to failure))(?: on (?:the )?(?:last rep|rep \d{1,2}))?$/i;
@@ -88,7 +89,7 @@ export function answerCoachSet(text, { target, phase, ...context }) {
 
 /** Workout log and Mission pointer share a single functional state update. */
 export function applyCoachSet(data, { workoutId, expectedCount, slot, set, event, restSeconds = 0, now }) {
-  if (!workoutId || data.active?.id !== workoutId) return data;
+  if (!workoutId || data.active?.id !== workoutId || isRetiredExercise(set?.exercise)) return data;
   if (!slot) {
     if (data.mission || data.active.sets.length !== expectedCount || data.active.coachRest?.until > now) return data;
     const saved = appendWorkoutSet(data, set, workoutId);

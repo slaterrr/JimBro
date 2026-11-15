@@ -54,10 +54,10 @@ export function parseMission(text) {
 export const FOCUS_EXERCISES = {
   chest: ['bench', 'push_up', 'shoulder_press'],
   legs: ['squat', 'lunge', 'deadlift'],
-  back: ['pull_up', 'deadlift', 'curl'],
-  arms: ['curl', 'shoulder_press', 'push_up'],
+  back: ['pull_up', 'deadlift'],
+  arms: ['hammer_curl', 'shoulder_press', 'push_up'],
   shoulders: ['shoulder_press', 'push_up', 'bench'],
-  full: ['squat', 'bench', 'pull_up', 'shoulder_press', 'curl'],
+  full: ['squat', 'bench', 'pull_up', 'shoulder_press'],
 };
 const AREA_MUSCLES = { chest: ['chest'], legs: ['quads', 'glutes', 'hamstrings'], back: ['lats', 'lower_back'], arms: ['biceps', 'triceps'], shoulders: ['shoulders'] };
 const BODYWEIGHT = new Set(['push_up', 'pull_up', 'lunge']);
@@ -311,6 +311,6 @@ export function missionSummary(mission, log, { startedAt, endedAt } = {}) {
 }
 
 // Camera-counted stand-ins for lifts the camera can't track yet (same main muscles).
-const CAMERA_SWAP = { bench: 'push_up', deadlift: 'squat', pull_up: 'curl', lunge: 'squat' };
+const CAMERA_SWAP = { bench: 'push_up', deadlift: 'squat', lunge: 'squat', hammer_curl: 'pull_up' };
 /** A camera-counted alternative for `exercise`, or null when it is already camera-counted. */
 export const cameraSwap = (exercise) => CAMERA_SWAP[exercise] ?? null;

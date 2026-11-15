@@ -66,8 +66,8 @@ describe('proposals', () => {
     });
   });
   it('includes rpe when given', () => {
-    const p = proposalFrom('log_sets', { exercise: 'curl', reps: 10, weight: 20, unit: 'kg', rpe: 8 }, context);
-    assert.equal(p.summary, 'Log 10 × bicep curl at 20 kg, RPE 8?');
+    const p = proposalFrom('log_sets', { exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'kg', rpe: 8 }, context);
+    assert.equal(p.summary, 'Log 10 × shoulder press at 20 kg, RPE 8?');
     assert.equal(p.set.rpe, 8);
   });
   it('turns correct_set into a correct intent targeting a known set', () => {
@@ -80,6 +80,7 @@ describe('proposals', () => {
   it('rejects unknown set ids, unknown exercises and bad numbers', () => {
     assert.equal(proposalFrom('delete_set', { setId: 'nope' }, context), null);
     assert.equal(proposalFrom('log_sets', { exercise: 'zercher_row', reps: 5, weight: 10 }, context), null);
+    assert.equal(proposalFrom('log_sets', { exercise: 'curl', reps: 10, weight: 20 }, context), null);
     assert.equal(proposalFrom('log_sets', { exercise: 'curl', reps: -1, weight: 10 }, context), null);
     assert.equal(proposalFrom('log_sets', { exercise: 'curl', reps: 5, weight: 10, count: 50 }, context), null);
     assert.equal(proposalFrom('correct_set', { setId: 's1', changes: { weight: -5 } }, context), null);
@@ -105,8 +106,8 @@ describe('handleChat', () => {
   });
 
   it('returns write tools as proposals without applying anything', async () => {
-    const client = fakeClient([toolUse('log_sets', { exercise: 'curl', reps: 10, weight: 20 }), text('Confirm and I log it.')]);
-    const r = await handleChat({ messages: [{ role: 'user', content: '10 curls at 20' }], context, persona: 'coach' }, client);
+    const client = fakeClient([toolUse('log_sets', { exercise: 'shoulder_press', reps: 10, weight: 20 }), text('Confirm and I log it.')]);
+    const r = await handleChat({ messages: [{ role: 'user', content: '10 shoulder presses at 20' }], context, persona: 'coach' }, client);
     assert.equal(r.reply, 'Confirm and I log it.');
     assert.equal(r.proposals.length, 1);
     assert.equal(r.proposals[0].type, 'log');

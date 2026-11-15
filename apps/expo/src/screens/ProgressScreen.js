@@ -355,7 +355,7 @@ function AddGoalSheet({ visible, unit, onClose, onAdd }) {
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Add goal">
-      <Chips options={GOAL_TYPES} value={kind} onChange={(k) => { setKind(k); if (k === 'reps' && !CAMERA_LIFTS.some((e) => e.id === exercise)) setExercise('curl'); }} />
+      <Chips options={GOAL_TYPES} value={kind} onChange={(k) => { setKind(k); if (k === 'reps' && !CAMERA_LIFTS.some((e) => e.id === exercise)) setExercise('squat'); }} />
       {kind === 'consistency' ? (
         <>
           <Text style={[type.label, { marginTop: 16, marginBottom: 6 }]}>Workouts per week</Text>

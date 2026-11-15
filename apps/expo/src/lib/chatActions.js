@@ -21,12 +21,12 @@ export function chatAction(message) {
   if (SAFETY.test(message)) return null;
   const text = message.trim();
   let panel;
-  if (/\b(start|open|use|track|count|record)\b.*\b(camera|workout|reps|squats|curls|push.?ups)\b|\b(camera|workout)\s*(mode|please)?[.!]?$/i.test(text)) panel = 'camera';
+  if (/\b(start|open|use|track|count|record)\b.*\b(camera|workout|reps|squats|push.?ups)\b|\b(camera|workout)\s*(mode|please)?[.!]?$/i.test(text)) panel = 'camera';
   else if (/\b(show|review|open|see)\b.*\b(progress|history|records)\b/i.test(text)) panel = 'progress';
   else if (/\b(show|open|see)\b.*\b(muscles|muscle map|recovery)\b/i.test(text)) panel = 'muscles';
   else if (/\b(create|build|make|open)\b.*\bplan\b/i.test(text)) panel = 'plan';
   else if (/\bimport\b.*\b(workouts|history|csv|excel)\b/i.test(text)) panel = 'import';
   if (!panel) return null;
-  const exercise = panel === 'camera' ? (/squat/i.test(text) ? 'squat' : /push.?up/i.test(text) ? 'push_up' : /curl/i.test(text) ? 'curl' : null) : null;
+  const exercise = panel === 'camera' ? (/squat/i.test(text) ? 'squat' : /push.?up/i.test(text) ? 'push_up' : null) : null;
   return { type: 'show_panel', panel, ...(exercise ? { exercise } : {}) };
 }

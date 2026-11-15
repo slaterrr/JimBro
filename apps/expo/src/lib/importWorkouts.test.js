@@ -29,7 +29,7 @@ describe('mapHeaders', () => {
 
 describe('matchExercise', () => {
   it('maps common names to catalog ids', () => {
-    for (const [name, id] of [['Back Squat', 'squat'], ['BB Bench Press', 'bench'], ['OHP', 'shoulder_press'], ['Chin-ups', 'pull_up'], ['Bicep Curls', 'curl'], ['dumbbell curl', 'curl'], ['Deadlifts', 'deadlift'], ['Walking lunges', 'lunge'], ['pull up', 'pull_up']]) {
+    for (const [name, id] of [['Back Squat', 'squat'], ['BB Bench Press', 'bench'], ['OHP', 'shoulder_press'], ['Chin-ups', 'pull_up'], ['Deadlifts', 'deadlift'], ['Walking lunges', 'lunge'], ['pull up', 'pull_up']]) {
       assert.equal(matchExercise(name), id, name);
     }
   });
@@ -51,7 +51,7 @@ describe('importRows on a messy CSV', () => {
   it('reports unmatched and bad rows with line numbers and reasons instead of guessing', () => {
     assert.deepEqual(r.skipped.map((s) => [s.line, s.reason]), [
       [4, 'unknown exercise "Cable crossover"'],
-      [7, 'reps must be a whole number'],
+      [7, 'unknown exercise "Bicep Curls"'],
       [8, 'missing or unreadable date'],
       [9, 'unknown exercise "Romanian deadlift"'],
     ]);

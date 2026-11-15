@@ -6,7 +6,6 @@ const POOL = [
   ['deadlift', ['barbell']],
   ['pull_up', ['pullup_bar']],
   ['shoulder_press', ['barbell', 'dumbbells']],
-  ['curl', ['barbell', 'dumbbells']],
 ];
 const NEEDS = Object.fromEntries(POOL);
 const SCHEME = { strength: [4, 3, 5, 3], hypertrophy: [3, 8, 12, 1.5], endurance: [3, 12, 20, 0.75], general: [3, 6, 10, 1.5] };
@@ -44,7 +43,7 @@ export function buildPlan({ goal, days_per_week, minutes_per_session, equipment 
     days,
     notes: [
       "Progress with Jim's suggestions: small load steps only after an easy set (RPE <= 7).",
-      'Camera rep counting covers curl, squat and shoulder press; log other lifts by hand.',
+      'Camera rep counting covers squat and shoulder press; log other lifts by hand.',
     ],
   };
 }
@@ -55,7 +54,7 @@ export function validatePlan(plan, req) {
   for (const day of plan.days) {
     if (day.estimated_minutes > req.minutes_per_session) problems.push(`day ${day.day} needs ${day.estimated_minutes} minutes`);
     for (const item of day.items) {
-      if (!NEEDS[item.exercise].some((n) => req.equipment.includes(n))) {
+      if (!NEEDS[item.exercise]?.some((n) => req.equipment.includes(n))) {
         problems.push(`day ${day.day}: ${item.exercise} needs unavailable equipment`);
       }
     }

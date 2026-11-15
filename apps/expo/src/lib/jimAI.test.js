@@ -14,13 +14,13 @@ const state = {
   ],
   active: {
     id: 'w2', name: 'Arms', startedAt: '2026-11-14T11:00:00Z',
-    sets: [set('a1', 'curl', 10, 20, '2026-11-14T11:05:00Z', {
+    sets: [set('a1', 'shoulder_press', 10, 20, '2026-11-14T11:05:00Z', {
       source: 'camera',
       reps_detail: Array.from({ length: 6 }, () => ({ concentric_ms: 800, peak_pause_ms: 100, eccentric_ms: 900 })),
       camera_quality: { frames: 100, okFrames: 95, issues: {}, partials: 0 },
     })],
   },
-  goals: [{ id: 'g1', type: 'reps', exercise: 'curl', target: 12 }],
+  goals: [{ id: 'g1', type: 'reps', exercise: 'shoulder_press', target: 12 }],
   plan: null,
 };
 
@@ -37,9 +37,9 @@ describe('buildContext', () => {
     assert.ok(c.prs.some((r) => r.exercise === 'squat' && r.heaviest.weight === 225));
     assert.equal(c.goals.length, 1);
     assert.equal(typeof c.goals[0].pct, 'number');
-    assert.match(c.goals[0].label, /curl/);
+    assert.match(c.goals[0].label, /shoulder press/);
     assert.ok(Array.isArray(c.weeklyCheckIn.wins));
-    assert.equal(c.lastSetReport.movement, 'curl');
+    assert.equal(c.lastSetReport.movement, 'shoulder_press');
     assert.equal(c.lastSetReport.counted, 6);
     assert.equal(c.lastSetReport.trackingPct, 95);
   });
@@ -58,7 +58,7 @@ describe('buildContext', () => {
         cameraSnapshot: {
           sessionId: 'device-only-session-id',
           updatedAt: '2026-11-14T11:59:30.000Z',
-          exercise: 'curl',
+          exercise: 'shoulder_press',
           reps: 8,
           trackingPct: 96,
           frames: [{ landmarks: [{ x: 0.5, y: 0.2 }] }],
@@ -69,11 +69,11 @@ describe('buildContext', () => {
     assert.deepEqual(context.activeSession, {
       startedAt: '2026-11-14T11:00:00Z',
       setCount: 1,
-      exercises: ['curl'],
+      exercises: ['shoulder_press'],
     });
     assert.deepEqual(context.liveCamera, {
       updatedAt: '2026-11-14T11:59:30.000Z',
-      exercise: 'curl',
+      exercise: 'shoulder_press',
       reps: 8,
       trackingPct: 96,
     });
@@ -89,20 +89,20 @@ describe('buildContext', () => {
       ...state,
       active: {
         ...state.active,
-        cameraSnapshot: { updatedAt: '2026-11-14T11:54:59.999Z', exercise: 'curl', reps: 8, trackingPct: 96 },
+        cameraSnapshot: { updatedAt: '2026-11-14T11:54:59.999Z', exercise: 'shoulder_press', reps: 8, trackingPct: 96 },
       },
     }, NOW);
     assert.equal(context.liveCamera, null);
     assert.deepEqual(context.activeSession, {
       startedAt: '2026-11-14T11:00:00Z',
       setCount: 1,
-      exercises: ['curl'],
+      exercises: ['shoulder_press'],
     });
   });
 });
 
 describe('validateProposal', () => {
-  const log = { type: 'log', set: { exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }, sets: [{ exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }], summary: 'Log 10 × bicep curl at 20 lb?' };
+  const log = { type: 'log', set: { exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'lb' }, sets: [{ exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'lb' }], summary: 'Log 10 × shoulder press at 20 lb?' };
   it('accepts well-formed intents', () => {
     assert.deepEqual(validateProposal(log, state), log);
     const del = { type: 'delete', target: { setId: 'h1' }, summary: 'Delete?' };
@@ -113,9 +113,9 @@ describe('validateProposal', () => {
   it('rejects unknown exercises, negative numbers, unknown sets and odd types', () => {
     const bad = (sets) => ({ ...log, set: sets[0], sets });
     assert.equal(validateProposal(bad([{ exercise: 'zercher_row', reps: 5, weight: 10, unit: 'lb' }]), state), null);
-    assert.equal(validateProposal(bad([{ exercise: 'curl', reps: -5, weight: 10, unit: 'lb' }]), state), null);
-    assert.equal(validateProposal(bad([{ exercise: 'curl', reps: 5, weight: -10, unit: 'lb' }]), state), null);
-    assert.equal(validateProposal(bad([{ exercise: 'curl', reps: 5, weight: 10, unit: 'stone' }]), state), null);
+    assert.equal(validateProposal(bad([{ exercise: 'shoulder_press', reps: -5, weight: 10, unit: 'lb' }]), state), null);
+    assert.equal(validateProposal(bad([{ exercise: 'shoulder_press', reps: 5, weight: -10, unit: 'lb' }]), state), null);
+    assert.equal(validateProposal(bad([{ exercise: 'shoulder_press', reps: 5, weight: 10, unit: 'stone' }]), state), null);
     assert.equal(validateProposal(bad([]), state), null);
     assert.equal(validateProposal({ type: 'delete', target: { setId: 'zzz' }, summary: 'x' }, state), null);
     assert.equal(validateProposal({ type: 'correct', target: { setId: 'a1' }, changes: { reps: 0 }, summary: 'x' }, state), null);
@@ -153,17 +153,17 @@ const okFetch = (body) => {
 
 describe('askJim', () => {
   it('sends history + context and returns validated AI proposals', async () => {
-    const good = { type: 'log', set: { exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }, sets: [{ exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }], summary: 'Log 10 × bicep curl at 20 lb?' };
+    const good = { type: 'log', set: { exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'lb' }, sets: [{ exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'lb' }], summary: 'Log 10 × shoulder press at 20 lb?' };
     const bad = { type: 'delete', target: { setId: 'nope' }, summary: 'x' };
     const fetchImpl = okFetch({ reply: 'Confirm and I log it.', proposals: [good, bad] });
-    const r = await askJim({ message: '10 curls at 20', history: [{ role: 'assistant', content: 'hi' }], state, url: 'http://x', fetchImpl, now: NOW });
+    const r = await askJim({ message: '10 shoulder presses at 20', history: [{ role: 'assistant', content: 'hi' }], state, url: 'http://x', fetchImpl, now: NOW });
     assert.equal(r.source, 'ai');
     assert.equal(r.reply, 'Confirm and I log it.');
     assert.deepEqual(r.proposals, [good]);
     const { url, init } = fetchImpl.calls[0];
     assert.equal(url, 'http://x/chat');
     const body = JSON.parse(init.body);
-    assert.deepEqual(body.messages.at(-1), { role: 'user', content: '10 curls at 20' });
+    assert.deepEqual(body.messages.at(-1), { role: 'user', content: '10 shoulder presses at 20' });
     assert.equal(body.persona, 'analyst');
     assert.ok(body.context.recentSets.length);
   });
@@ -177,7 +177,7 @@ describe('askJim', () => {
   });
 
   it('falls back to rules with no URL', async () => {
-    const r = await askJim({ message: '10 curls at 20 pounds', state, url: null, now: NOW });
+    const r = await askJim({ message: '10 shoulder presses at 20 pounds', state, url: null, now: NOW });
     assert.equal(r.source, 'offline');
     assert.equal(r.proposals[0].type, 'log');
   });
@@ -234,7 +234,7 @@ describe('proxy key and workout context', () => {
 describe('Claude sees measured speed, labelled as relative', () => {
   it('lastSetReport carries velocity loss and peak speeds with their trust class', () => {
     const reps = [700, 720, 760, 820, 900, 1000].map((l, i) => ({ index: i + 1, concentric_ms: l, peak_pause_ms: 100, eccentric_ms: 900, rom_deg: 110, peak_dps: 260 - i * 25, mean_dps: 150 - i * 12 }));
-    const state = { history: [{ id: 'w1', startedAt: new Date().toISOString(), sets: [{ id: 's1', exercise: 'curl', reps: 6, weight: 30, unit: 'lb', source: 'camera', reps_detail: reps }] }], settings: {} };
+    const state = { history: [{ id: 'w1', startedAt: new Date().toISOString(), sets: [{ id: 's1', exercise: 'shoulder_press', reps: 6, weight: 30, unit: 'lb', source: 'camera', reps_detail: reps }] }], settings: {} };
     const ctx = buildContext(state);
     const m = ctx.lastSetReport.measured;
     assert.ok(m.velocityLossPct > 0);

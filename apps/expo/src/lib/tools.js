@@ -1,6 +1,7 @@
 // Lifter tools that run on the phone.
 import { EXERCISES } from './exercises.js';
 import { chronologicalHistory } from './historyOrder.js';
+import { isRetiredExercise, withoutRetiredExercises } from './retiredExercises.js';
 
 const STEP = { kg: 0.5, lb: 2.5 };
 
@@ -32,7 +33,7 @@ export function plateBreakdown(total, unit) {
 
 const IDS = new Set(EXERCISES.map((e) => e.id));
 const validSet = (s) =>
-  s && IDS.has(s.exercise) && ['kg', 'lb'].includes(s.unit) &&
+  s && (IDS.has(s.exercise) || isRetiredExercise(s.exercise)) && ['kg', 'lb'].includes(s.unit) &&
   Number.isFinite(s.weight) && s.weight >= 0 && Number.isInteger(s.reps) && s.reps >= 0 &&
   (s.rpe === null || s.rpe === undefined || (s.rpe >= 1 && s.rpe <= 10));
 
@@ -52,7 +53,7 @@ export function parseImport(text) {
       throw new Error(`The export is damaged: workout ${i + 1} has an invalid set.`);
     }
   });
-  return { history: data.history, plan: data.plan ?? null, settings: data.settings ?? {} };
+  return { history: data.history, plan: withoutRetiredExercises(data.plan ?? null), settings: data.settings ?? {} };
 }
 
 /** Union of workouts by id, oldest first. */
@@ -67,6 +68,7 @@ export function repeatPlan(workout) {
   const order = [];
   const by = new Map();
   for (const s of workout.sets) {
+    if (isRetiredExercise(s.exercise)) continue;
     if (!by.has(s.exercise)) {
       by.set(s.exercise, []);
       order.push(s.exercise);

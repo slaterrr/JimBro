@@ -9,7 +9,6 @@ export const EXERCISE_PATTERNS = [
   ["pull_up", /\b(pull|chin)[\s-]?ups?\b/],
   ["squat", /\bsquats?\b/],
   ["lunge", /\blunges?\b/],
-  ["curl",/\b(bicep\s+)?curls?\b/],
 ];
 
 const WORDS = {

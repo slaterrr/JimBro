@@ -22,14 +22,14 @@ test('workout volume: Nov 12 = squat 135x(8+8+7)=3105 + deadlift 155x(6+6+5)=263
   assert.equal(workoutVolume(W[13], 'lb'), 5740);
 });
 
-test('curl: Nov 10 (25x10x3) vs Nov 5 (22.5x10,10,9)', () => {
-  const c = compareSessions(W, 'curl', 'lb');
+test('hammer curl: Nov 10 (25x10x3) vs Nov 5 (22.5x10,10,9)', () => {
+  const c = compareSessions(W, 'hammer_curl', 'lb');
   // e1RM Epley 25*(1+10/30)=33.3 -> 32.5 (2.5 lb step); 22.5*4/3 = 30
   assert.deepEqual([c.current.topWeight, c.current.e1rm, c.current.volume], [25, 32.5, 750]);
   assert.deepEqual([c.previous.topWeight, c.previous.e1rm, c.previous.volume], [22.5, 30, 652.5]);
   // 25/22.5 = +11.1%, 32.5/30 = +8.3%, 750/652.5 = +14.9%
   assert.deepEqual(c.change, { topWeightPct: 11.1, e1rmPct: 8.3, volumePct: 14.9 });
-  assert.equal(c.text, 'Bicep curl Nov 10 vs Nov 5: +11.1% weight, +8.3% est. 1RM, +14.9% volume');
+  assert.equal(c.text, 'Hammer curl Nov 10 vs Nov 5: +11.1% weight, +8.3% est. 1RM, +14.9% volume');
 });
 
 test('squat: Nov 12 vs Nov 7 shows the small volume dip honestly', () => {
@@ -41,7 +41,7 @@ test('squat: Nov 12 vs Nov 7 shows the small volume dip honestly', () => {
 });
 
 test('only one session: no previous, honest text; never logged: null', () => {
-  const c = compareSessions([W[0]], 'curl', 'lb');
+  const c = compareSessions([W[0]], 'hammer_curl', 'lb');
   assert.equal(c.previous, null);
   assert.equal(c.change, null);
   assert.match(c.text, /first session/i);
@@ -49,7 +49,7 @@ test('only one session: no previous, honest text; never logged: null', () => {
 });
 
 test('kg display converts loads (25 lb = 11.3 kg)', () => {
-  assert.equal(compareSessions(W, 'curl', 'kg').current.topWeight, 11.3);
+  assert.equal(compareSessions(W, 'hammer_curl', 'kg').current.topWeight, 11.3);
 });
 
 test('month to month: Nov 2026 (6 sessions) vs Oct 2026 (8 sessions)', () => {

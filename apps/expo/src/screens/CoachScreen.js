@@ -47,7 +47,7 @@ export function CoachScreen({ openLog, initialExercise }) {
   const { publish: publishCameraSummary, clear: clearCameraSummary } = useLiveCamera();
   const [permission, requestPermission] = useCameraPermissions();
   const firstPlanned = active?.planned?.items?.find((i) => EXERCISES.find((e) => e.id === i.exercise)?.camera);
-  const [movement, setMovement] = useState(initialExercise ?? firstPlanned?.exercise ?? 'curl');
+  const [movement, setMovement] = useState((EXERCISES.some((e) => e.id === initialExercise && e.camera) ? initialExercise : null) ?? firstPlanned?.exercise ?? 'squat');
   const planned = plannedFor(active, movement);
   const [target, setTarget] = useState(workoutTarget('reps', planned?.reps_high));
   const [sets, setSets] = useState(workoutTarget('sets', planned?.sets));
@@ -189,7 +189,7 @@ export function CoachScreen({ openLog, initialExercise }) {
       jim.say(cameraGuidance(out.issue, out.hint, movement), { force: true });
     }
     const suggested = out.suggested ?? session.current.suggested ?? null;
-    if (suggested && suggested !== movement && suggested !== seenSuggestion.current) {
+    if (EXERCISES.some((e) => e.id === suggested && e.camera) && suggested !== movement && suggested !== seenSuggestion.current) {
       // Show (and speak) each new suggestion once; dismissing hides it until a different one.
       seenSuggestion.current = suggested;
       setSuggestion(suggested);

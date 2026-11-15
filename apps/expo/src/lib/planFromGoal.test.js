@@ -5,8 +5,8 @@ import { EXERCISE_MUSCLES } from './muscles.js';
 import { planFromGoal, planProposal, validateEmphasis } from './planFromGoal.js';
 
 const history = [
-  { id: 'w1', startedAt: '2026-11-01T12:00:00.000Z', sets: [{ exercise: 'curl', reps: 10, weight: 25, unit: 'lb' }, { exercise: 'bench', reps: 8, weight: 135, unit: 'lb' }] },
-  { id: 'w2', startedAt: '2026-11-04T12:00:00.000Z', sets: [{ exercise: 'curl', reps: 10, weight: 30, unit: 'lb' }] },
+  { id: 'w1', startedAt: '2026-11-01T12:00:00.000Z', sets: [{ exercise: 'shoulder_press', reps: 10, weight: 25, unit: 'lb' }, { exercise: 'bench', reps: 8, weight: 135, unit: 'lb' }] },
+  { id: 'w2', startedAt: '2026-11-04T12:00:00.000Z', sets: [{ exercise: 'shoulder_press', reps: 10, weight: 30, unit: 'lb' }] },
 ];
 
 describe('planFromGoal (offline, no photo)', () => {
@@ -35,11 +35,11 @@ describe('planFromGoal (offline, no photo)', () => {
     const all = new Set(p.days.flatMap((d) => d.items.map((i) => i.exercise)));
     assert.ok(['squat', 'deadlift', 'lunge'].some((e) => all.has(e)));
     assert.ok(['bench', 'shoulder_press'].some((e) => all.has(e)));
-    assert.ok(['pull_up', 'curl'].some((e) => all.has(e)));
+    assert.ok(['pull_up', 'shoulder_press'].some((e) => all.has(e)));
   });
   it('starts loads from the most recent imported/logged set', () => {
-    const p = planFromGoal({ fitnessGoal: 'muscle', focusMuscles: ['biceps'], history });
-    const curl = p.days.flatMap((d) => d.items).find((i) => i.exercise === 'curl');
+    const p = planFromGoal({ fitnessGoal: 'muscle', focusMuscles: ['shoulders'], history });
+    const curl = p.days.flatMap((d) => d.items).find((i) => i.exercise === 'shoulder_press');
     assert.deepEqual(curl.start, { weight: 30, unit: 'lb' });
     assert.match(p.notes.join(' '), /history/);
   });

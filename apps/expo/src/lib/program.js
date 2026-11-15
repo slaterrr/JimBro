@@ -198,8 +198,8 @@ const SLOTS = {
   lunge: ['lunge'],
   chest_acc: ['dumbbell_bench', 'dips', 'push_up'],
   lateral: ['lateral_raise'],
-  biceps: ['curl', 'hammer_curl'],
-  biceps_alt: ['hammer_curl', 'curl'],
+  biceps: ['hammer_curl'],
+  biceps_alt: ['hammer_curl'],
 };
 const SLOT_WHY = {
   press_h: 'Horizontal press for chest, shoulders and triceps.',

@@ -115,7 +115,6 @@ const ALIASES = {
   deadlift: 'deadlift', 'dead lift': 'deadlift',
   ohp: 'shoulder_press', 'overhead press': 'shoulder_press', 'shoulder press': 'shoulder_press', 'military press': 'shoulder_press',
   'pull up': 'pull_up', pullup: 'pull_up', 'chin up': 'pull_up', chinup: 'pull_up',
-  curl: 'curl', 'bicep curl': 'curl', 'biceps curl': 'curl',
   lunge: 'lunge',
 };
 const singular = (w) => (w.length > 2 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
