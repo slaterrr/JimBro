@@ -48,7 +48,7 @@ export function parseImport(text) {
     throw new Error('That is not a JimBro export.');
   }
   data.history.forEach((w, i) => {
-    if (!w?.id || !w.startedAt || !Array.isArray(w.sets) || !w.sets.every(validSet)) {
+    if (!w?.id || !Array.isArray(w.sets) || !w.sets.every(validSet)) {
       throw new Error(`The export is damaged: workout ${i + 1} has an invalid set.`);
     }
     const validDate = value => {
