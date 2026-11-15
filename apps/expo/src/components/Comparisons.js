@@ -49,7 +49,7 @@ export function ComparisonResults({ comparison, onBack }) {
       </View>
       <Text style={type.body}>From: {from}</Text>
       <Text style={type.body}>To: {to}</Text>
-      {['strength','volume'].map(key => {
+      {['strength','reps'].map(key => {
         const before = old[key], after = current[key];
         const comparable = before != null && after != null;
         const delta = comparable ? after - before : null;
@@ -58,8 +58,8 @@ export function ComparisonResults({ comparison, onBack }) {
           ? `${delta > 0 ? '+' : ''}${(delta / before * 100).toFixed(1)}%`
           : `${delta > 0 ? '+' : ''}${display(delta)}`;
         return <View key={key} style={{ marginTop: 18 }}>
-          <Text style={type.title}>{key === 'strength' ? 'Best estimated 1RM' : 'Total volume'}</Text>
-          <Text style={type.small}>{unit}{key === 'volume' ? ' × reps' : ''}</Text>
+          <Text style={type.title}>{key === 'strength' ? 'Best estimated 1RM' : 'Total reps'}</Text>
+          <Text style={type.small}>{key === 'strength' ? unit : 'reps'}</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
             <Card style={{ flex: 1, minWidth: 0 }}>
               <Text style={type.label}>From</Text>
@@ -73,7 +73,7 @@ export function ComparisonResults({ comparison, onBack }) {
           </View>
         </View>;
       })}
-      <Text style={[type.small, { marginTop: 8 }]}>Same exercise, converted to {unit}. Strength uses sets of 1–10 reps. Volume totals all logged sets; partial months and years may have fewer workouts.</Text>
+      <Text style={[type.small, { marginTop: 8 }]}>Same exercise. Strength is converted to {unit} and uses sets of 1–10 reps. Total reps adds all logged sets; partial months and years may have fewer workouts.</Text>
     </Card>
   </>;
 }
