@@ -108,4 +108,3 @@ export function applyCoachSet(data, { workoutId, expectedCount, slot, set, event
   const saved = appendWorkoutSet(data, set, workoutId);
   return { ...saved, mission: { ...data.mission, state: { ...next, log, restUntil } } };
 }
-
