@@ -171,6 +171,13 @@ Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validati
 
 Test counts on integration-v4: app 256, vision-lab 35, proxy 15. On integration-v5 (#35–#38): app 377, vision-lab 44, proxy 26; Android + iOS bundles build; real clips unchanged. On feat/workout-mission: app 402. On feat/performance-engine: app 470, vision-lab 44. On feat/engines: app 544, vision-lab 51, proxy 33 (628); handoff docs in `docs/engines/`. Roadmap for equipment tracking, force/power and validation: `docs/PERFORMANCE_ROADMAP.md`. On main after #55: app 558, vision-lab 51, proxy 35.
 
+## Programs and voice (feat/chat-mvp-review)
+| Feature | Status | Where | Tested how | Still needs |
+|---|---|---|---|---|
+| Multi-week programs (2–5 days, 4–16 weeks, powerbuilding 4-day option): intake in chat, checked program card, save/replace with versions, today / why / swap / shorter | 🧪 feat/chat-mvp-review | `lib/program.js`, `lib/programChat.js`, `lib/planVersions.js`, `components/ProgramCards.js`, HomeScreen | unit: 8640 intake combos valid, loads only from logged sets, validator rejects bad programs; Playwright `e2e/program-voice.spec.mjs` | live-Claude program edits not wired; coach review of set/rep schemes |
+| Spoken welcome once per launch, mute (saved) + replay, Enable Jim's voice fallback, speech stops on typing/new reply | 🧪 feat/chat-mvp-review | `lib/welcome.js`, `lib/sound.js` onError, HomeScreen | unit + Playwright (speech calls stubbed) | hear it on an iPhone and Android phone |
+See `docs/PROGRAMS_AND_VOICE.md`.
+
 ## Waiting to be implemented (priority order)
 1. 📋 **Device run-through** on a real phone in Expo Go: camera counting, caught-it badge, set report, form review, personas, confirm cards, Talk mode.
 2. ✅ **Proxy shared secret** (`X-Jim-Key`, #47). Host it with `render.yaml` (Render blueprint), then set `EXPO_PUBLIC_JIM_PROXY_URL` / `EXPO_PUBLIC_JIM_PROXY_KEY` in the Expo `preview` environment.
