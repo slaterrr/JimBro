@@ -180,7 +180,16 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 """
 
 # (version, name, sql). Append only; never edit an applied migration.
-MIGRATIONS: list[tuple[int, str, str]] = [(1, "v2 core schema", V1)]
+V2 = """
+CREATE TABLE IF NOT EXISTS user_sync_state (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  data TEXT NOT NULL DEFAULT '{}',
+  updated_at TEXT NOT NULL
+);
+"""
+
+MIGRATIONS: list[tuple[int, str, str]] = [(1, "v2 core schema", V1), (2, "per-user sync snapshots", V2)]
 
 
 def now_iso() -> str:
