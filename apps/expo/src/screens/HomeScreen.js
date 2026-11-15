@@ -381,7 +381,7 @@ export function HomeScreen({ openLog, openActivity }) {
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
         {!messages.length ? <View style={st.welcome}>
-          <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
+          <Image source={require('../../assets/jim-home@3x.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
           <Text style={st.eyebrow}>YOUR SPACE TO GET STRONGER</Text>
           <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Hey, I'm Jim</Text>
           <Text testID="welcome-greeting" style={st.heroSubtitle}>Your AI gym bro. Tell me what you want to hit today</Text>

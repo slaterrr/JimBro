@@ -6,6 +6,7 @@ import { defaultPair, periods, metrics } from '../lib/comparison.js';
 import { T, type } from '../theme.js';
 
 const FRAMES = [['workout', 'Workout to workout'], ['month', 'Month to month'], ['year', 'Year to year']];
+const JIM_MASCOT = require('../../assets/jim-comparison@3x.png');
 
 export function Comparisons({ history, unit, onSubmit }) {
   const [mode, setMode] = useState('workout');
@@ -19,6 +20,8 @@ export function Comparisons({ history, unit, onSubmit }) {
   const old = metrics(a, exercise, unit), current = metrics(b, exercise, unit);
   const choices = groups.map(g => [g.key, g.label]);
   return <Card style={{ marginTop: 14 }}>
+    {/* Warm the decoded image cache before navigating to the results page. */}
+    <Image source={JIM_MASCOT} fadeDuration={0} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={{ position: 'absolute', width: 112, height: 82, opacity: 0 }} />
     <Text style={type.title}>Compare your training</Text>
     <Dropdown testID="compare-frame" label="Compare by" value={mode} options={FRAMES} onChange={v => { setMode(v); setBefore(null); setAfter(null); }} />
     <Dropdown testID="compare-exercise" label="Exercise" value={exercise} options={EXERCISES.map(e => [e.id, e.name])} onChange={v => { setExercise(v); setBefore(null); setAfter(null); }} />
@@ -32,16 +35,20 @@ export function Comparisons({ history, unit, onSubmit }) {
 }
 
 export function ComparisonResults({ comparison, onBack }) {
+  const [imageReady, setImageReady] = useState(false);
   const { exercise, from, to, old, current, unit } = comparison;
   const display = n => n === null ? 'No data' : Math.round(n).toLocaleString();
   const name = EXERCISES.find(e => e.id === exercise)?.name ?? exercise;
-  return <>
+  return <View style={{ opacity: imageReady ? 1 : 0 }} pointerEvents={imageReady ? 'auto' : 'none'}>
     <PrimaryButton secondary onPress={onBack}>Back to comparison</PrimaryButton>
     <Card style={{ marginTop: 14 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Text style={[type.title, { flex: 1, minWidth: 0 }]}>{name} progress</Text>
         <Image
-          source={require('../../assets/jim-mascot.png')}
+          source={JIM_MASCOT}
+          fadeDuration={0}
+          onLoad={() => setImageReady(true)}
+          onError={() => setImageReady(true)}
           accessibilityLabel="Jim holding a barbell"
           resizeMode="contain"
           style={{ width: 112, height: 82 }}
@@ -75,5 +82,5 @@ export function ComparisonResults({ comparison, onBack }) {
       })}
       <Text style={[type.small, { marginTop: 8 }]}>Same exercise. Strength is converted to {unit} and uses sets of 1–10 reps. Total reps adds all logged sets; partial months and years may have fewer workouts.</Text>
     </Card>
-  </>;
+  </View>;
 }
