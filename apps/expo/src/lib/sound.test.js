@@ -12,9 +12,9 @@ test('Jim speaks by default for new users', () => {
   assert.equal(migrateVoiceSettings(undefined).speak, true);
 });
 
-test('old saves that stored the old default (speak:false, no version) are switched on once', () => {
+test('old saves preserve an explicit mute preference', () => {
   const s = migrateVoiceSettings({ speak: false, unit: 'kg' });
-  assert.equal(s.speak, true);
+  assert.equal(s.speak, false);
   assert.equal(s.unit, 'kg');
   assert.equal(s.voiceVersion, VOICE_SETTINGS_VERSION);
 });
