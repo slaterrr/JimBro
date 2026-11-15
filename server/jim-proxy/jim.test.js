@@ -67,7 +67,7 @@ describe('proposals', () => {
   });
   it('includes rpe when given', () => {
     const p = proposalFrom('log_sets', { exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'kg', rpe: 8 }, context);
-    assert.equal(p.summary, 'Log 10 × bicep curl at 20 kg, RPE 8?');
+    assert.equal(p.summary, 'Log 10 × shoulder press at 20 kg, RPE 8?');
     assert.equal(p.set.rpe, 8);
   });
   it('turns correct_set into a correct intent targeting a known set', () => {
