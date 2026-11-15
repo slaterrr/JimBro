@@ -39,6 +39,22 @@ const say = async (page, text) => {
   await page.getByLabel('Message Jim').press('Enter');
 };
 
+// Starting a workout now navigates through a camera/manual choice before Home chat is available.
+async function startManualWorkoutAndReturnToChat(page) {
+  await say(page, 'Start a workout');
+  await expect(page.getByRole('button', { name: 'Without camera', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Without camera', exact: true }).click();
+  // Read the currently signed-in account, not the seeded demo account's fixed storage key.
+  await expect.poll(async () => page.evaluate(() => {
+    const account = localStorage.getItem('jimbro.session.v1');
+    const data = JSON.parse(localStorage.getItem(`jimbro.data.v2:${account}`) ?? '{}');
+    return Boolean(data.active?.id);
+  })).toBe(true);
+  await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+}
+
 test('first run: beginner setup picks a goal, skips the optional question, lands on Home', async ({ page }) => {
   const errors = await open(page);
   await tap(page, "I'm new to this");
@@ -65,8 +81,7 @@ test('first run: pain answer shows safety advice instead of a plan', async ({ pa
 
 test('workout: start, log a set by hand, finish, and it shows in history after reload', async ({ page }) => {
   const errors = await open(page, { history: [], settings: READY });
-  await say(page, 'Start a workout');
-  await say(page, 'stop camera');
+  await startManualWorkoutAndReturnToChat(page);
   await say(page, 'log 1 set of 8 bench press at 135 lb');
   await tap(page, 'Confirm');
   await expect.poll(async () => (await saved(page)).active?.sets?.length).toBe(1);
@@ -84,8 +99,7 @@ test('workout: start, log a set by hand, finish, and it shows in history after r
 
 test('chat: tell Jim a set in plain words, he asks to confirm, nothing changes until Confirm', async ({ page }) => {
   await open(page, { history: [], settings: READY });
-  await say(page, 'Start a workout');
-  await say(page, 'stop camera');
+  await startManualWorkoutAndReturnToChat(page);
   await say(page, 'log 3 sets of 10 curls at 25 lb');
   const confirm = page.getByText('Confirm', { exact: true }).locator('visible=true').last();
   await expect(confirm).toBeVisible();
@@ -97,8 +111,7 @@ test('chat: tell Jim a set in plain words, he asks to confirm, nothing changes u
 
 test('chat: Cancel on a proposal leaves the log untouched', async ({ page }) => {
   await open(page, { history: [], settings: READY });
-  await say(page, 'Start a workout');
-  await say(page, 'stop camera');
+  await startManualWorkoutAndReturnToChat(page);
   await say(page, 'log 1 set of 5 squats at 185 lb');
   await tap(page, 'Cancel');
   await page.waitForTimeout(300);
@@ -124,25 +137,25 @@ test('mission: "20 minutes, chest day" plans a session that starts in the inline
   await say(page, 'I have 20 minutes, help me finish chest day');
   await expect(page.getByText(/20-minute/).last()).toBeVisible();
   await tap(page, 'Start mission');
-  await expect(page.getByText('Allow camera', { exact: true })).toBeVisible(); // Coach screen, no camera on web
+  await expect(page.getByRole('button', { name: 'Use camera', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Use camera', exact: true }).click();
+  await expect(page.getByText('Allow camera', { exact: true })).toBeVisible(); // no camera permission in web test
   expect(errors).toEqual([]);
 });
 
 test('plan: Create a New Plan builds and saves a plan for a goal', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
   await say(page, 'Create a new plan');
-  await expect(page.getByText('Import workouts (CSV or Excel)').last()).toBeVisible();
-  await tap(page, 'Plan from my goal (no photo)');
-  const confirm = page.getByText(/^(Confirm|Save plan|Use this plan)$/).locator('visible=true').last();
-  await expect(confirm).toBeVisible();
-  await confirm.click();
+  await expect(page.getByText('Your weekly plan', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Day 1/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Save as my plan', exact: true }).click();
   await expect.poll(async () => Boolean((await saved(page)).plan)).toBe(true);
 });
 
 test('progress: tabs and time-frame dropdowns work, comparison shows real numbers', async ({ page }) => {
   const errors = await open(page, { history: demo.history, settings: READY });
   await say(page, 'Review my progress');
-  await expect(page.getByTestId('chat-panel-progress')).toBeVisible();
+  await expect(page.getByText('Progression', { exact: true })).toBeVisible();
   await expect(page.getByText('Compare your training')).toBeVisible();
   await expect(page.getByText(/Best estimated 1RM.*No data.*$/)).toHaveCount(0);
   await page.getByTestId('compare-frame').click();
@@ -153,7 +166,8 @@ test('progress: tabs and time-frame dropdowns work, comparison shows real number
   await expect(page.getByText('Best estimated 1RM', { exact: true })).toBeVisible();
   await expect(page.getByText('Total reps', { exact: true })).toBeVisible();
   await tap(page, 'Back to comparison');
-  for (const tab of ['strength', 'history', 'goals', 'overview']) {
+  // Current Progression navigation exposes three tabs; strength is part of Overview.
+  for (const tab of ['history', 'goals', 'overview']) {
     await page.getByTestId(`seg-${tab}`).click();
     await expect(page.getByTestId(`seg-${tab}`)).toHaveAttribute('aria-selected', 'true');
   }
@@ -163,7 +177,7 @@ test('progress: tabs and time-frame dropdowns work, comparison shows real number
 test('muscles: tapping a muscle opens its progress', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
   await say(page, 'Show my muscles');
-  await expect(page.getByTestId('chat-panel-muscles')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to previous page', exact: true })).toBeVisible();
   const body = page.locator('svg[viewBox="0 0 200 400"]').first();
   // Target the visible chest shape itself; absolute screen coordinates can
   // drift while the conversation scroll animation finishes.
@@ -242,8 +256,7 @@ test('login: each account keeps its own workouts', async ({ page }) => {
   await page.goto('/');
   await signUp(page, 'one@example.com', 'gains123');
   await tap(page, 'Skip for now');
-  await say(page, 'Start a workout');
-  await say(page, 'stop camera');
+  await startManualWorkoutAndReturnToChat(page);
   await expect.poll(async () => page.evaluate(() => Boolean(JSON.parse(localStorage.getItem('jimbro.data.v2:one@example.com') ?? '{}').active))).toBe(true);
   await tap(page, 'Activity and settings');
   await tap(page, 'Sign out');

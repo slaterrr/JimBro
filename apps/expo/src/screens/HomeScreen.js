@@ -92,6 +92,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const backArrow = <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back to previous page" onPress={() => setPage(null)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="arrow-left" size={24} color={T.text} /></TouchableOpacity>;
   const [progressGroup, setProgressGroup] = useState(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraExercise, setCameraExercise] = useState(null);
   const [talk, setTalk] = useState(false);
   const [menu, setMenu] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -130,7 +131,7 @@ export function HomeScreen({ openLog, openActivity }) {
   };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
   const openPanel = (panel, exercise, options = {}) => {
-    if (panel === 'camera') { setCameraEnabled(false); setPage('workout-choice'); return; }
+    if (panel === 'camera') { setCameraExercise(exercise ?? null); setCameraEnabled(false); setPage('workout-choice'); return; }
     if (panel === 'progress') { setProgressGroup(options.muscleGroup ?? null); setPage('progress'); return; }
     if (panel === 'muscles') { setPage('muscles'); return; }
     // Keep just one live camera mounted. Closing it releases the camera stream.
@@ -230,14 +231,14 @@ export function HomeScreen({ openLog, openActivity }) {
   // Dashboard: start the scheduled session for today (or the next one) with sets pre-filled.
   const startToday = () => {
     if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); }
-    setCameraEnabled(false); setPage('workout');
+    setCameraExercise(null); setCameraEnabled(false); setPage('workout');
   };
 
   const send = async raw => {
     const message = raw.trim();
     if (!message) return;
     if (/^(start (a |my |the )?workout)[.!]?$/i.test(message)) {
-      setText(''); setMenu(false); setCameraEnabled(false); setPage('workout-choice'); return;
+      setText(''); setMenu(false); setCameraExercise(null); setCameraEnabled(false); setPage('workout-choice'); return;
     }
     if (/^(review my progress|show progress|open progress)[.!]?$/i.test(message)) {
       setText(''); setMenu(false); setProgressGroup(null); setPage('progress'); return;
@@ -381,7 +382,7 @@ export function HomeScreen({ openLog, openActivity }) {
   </ScrollView>;
   if (page === 'workout') return <View style={{ flex: 1 }}>
     {backArrow}
-    {cameraEnabled ? <CoachScreen openLog={openLog} /> : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 48, maxWidth: 760, width: "100%", alignSelf: "center" }}>
+    {cameraEnabled ? <CoachScreen openLog={openLog} initialExercise={cameraExercise} /> : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 48, maxWidth: 760, width: "100%", alignSelf: "center" }}>
       <Text style={type.h1}>{active?.name ?? 'Workout'}</Text>
       <Text style={[type.body, { marginBottom: 12 }]}>Camera is off. Tick each set as you finish it.</Text>
       <WorkoutChecklist />
