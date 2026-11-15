@@ -174,6 +174,23 @@ test('muscles: tapping a muscle opens its progress', async ({ page }) => {
   await expect(page.getByText('Show all progress', { exact: true })).toBeVisible();
 });
 
+test('Home call mode keeps the keyboard closed until dictation is requested', async ({ page }) => {
+  await page.clock.install();
+  await open(page, { settings: READY });
+  const composer = page.getByRole('textbox', { name: 'Message Jim' });
+  await composer.fill('Unsent draft');
+  await tap(page, 'Start talk mode');
+  await expect(page.getByLabel('Stop talk mode')).toBeVisible();
+  await expect(composer).not.toBeFocused();
+  await page.clock.fastForward(2000);
+  await expect(composer).toHaveValue('Unsent draft');
+  await tap(page, 'Dictate (use the keyboard microphone)');
+  await expect(composer).toBeFocused();
+  await tap(page, 'Stop talk mode');
+  await expect(page.getByLabel('Start talk mode')).toBeVisible();
+  await expect(composer).not.toBeFocused();
+});
+
 test('settings: changing Jim\'s persona is saved', async ({ page }) => {
   await open(page, { history: demo.history, settings: READY });
   await tap(page, 'Activity and settings');

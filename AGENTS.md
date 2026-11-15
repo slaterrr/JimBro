@@ -190,7 +190,7 @@ See `docs/PROGRAMS_AND_VOICE.md`.
 
 ## Known limitations (be honest in demos)
 - Labeled real data is small (3 real reps, 2 adversarial clips); 20-rep evidence is simulated.
-- Expo Go has no speech-to-text; Talk mode uses keyboard dictation.
+- Expo Go Talk mode uses keyboard dictation. The Home composer has a call control for spoken replies and a separate mic control for OS keyboard dictation. Call mode does not focus or reopen the keyboard.
 - Form rules are side-view heuristics on landmarks, not medical advice.
 - Latency numbers are desktop CPU, not phone.
 
