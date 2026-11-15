@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { newId, useApp, useLiveCamera } from '../AppState.js';
 import { PlanCard } from '../components/ChatPlanCard.js';
@@ -50,6 +51,27 @@ const intakeLabel = (field, value) => (Array.isArray(value) ? value : [value]).m
 
 function SmallButton({ icon, label, onPress, active = false }) {
   return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[st.smallButton, active && { backgroundColor: T.accentSoft }]}><Icon name={icon} size={20} color={active ? T.accentText : T.textDim} /></TouchableOpacity>;
+}
+
+function CallButton({ active, onPress }) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={active ? 'Stop talk mode' : 'Start talk mode'}
+      onPress={onPress}
+      style={[st.smallButton, active && { backgroundColor: T.accentSoft }]}
+    >
+      <Svg width={20} height={20} viewBox="0 0 24 24">
+        <Path
+          d="M7.1 3H5a2 2 0 0 0-2 2 16 16 0 0 0 16 16 2 2 0 0 0 2-2v-2.1a1 1 0 0 0-.71-.96l-4-1.2a1 1 0 0 0-1.02.26l-1.58 1.58a13 13 0 0 1-6.27-6.27L9 8.73a1 1 0 0 0 .26-1.02l-1.2-4A1 1 0 0 0 7.1 3Z"
+          fill="none"
+          stroke={active ? T.accentText : T.textDim}
+          strokeWidth={1.8}
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </TouchableOpacity>
+  );
 }
 
 function CameraConfirm({ message, onConfirm, onCancel }) {
@@ -111,7 +133,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const speak = line => {
     if (!line) return;
     if (!talkRef.current) return say(line, { interrupt: true }); // a new reply replaces whatever is playing
-    voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
+    voice.say(line, { force: true });
   };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
   const openPanel = (panel, exercise, options = {}) => {
@@ -284,9 +306,13 @@ export function HomeScreen({ openLog, openActivity }) {
     const timeout = setTimeout(() => send(text), 1800);
     return () => clearTimeout(timeout);
   }, [talk, text]);
+  const openDictation = () => input.current?.focus();
   const toggleTalk = () => {
-    setTalk(!talk); talkRef.current = !talk;
-    if (!talk) { speak('Use your keyboard microphone to talk. I’ll read my replies aloud.'); input.current?.focus(); }
+    const next = !talk;
+    talkRef.current = next;
+    setTalk(next);
+    Keyboard.dismiss();
+    if (next) speak('I’ll read replies aloud. Tap the microphone to dictate.');
     else voice.stop();
   };
   const newChat = () => { conversation.clear(); clearCamera(); voice.stop(); setTalk(false); setText(''); setMenu(false); };
@@ -331,7 +357,6 @@ export function HomeScreen({ openLog, openActivity }) {
         </View>
         <SmallButton icon={settings.speak ? 'volume-high' : 'volume-off'} label={settings.speak ? 'Mute Jim' : 'Unmute Jim'} onPress={toggleMute} />
         {!compact ? <SmallButton icon="replay" label="Replay greeting" onPress={replayWelcome} /> : null}
-        <SmallButton icon={talk ? 'microphone' : 'headphones'} label={talk ? 'Stop talk mode' : 'Start talk mode'} active={talk} onPress={toggleTalk} />
         {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
@@ -344,7 +369,6 @@ export function HomeScreen({ openLog, openActivity }) {
             {welcomeState === 'needs_gesture' && settings.speak ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enable Jim's voice" onPress={() => setWelcomeState(launchWelcome.enable())} style={st.voiceChip}><Icon name="volume-high" size={17} color={T.onAccent} /><Text style={{ color: T.onAccent, fontWeight: '700', fontSize: 13 }}>Enable Jim's voice</Text></TouchableOpacity> : null}
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
           </View>
-          <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
           <View style={st.quickGrid}>{QUICK.map(q => <TouchableOpacity accessibilityRole="button" accessibilityLabel={q.title} key={q.title} onPress={() => send(q.message)} style={[st.quickCard, { width: compact ? '100%' : '48.8%' }]}><View style={st.quickIcon}><Icon name={q.icon} color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={st.quickTitle}>{q.title}</Text><Text style={st.quickDetail}>{q.detail}</Text></View><Icon name="arrow-top-right" size={17} color={T.textMute} /></TouchableOpacity>)}</View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}><Icon name="pulse" color={T.accent} size={16} /><Text style={{ color: T.textMute, fontSize: 12, flexShrink: 1 }}>{health.text}</Text></TouchableOpacity>
         </View> : messages.map((m, index) => {
@@ -369,9 +393,18 @@ export function HomeScreen({ openLog, openActivity }) {
       </ScrollView>
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
         <View style={[st.composer, focused && { borderColor: T.accent }]}>
-          {talk ? <Text style={st.talkHint}>Talk mode: tap the microphone on your keyboard to dictate. Jim reads replies aloud. JimBro never records audio.</Text> : null}
+          {talk ? <Text style={st.talkHint}>Jim reads replies aloud. Tap the mic to open keyboard dictation.</Text> : null}
           <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
-          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><SmallButton icon={talk ? 'volume-high' : 'microphone-outline'} label={talk ? 'Stop talk mode' : 'Dictate (use the keyboard microphone)'} active={talk} onPress={toggleTalk} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
+          <View style={st.composerTools}>
+            <View style={st.composerActions}>
+              <SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} />
+              <SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} />
+              <SmallButton icon="microphone-outline" label="Dictate (use the keyboard microphone)" onPress={openDictation} />
+              <CallButton active={talk} onPress={toggleTalk} />
+              {!compact && <><View style={st.toolDivider} /><Text style={st.composerStatus}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></>}
+            </View>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity>
+          </View>
         </View>
         <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
         <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>
@@ -441,6 +474,8 @@ const st = StyleSheet.create({
   composer: { backgroundColor: T.chat.composer, borderWidth: 1, borderColor: T.chat.composerBorder, borderRadius: 20, padding: 10 },
   input: { color: T.text, fontSize: 14, lineHeight: 22, padding: 9, minHeight: 48, maxHeight: 120, outlineStyle: 'none' },
   composerTools: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  composerActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  composerStatus: { color: T.textMute, fontSize: 11 },
   toolDivider: { width: 1, height: 14, backgroundColor: T.borderStrong, marginHorizontal: 7 },
   send: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
   reviewLabel: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 9, lineHeight: 14 },
