@@ -16,6 +16,8 @@ import { mergeHistory, parseImport } from './lib/tools.js';
 import { createConversation } from './lib/conversation.js';
 import { chronologicalHistory } from './lib/historyOrder.js';
 import { withSavedPlan } from './lib/planVersions.js';
+import { createSchedule } from './lib/schedule.js';
+import { deviceTimeZone } from './lib/attendance.js';
 
 // Everything lives on this phone: no server, no account.
 const KEY = 'jimbro.data.v2';
@@ -108,8 +110,9 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   /** All logged sets in order, including the workout in progress. */
   const allSets = [...data.history, ...(data.active ? [data.active] : [])].flatMap((w) => w.sets);
 
+  // A second start while a workout is open (double tap, retried request) keeps the open one.
   const startWorkout = (name, planned = null) =>
-    setData((d) => ({ ...d, active: { id: newId(), name: name || 'Strength session', startedAt: new Date().toISOString(), sets: [], planned } }));
+    setData((d) => (d.active ? d : { ...d, active: { id: newId(), name: name || 'Strength session', startedAt: new Date().toISOString(), sets: [], planned } }));
 
   /** Logging requires an explicitly started workout. */
   const logSet = (body) => {
@@ -163,6 +166,9 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
 
   // Saving keeps the previous plan in planVersions (lib/planVersions.js).
   const savePlan = (plan) => setData((d) => withSavedPlan(d, plan));
+  // Weekly schedule for the saved program (lib/schedule.js). Edits don't create plan versions.
+  const saveSchedule = (schedule) => setData((d) => (d.plan?.program?.id === schedule.programId ? { ...d, plan: { ...d.plan, schedule } } : d));
+  const createDefaultSchedule = (program) => createSchedule(program, { timeZone: deviceTimeZone() });
   // Goals: measurable targets checked against logged history (see lib/goals.js).
   const addGoal = (goal) => setData((d) => ({ ...d, goals: [...(d.goals ?? []), { id: newId(), createdAt: new Date().toISOString(), ...goal }] }));
   const removeGoal = (id) => setData((d) => ({ ...d, goals: (d.goals ?? []).filter((g) => g.id !== id) }));
@@ -176,7 +182,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     mission: data.mission ?? null, startMission, stepMission, endMission,
     ready, notice, setNotice, settings, update, say, voice, voices,
     active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
-    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, exportJSON, eraseAll,
+    startWorkout, logSet, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, saveSchedule, createDefaultSchedule, exportJSON, eraseAll,
   };
   return (
     <Ctx.Provider value={value}>

@@ -26,6 +26,9 @@ import { CoachScreen } from './CoachScreen.js';
 import { MusclesScreen } from './MusclesScreen.js';
 import { ProgressScreen } from './ProgressScreen.js';
 import { ProgramScreen } from './ProgramScreen.js';
+import { TrainingScreen } from './TrainingScreen.js';
+import { TodayCard } from '../components/TodayCard.js';
+import { WorkoutChecklist } from '../components/WorkoutChecklist.js';
 import { T, type } from '../theme.js';
 
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
@@ -193,7 +196,9 @@ export function HomeScreen({ openLog, openActivity }) {
     const card = conversation.claimConfirmation(index, m => validateProgram(m.program, m.program.intake, { history }).length === 0);
     if (!card) return;
     const replaced = Boolean(plan);
-    savePlan(programToPlan(card.program));
+    // Keep the weekly schedule when the same program gets a new version (a swap); otherwise start one.
+    const keep = plan?.schedule && plan.schedule.programId === card.program.id;
+    savePlan({ ...programToPlan(card.program), schedule: keep ? plan.schedule : app.createDefaultSchedule(card.program) });
     const line = `Saved ${card.program.name} (version ${card.program.version}).${replaced ? ' Your previous plan is kept in plan history.' : ''} Say "Start workout" when you're ready.`;
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: line } : m));
     speak(`Saved. ${card.program.name}.`);
@@ -214,6 +219,12 @@ export function HomeScreen({ openLog, openActivity }) {
         : [{ kind: 'program', program: r.program, mode: 'swap', summary: `${exerciseName(m.from)} → ${exerciseName(to)} from week ${m.fromWeek} (${r.count} sessions). Starting loads for the new exercise are set by effort.` }])]);
   };
 
+  // Dashboard: start the scheduled session for today (or the next one) with sets pre-filled.
+  const startToday = () => {
+    if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); }
+    setCameraEnabled(false); setPage('workout');
+  };
+
   const send = async raw => {
     const message = raw.trim();
     if (!message) return;
@@ -224,6 +235,8 @@ export function HomeScreen({ openLog, openActivity }) {
       setText(''); setMenu(false); setProgressGroup(null); setPage('progress'); return;
     }
     if (/^(muscles|show muscles|open muscles|muscle map)[.!]?$/i.test(message)) { setText(''); setMenu(false); setPage('muscles'); return; }
+    if (/^((show|open) (my )?)?(calendar|attendance|analytics|training calendar)[.!?]?$|^export( my workouts)?( to)? excel[.!?]?$/i.test(message)) { setText(''); setMenu(false); setPage('training'); return; }
+    if (/^start today'?s workout[.!]?$/i.test(message)) { setText(''); setMenu(false); startToday(); return; }
     if (/^(training program|open (my )?program)[.!]?$/i.test(message) && plan) {
       setText(''); setMenu(false); setPage('program'); return;
     }
@@ -335,6 +348,7 @@ export function HomeScreen({ openLog, openActivity }) {
       ['chart-line', 'Progress & history', () => send('Review my progress')],
       ['human-handsup', 'Muscle & recovery', () => send('Show my muscles')],
       ['calendar-outline', 'Training program', () => plan ? setPage('program') : send('Build me a training program')],
+      ['calendar-check-outline', 'Calendar & analytics', () => { setMenu(false); setPage('training'); }],
       ['tray-arrow-up', 'Import workouts', () => send('Import my workouts')],
     ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} key={label} onPress={action} style={[st.navItem, i === 0 && st.navActive]}><Icon name={icon} size={19} color={i === 0 ? T.accentText : T.textMute} /><Text style={[st.navText, i === 0 && { color: T.text }]}>{label}</Text>{i === 0 ? <View style={st.dot} /> : null}</TouchableOpacity>)}
     <View style={st.sideDivider} />
@@ -346,6 +360,7 @@ export function HomeScreen({ openLog, openActivity }) {
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={st.profile}><View style={st.avatar}><Icon name="account-outline" color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={{ color: T.text, fontWeight: '600', fontSize: 13 }}>Your training space</Text><Text style={{ color: T.textMute, fontSize: 11, marginTop: 3 }}>Local storage · {settings.unit}</Text></View><Icon name="cog-outline" size={18} color={T.textMute} /></TouchableOpacity>
   </View>;
 
+  if (page === 'training') return <TrainingScreen onBack={() => setPage(null)} />;
   if (page === 'program') return <ProgramScreen plan={plan} onBack={() => setPage(null)} />;
   if (page === 'progress') return <View style={{ flex: 1 }}><PrimaryButton secondary onPress={() => setPage(null)}>Back to Jim</PrimaryButton><ProgressScreen go={() => setPage(null)} muscleGroup={progressGroup} onClearMuscle={() => setProgressGroup(null)} /></View>;
   if (page === 'muscles') return <View style={{ flex: 1 }}><PrimaryButton secondary onPress={() => setPage(null)}>Back to Jim</PrimaryButton><MusclesScreen openHistory={() => { setProgressGroup(null); setPage('progress'); }} openProgress={group => { setProgressGroup(group); setPage('progress'); }} /></View>;
@@ -358,10 +373,11 @@ export function HomeScreen({ openLog, openActivity }) {
   </ScrollView>;
   if (page === 'workout') return <View style={{ flex: 1 }}>
     <PrimaryButton secondary onPress={() => { clearCamera(); setPage(null); }}>Back to Jim</PrimaryButton>
-    {cameraEnabled ? <CoachScreen openLog={openLog} /> : <ScrollView contentContainerStyle={{ padding: 20 }}>
+    {cameraEnabled ? <CoachScreen openLog={openLog} /> : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 48, maxWidth: 760, width: "100%", alignSelf: "center" }}>
       <Text style={type.h1}>{active?.name ?? 'Workout'}</Text>
-      <Text style={type.body}>Camera is off. Record your sets manually.</Text>
-      <PrimaryButton disabled={!active} onPress={() => openLog()}>Log a set</PrimaryButton>
+      <Text style={[type.body, { marginBottom: 12 }]}>Camera is off. Tick each set as you finish it.</Text>
+      <WorkoutChecklist />
+      <PrimaryButton secondary disabled={!active} onPress={() => openLog()}>Log another set</PrimaryButton>
       <PrimaryButton secondary onPress={() => setCameraEnabled(true)}>Use camera instead</PrimaryButton>
       <PrimaryButton secondary onPress={() => { finishWorkout(); endMission(); setPage(null); }}>Finish workout</PrimaryButton>
     </ScrollView>}
@@ -390,6 +406,7 @@ export function HomeScreen({ openLog, openActivity }) {
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={compact ? 'Replay greeting' : 'Replay greeting aloud'} onPress={replayWelcome} style={st.voiceChipQuiet}><Icon name="replay" size={16} color={T.accentText} /><Text style={{ color: T.accentText, fontSize: 12 }}>Replay greeting</Text></TouchableOpacity>
           </View>
           <Text style={[st.quickDetail, { textAlign: 'center', maxWidth: 480, marginTop: 12 }]}>Type, or tap Talk to dictate with your keyboard's microphone; Jim reads replies aloud. JimBro never records audio.</Text>
+          <TodayCard onStart={startToday} onOpenTraining={() => setPage('training')} onBuild={() => send('Build me a training program')} />
           <View style={st.quickGrid}>{QUICK.map(q => <TouchableOpacity accessibilityRole="button" accessibilityLabel={q.title} key={q.title} onPress={() => send(q.message)} style={[st.quickCard, { width: compact ? '100%' : '48.8%' }]}><View style={st.quickIcon}><Icon name={q.icon} color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={st.quickTitle}>{q.title}</Text><Text style={st.quickDetail}>{q.detail}</Text></View><Icon name="arrow-top-right" size={17} color={T.textMute} /></TouchableOpacity>)}</View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${health.text}. Open progress.`} onPress={() => go?.('Progress')} style={st.health}><Icon name="pulse" color={T.accent} size={16} /><Text style={{ color: T.textMute, fontSize: 12, flexShrink: 1 }}>{health.text}</Text></TouchableOpacity>
         </View> : messages.map((m, index) => {

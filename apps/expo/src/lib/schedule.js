@@ -18,12 +18,19 @@ export const DEFAULT_DAYS = {
 
 const weekMap = (days) => Object.fromEntries(WEEKDAYS.map((d) => [d, days.includes(d) ? days.filter((x) => WEEKDAYS.indexOf(x) < WEEKDAYS.indexOf(d)).length : null]));
 
+// This week if none of its training days has passed yet, otherwise next Monday.
+function firstFullWeek(today, days) {
+  const monday = weekStartOf(today);
+  const passed = days.some((d) => addDays(monday, WEEKDAYS.indexOf(d)) < today);
+  return passed ? addDays(monday, 7) : monday;
+}
+
 export function createSchedule(program, { startDate, timeZone = deviceTimeZone(), trainingDays, missedPolicy = 'keep_calendar', now = new Date() } = {}) {
   const perWeek = program.intake.daysPerWeek;
   const days = trainingDays ?? DEFAULT_DAYS[perWeek];
   return {
     schema: SCHEDULE_SCHEMA, programId: program.id, timeZone, missedPolicy,
-    startDate: startDate ?? weekStartOf(dayKey(now, timeZone)),
+    startDate: startDate ?? firstFullWeek(dayKey(now, timeZone), days),
     week: weekMap([...days].sort((a, b) => WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b))),
     overrides: {},
   };
@@ -62,8 +69,8 @@ export function planFor(date, { schedule, program, history = [], today } = {}) {
   const now = today ?? dayKey(new Date(), tz);
   const weekday = weekdayOf(date);
   const base = { date, weekday, day: WEEKDAY_NAMES[weekday], rescheduled: date in (schedule.overrides ?? {}) };
-  if (date < schedule.startDate) return { ...base, type: 'none', status: 'none' };
   const done = doneDates(history, tz);
+  if (date < schedule.startDate) return { ...base, type: 'none', status: done.has(date) ? 'completed' : 'none' };
   const perWeek = program.intake.daysPerWeek;
   const idx = assigned(schedule, date);
   const status = (type) => (done.has(date) ? 'completed' : type === 'rest' ? 'rest' : date < now ? 'missed' : 'scheduled');
