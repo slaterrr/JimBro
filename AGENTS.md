@@ -57,6 +57,25 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 | User journeys (Playwright: first-run setup, log a set, chat + confirm/cancel, safety, last-workout answer, mission → Coach, plan, Progress tabs/dropdowns, muscles, persona, persistence) | `cd apps/expo && npm run test:e2e` (needs Chrome; runs in CI job `ui-smoke`) |
 | AI proxy tests (SDK mocked) | `cd server/jim-proxy && npm ci && npm test` (15 pass) |
 
+## Chat-centered MVP integration (codex/chat-mvp)
+
+- Builds on main `70891a3` and merged Claude contributions #47/#55/#62.
+- One responsive conversation workspace; camera/progress/muscles/plan/import are
+  inline tools. Existing settings/form sheets remain reachable. No tab switching
+  is needed to chat alongside a workout.
+- Strict, independently validated proxy tools: `show_panel`, `get_live_session`,
+  visible tool receipts; existing confirm-first writes remain authoritative.
+- Camera sets save via an inline confirmation card (measured reps/timing,
+  user-reported added load/RPE). One-shot, revalidated, five-minute save cards.
+- Stop/pain preempt pending model replies and release the camera. No frame-wise
+  model calls; no video saved/uploaded; offline mode stays explicit.
+- Checks: app **580**, vision **51**, proxy **44**, Playwright **20** pass. Android
+  and iOS exports build. E2E replays recorded real squat landmarks (2 reps), not a
+  physical camera trial. No live Claude key was available in this environment.
+- `npm run test:chat` / `test:ui` in apps/expo builds a test-only export and uses
+  production HTTP with an injected SDK. Full report: `docs/CHAT_MVP.md`.
+- GitHub API access returned 401; do not claim a remote PR/deployment exists.
+
 ## Feature status
 
 Legend: ✅ done + automated tests · 🧪 done, needs device/real-data validation · 🚧 in progress · 📋 planned · ❌ not doing

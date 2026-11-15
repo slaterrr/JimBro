@@ -13,6 +13,20 @@ you hands-free. Video never leaves the phone.
 |---|---|---|---|
 | ![Home](docs/design/expo-Home.png) | ![Muscles](docs/design/expo-Muscles.png) | ![Progress](docs/design/expo-Progress.png) | ![Coach](docs/design/expo-Coach.png) |
 
+## Chat-centered MVP (codex/chat-mvp)
+
+The conversation now hosts the camera, progress/history, muscle map, plans and imports.
+Jim can open local tools and read measured reps; saving, correcting or deleting a set
+requires a revalidated confirmation card. Video stays on the device.
+
+![Desktop chat workspace — screenshot from the controlled E2E fixture](docs/design/chat-mvp-desktop-fixture.png)
+
+Run `npm run test:chat` in `apps/expo` for the Playwright suite: 20 browser scenarios
+through the production HTTP server with a mocked Claude SDK. Engine/helper/API tests:
+580 app + 51 vision + 44 proxy passing; Android/iOS exports build. This is integration
+validation, not a new physical-camera accuracy study or a live Claude benchmark.
+See [the implementation and setup report](docs/CHAT_MVP.md).
+
 ## Try it in a minute
 ```bash
 cd apps/expo

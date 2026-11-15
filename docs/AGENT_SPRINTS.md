@@ -83,3 +83,13 @@ Telemetry: event/action metadata only (ids, types, latency, outcome). No video, 
 | S3 | 📋 | | |
 | S4 | 📋 | | |
 | S5 | 📋 | | |
+
+## Chat workspace integration (codex/chat-mvp)
+
+The MVP conversation now embeds the existing tools and introduces strict
+`show_panel` / `get_live_session` proxy tools, one-shot expiring save cards,
+stop/pain preemption, and production-HTTP Playwright coverage. See
+`CHAT_MVP.md` for exact scope and results. This is a scoped integration of
+existing engines; it does **not** claim the unimplemented general session
+reducer, event policy registry, telemetry or ten physical-phone rehearsals
+from S1–S5 are complete.
