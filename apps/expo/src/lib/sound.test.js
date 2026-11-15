@@ -8,6 +8,17 @@ const fakeEngine = () => {
   return { calls, speak: (text, opts) => calls.push(['speak', text, opts]), stop: () => calls.push(['stop']) };
 };
 
+test('disabled app voice blocks saved preferences and forced replies', async () => {
+  const engine = fakeEngine();
+  engine.setAudioMode = () => engine.calls.push(['audio']);
+  const voice = createVoice(engine, () => ({ speak: true }), { enabled: false });
+  assert.equal(voice.say('hello'), false);
+  assert.equal(voice.say('forced', { force: true }), false);
+  assert.equal(voice.cue('rep', { force: true }), false);
+  await voice.enableAudio();
+  assert.deepEqual(engine.calls, []);
+});
+
 test('Jim speaks by default for new users', () => {
   assert.equal(migrateVoiceSettings(undefined).speak, true);
 });
