@@ -14,7 +14,7 @@ describe('spokenReport', () => {
     const reps = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1200, 1200, 1200].map(rep);
     const report = setReport({ movement: 'curl', reps, target: 12, quality: { frames: 100, okFrames: 95, issues: { arm_swing: 2 }, partials: 0 } });
     const s = spokenReport(report);
-    assert.equal(s, "10 of 12 curls. 2 weren't counted: arm swing. Your last reps were 20% slower — keep this weight.");
+    assert.equal(s, "10 of 12 curls. 2 tracking interruptions: arm swing. Your last reps were 20% slower — keep this weight.");
     assert.ok(words(s) < 25);
   });
   it('handles a clean set without a target', () => {

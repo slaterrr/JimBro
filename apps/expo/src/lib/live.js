@@ -400,7 +400,7 @@ export class LiveSession {
     const q = this._q ?? { frames: 0, okFrames: 0, issues: {} };
     const lastRepEnd = this.reps.length ? this.reps[this.reps.length - 1].end_ms : -Infinity;
     return {
-      frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, partials: this.counter.partials,
+      frames: q.frames, okFrames: q.okFrames, issues: { ...q.issues }, interruptedMovements: this.blocked.length, partials: this.counter.partials,
       partialAfterLastRep: this._lastPartialT != null && this._lastPartialT > lastRepEnd,
     };
   }

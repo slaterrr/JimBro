@@ -34,7 +34,7 @@ export function setReport({ movement, reps = [], quality = null, rpe = null, tar
     suggestions.push({ id: 'steady', text: 'Keep the phone still and only you in frame; tracking jumps pause counting.', evidence: `Tracking jumped ${issues.implausible_motion} times.` });
   }
   if ((issues.arm_swing ?? 0) >= 2) {
-    suggestions.push({ id: 'elbow', text: 'Keep your elbow pinned to your side; swinging reps are not counted.', evidence: `${issues.arm_swing} movements were rejected for upper-arm swing.` });
+    suggestions.push({ id: 'elbow', text: 'Keep your elbow pinned to your side; counting pauses when tracking detects upper-arm swing.', evidence: `${issues.arm_swing} tracking interruptions involved upper-arm swing.` });
   }
   if (partials >= 2) {
     suggestions.push({ id: 'range', text: 'Use the full range of motion so every rep counts.', evidence: `${partials} partial reps did not reach full range.` });
@@ -68,7 +68,7 @@ export function setReport({ movement, reps = [], quality = null, rpe = null, tar
     });
   }
 
-  return { movement, counted, target, rpe, partials, issues, trackingPct, repDurationsMs, tempo, suggestions, variants, effort };
+  return { movement, counted, target, rpe, partials, issues, interruptedMovements: quality?.interruptedMovements ?? null, trackingPct, repDurationsMs, tempo, suggestions, variants, effort };
 }
 
 /** Summarize the camera-counted sets of one workout. */
