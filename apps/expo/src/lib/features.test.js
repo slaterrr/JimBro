@@ -72,8 +72,8 @@ const WIRING = {
     [/MUSCLE_GROUPS/, 'tap-select focus muscles'],
   ],
   'components/Login.js': [
-    [/signUp(/, 'sign up with email + password'],
-    [/signIn(/, 'sign in'],
+    [/signUp\(/, 'sign up with email + password'],
+    [/signIn\(/, 'sign in'],
     [/secureTextEntry/, 'password is hidden'],
     [/Create account/, 'Create account button'],
   ],
@@ -81,8 +81,8 @@ const WIRING = {
     [/Sign out/, 'sign out from settings'],
   ],
   '../App.jsx#auth': [
-    [/<Login/, 'login screen before the app'],
-    [/dataKeyFor(/, 'each account has its own data'],
+    [/<Login\b/, 'login screen before the app'],
+    [/dataKeyFor\(/, 'each account has its own data'],
   ],
   '../App.jsx': [
     [/<Onboarding\b/, 'first-run setup mounted'],
