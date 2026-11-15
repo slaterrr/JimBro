@@ -1,4 +1,4 @@
-// JimBro design tokens (dark glass with a seafoam accent, neon green for gains).
+// JimBro design tokens (dark blue glass with Jim's body-blue accent, green for gains).
 import { StyleSheet } from 'react-native';
 
 import { ACCENT, BG, SURFACES } from './lib/palette.js';
@@ -7,7 +7,7 @@ export const T = {
   bg: BG,
   ...SURFACES,
   ...ACCENT,
-  // Legacy names kept for other branches: they now resolve to seafoam, not purple.
+  // Legacy names kept for other branches: they now resolve to Jim blue.
   purple: ACCENT.accent,
   purpleDeep: ACCENT.accentDeep,
   purpleSoft: ACCENT.accentSoft,
@@ -18,9 +18,9 @@ export const T = {
   red: '#ef4444',
   amber: '#f5c451',
   text: '#ffffff',
-  textDim: '#b3c2be',
-  textMute: '#7a8a86',
-  rest: '#56605e',
+  textDim: '#b7c7d3',
+  textMute: '#8298a8',
+  rest: '#556674',
 };
 
 export const R = { sm: 10, md: 16, lg: 22, xl: 28, pill: 999 };

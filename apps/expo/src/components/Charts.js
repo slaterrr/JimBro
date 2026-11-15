@@ -1,5 +1,5 @@
 // Line chart (Total Strength) and bar chart (weekly volume), styled like the mockup:
-// seafoam 2px line with dot markers over a gradient area, recessive axis labels.
+// accent line with dot markers over a gradient area, recessive axis labels.
 import React from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Line, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';

@@ -1,22 +1,22 @@
 // Pure colour values (no React Native) so contrast can be unit-tested; theme.js builds T from these.
 
-export const BG = '#060a09';
+export const BG = '#070c12';
 
 export const SURFACES = {
-  surface: '#0e1514',
-  card: 'rgba(20, 31, 29, 0.92)',
-  cardSolid: '#141e1c',
-  border: '#22312e',
-  borderStrong: '#30443f',
+  surface: '#101922',
+  card: 'rgba(21, 34, 46, 0.92)',
+  cardSolid: '#15222e',
+  border: '#263b4b',
+  borderStrong: '#395568',
 };
 
 export const ACCENT = {
-  accent: '#3ec9a7', // seafoam: icons, active states, button fill, chart line
-  accentDeep: '#1f8f78', // gradient ends, strokes
-  accentSoft: 'rgba(62, 201, 167, 0.18)', // selected pill / bubble fill
-  accentText: '#a7f3df', // light seafoam text on dark
-  accentLight: '#c9f8ec', // highlight dots
-  onAccent: '#04201a', // text drawn on an accent fill
+  accent: '#98ccea', // sampled from JimBro_v2.png's blue body
+  accentDeep: '#4b91ba', // gradient ends, strokes
+  accentSoft: 'rgba(152, 204, 234, 0.18)', // selected pill / bubble fill
+  accentText: '#c5e5f7', // light blue text on dark
+  accentLight: '#e3f4ff', // highlight dots
+  onAccent: '#0a2233', // text drawn on an accent fill
 };
 
 const channel = (c) => {
