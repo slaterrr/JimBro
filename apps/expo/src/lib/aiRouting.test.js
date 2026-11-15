@@ -35,3 +35,12 @@ test('every Claude route explains why, so the UI can show it', () => {
   assert.ok(r.reason.length > 10);
   assert.deepEqual(Object.keys(AI_TASKS).sort(), ['complex_question', 'conflict', 'goal_change', 'weekly_review', 'workout_review']);
 });
+
+test('askJim sends the routed task to the proxy and labels the reply', async () => {
+  const { askJim } = await import('./jimAI.js');
+  let sent;
+  const fetchImpl = async (_u, o) => { sent = JSON.parse(o.body); return { ok: true, json: async () => ({ reply: 'Good week.', proposals: [] }) }; };
+  const r = await askJim({ message: 'weekly review', state: { settings: {}, history: [] }, url: 'http://x', fetchImpl, task: 'weekly_review' });
+  assert.equal(sent.task, 'weekly_review');
+  assert.equal(r.task, 'weekly_review');
+});
