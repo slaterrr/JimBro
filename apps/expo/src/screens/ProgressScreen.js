@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { Comparisons } from '../components/Comparisons.js';
+import { Comparisons, ComparisonResults } from '../components/Comparisons.js';
 import { MuscleProgress } from '../components/MuscleProgress.js';
 import { useApp } from '../AppState.js';
 import { BarChart, LineChart } from '../components/Charts.js';
@@ -63,6 +63,7 @@ function HistoryItem({ workout, canRepeat, onRepeat, onDelete }) {
 }
 
 export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null, onClearMuscle }) {
+  const [comparison, setComparison] = useState(null);
   const { history, active, settings, startWorkout, deleteWorkout, plan, goals, addGoal, removeGoal } = useApp();
   const [adding, setAdding] = useState(false);
   const [health, setHealth] = useState(false);
@@ -81,6 +82,13 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
       { text: 'Delete', style: 'destructive', onPress: () => deleteWorkout(w.id) },
     ]);
 
+  if (comparison) return (
+    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+      <Text style={[type.h1, { marginBottom: 16 }]}>Comparison results</Text>
+      <ComparisonResults comparison={comparison} onBack={() => setComparison(null)} />
+    </ScrollView>
+  );
+
   if (muscleGroup) return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <Text style={type.h1}>Progression</Text>
@@ -94,7 +102,7 @@ export function ProgressScreen({ go, initialTab = 'overview', muscleGroup = null
       <Segmented options={[['overview', 'Overview'], ['strength', 'Strength'], ['history', 'History'], ['goals', 'Goals']]} value={['volume', 'prs'].includes(tab) ? 'overview' : tab} onChange={setTab} />
       {['volume', 'prs'].includes(tab) ? <PrimaryButton secondary onPress={() => setTab('overview')}>Back to Overview</PrimaryButton> : null}
 
-      {tab === 'overview' ? <Comparisons history={history} unit={unit} /> : null}
+      {tab === 'overview' ? <Comparisons history={history} unit={unit} onSubmit={setComparison} /> : null}
       {tab === 'overview' ? (
         <>
           <Card style={{ marginTop: 14 }}>
