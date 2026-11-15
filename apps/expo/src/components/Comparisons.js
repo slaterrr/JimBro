@@ -6,7 +6,7 @@ import { defaultPair, periods, metrics } from '../lib/comparison.js';
 import { T, type } from '../theme.js';
 
 const FRAMES = [['workout', 'Workout to workout'], ['month', 'Month to month'], ['year', 'Year to year']];
-const JIM_MASCOT = require('../../assets/jim-comparison@3x.png');
+const JIM_MASCOT = require('../../assets/jim-comparison.png');
 
 export function Comparisons({ history, unit, onSubmit }) {
   const [mode, setMode] = useState('workout');
