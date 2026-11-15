@@ -7,16 +7,20 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { allowRequest, authorized, handleChat } from './jim.js';
 import { healthReply } from './health.js';
+import { assertSafeStartup, clientAddress } from './httpSecurity.js';
 import { bodyLimitFor, handlePhysique } from './physique.js';
 import { handlePlan } from './plan.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ORIGIN = process.env.ALLOW_ORIGIN ?? '*';
+// Only enable behind a Cloudflare-only ingress that rejects direct connections.
+const TRUST_CLOUDFLARE = process.env.TRUST_CLOUDFLARE_IP === '1';
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.error('ANTHROPIC_API_KEY is not set.');
   process.exit(1);
 }
+assertSafeStartup();
 const client = new Anthropic({ timeout: 30_000, maxRetries: 1 });
 if (!process.env.JIM_PROXY_KEY) console.warn('JIM_PROXY_KEY is not set: anyone on this network can use the proxy. Set it before exposing the proxy beyond your LAN.');
 
@@ -40,7 +44,7 @@ const server = http.createServer((req, res) => {
   const ROUTES = { '/chat': handleChat, '/physique': handlePhysique, '/plan': handlePlan };
   const handler = ROUTES[req.url];
   if (req.method !== 'POST' || !handler) return send(res, 404, { error: 'not found' });
-  const ip = req.headers['cf-connecting-ip'] ?? req.socket.remoteAddress ?? 'unknown';
+  const ip = clientAddress(req.headers, req.socket.remoteAddress, { trustCloudflare: TRUST_CLOUDFLARE });
   if (!authorized(req.headers)) return send(res, 401, { error: 'missing or wrong X-Jim-Key' });
   if (!allowRequest(ip)) return send(res, 429, { error: 'slow down' });
 
@@ -48,10 +52,12 @@ const server = http.createServer((req, res) => {
   const declared = Number(req.headers['content-length'] ?? 0);
   if (declared > limit) return send(res, 413, { error: 'body too large' });
   let raw = '';
+  let receivedBytes = 0;
   req.setEncoding('utf8');
   req.on('data', (chunk) => {
+    receivedBytes += Buffer.byteLength(chunk, 'utf8');
+    if (receivedBytes > limit) { send(res, 413, { error: 'body too large' }); req.destroy(); return; }
     raw += chunk;
-    if (raw.length > limit) { send(res, 413, { error: 'body too large' }); req.destroy(); }
   });
   req.on('end', async () => {
     if (res.headersSent) return;

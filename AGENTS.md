@@ -39,6 +39,11 @@ Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with
 - Added `/plan`: a bounded Claude preference pass only on explicit user button press. It can reorder deterministic exercises but cannot change sets, reps, durations or equipment. Home displays the result for separate save confirmation.
 - Local plan builder, normal chat/voice, camera analysis, and offline behavior remain unchanged. Backend/frontend tests specify rejection and local fallback.
 - This is **not** the complete personal-trainer integration brief; production auth, automatic post-set opt-in, richer voice interaction and mobile validation remain pending.
+## Proxy network boundary hardening (draft PR)
+- `server/jim-proxy/httpSecurity.js` rejects untrusted forwarding headers by default; `TRUST_CLOUDFLARE_IP=1` requires verified Cloudflare-only ingress.
+- Production startup fails without `JIM_PROXY_KEY`. This is only an interim guard, not per-user authentication. The shared Expo key is extractable; a real identity-aware gateway, backend-owned workout context and per-user quotas remain necessary for public release.
+- Byte limits apply to UTF-8 request bytes, not string character count. Tests live in `httpSecurity.test.js`.
+- No change to offline coach, AI tools or user-confirmation semantics. Device verification and authenticated production rollout remain pending.
 
 ## How to verify
 | What | Command |

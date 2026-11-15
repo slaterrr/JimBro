@@ -22,7 +22,7 @@ EXPO_PUBLIC_JIM_PROXY_URL=http://192.168.1.20:8787 npx expo start
 or set `expo.extra.jimProxyUrl` in `apps/expo/app.json`. With no URL, or if the proxy fails or
 times out, the app falls back to its rule-based Jim, so the demo never breaks.
 
-Optional env: `PORT` (8787), `ALLOW_ORIGIN` (CORS, default `*`).
+Optional env: `PORT` (8787), `ALLOW_ORIGIN` (CORS, default `*`), `TRUST_CLOUDFLARE_IP=1` only if all traffic is forced through verified Cloudflare ingress. In production (`NODE_ENV=production`), startup refuses to run without `JIM_PROXY_KEY`.
 
 ## API
 
@@ -69,9 +69,8 @@ The tests mock the Anthropic SDK client; they make no network calls and need no 
 ## Limits
 
 - The rate limit is per process memory; behind several instances or a proxy that hides client IPs
-  it is weaker. `cf-connecting-ip` is honoured if present.
-- No auth: anyone who has the URL can use your key up to the rate limit. Keep it on a LAN or add a
-  shared secret before exposing it publicly.
+  it is weaker. Incoming `cf-connecting-ip` is **not trusted by default** because a direct client can spoof it. Only set `TRUST_CLOUDFLARE_IP=1` behind restricted, verified Cloudflare ingress.
+- Local development with no `JIM_PROXY_KEY` permits unauthenticated use. Production (`NODE_ENV=production`) now requires a shared secret. **This does not provide real user authentication**: `EXPO_PUBLIC_JIM_PROXY_KEY` is extractable from the bundle, and a caller can supply arbitrary context. Before public release, place this service behind an identity-aware backend that verifies per-user tokens, constructs authorized workout context from server-side storage, applies per-account quotas and distributed rate limits, and enforces a spend cap. Restrict direct access to the proxy.
 - `handleChat` in `jim.js` only needs an object with `messages.create`, so a Cloudflare Worker
   wrapper is straightforward, but one is not included.
 
@@ -91,3 +90,12 @@ The tests mock the Anthropic SDK client; they make no network calls and need no 
    service URL and `EXPO_PUBLIC_JIM_PROXY_KEY` to the same key. The next `main` push publishes it.
 4. On a phone, the Home badge reads **AI** instead of **offline**. Free instances sleep after ~15 min idle;
    open `/health` a minute before demoing.
+
+## Deployment security checklist
+
+- [ ] Keep `ANTHROPIC_API_KEY` only in the hosting secret store, never Expo env or GitHub.
+- [ ] Require verified user identity at a trusted API gateway or application backend before granting public access. A bundled shared key is not authentication.
+- [ ] Build workout context from the authenticated user's records on the backend; do not trust user identifiers or activity supplied in a request body.
+- [ ] Enforce per-user and global AI spend, token, and request quotas at the gateway; the current IP limiter is a single-instance local backstop.
+- [ ] Use HTTPS; restrict the proxy ingress so unauthorized clients cannot bypass the gateway. A CORS allowlist alone is not access control.
+- [ ] Verify the on-device AI response and confirmation flow with live sessions before launch.
