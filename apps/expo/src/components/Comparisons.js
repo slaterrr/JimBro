@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { Card, Dropdown, PrimaryButton } from './kit.js';
 import { EXERCISES } from '../lib/exercises.js';
 import { defaultPair, periods, metrics } from '../lib/comparison.js';
@@ -38,7 +38,15 @@ export function ComparisonResults({ comparison, onBack }) {
   return <>
     <PrimaryButton secondary onPress={onBack}>Back to comparison</PrimaryButton>
     <Card style={{ marginTop: 14 }}>
-      <Text style={type.title}>{name} progress</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Text style={[type.title, { flex: 1, minWidth: 0 }]}>{name} progress</Text>
+        <Image
+          source={require('../../assets/jim-mascot.png')}
+          accessibilityLabel="Jim holding a barbell"
+          resizeMode="contain"
+          style={{ width: 88, height: 64 }}
+        />
+      </View>
       <Text style={type.body}>From: {from}</Text>
       <Text style={type.body}>To: {to}</Text>
       {['strength','volume'].map(key => {
