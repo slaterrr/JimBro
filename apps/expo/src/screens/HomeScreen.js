@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 import { useApp, useLiveCamera } from '../AppState.js';
 import { PlanCard } from '../components/ChatPlanCard.js';
@@ -10,6 +10,7 @@ import { Card, Field, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
 import { confirmedText, missionIntro } from '../lib/homeReplies.js';
+import { proxyStatusLine } from '../lib/aiStatus.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { nextWorkout } from '../lib/homeActions.js';
 import { parseMission, planMission } from '../lib/mission.js';
@@ -56,12 +57,13 @@ function CameraConfirm({ message, onConfirm, onCancel }) {
 
 export function HomeScreen({ openLog, openActivity }) {
   const app = useApp();
-  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, active, history, goals, plan, startMission, conversation } = app;
+  const { settings, say, voice, logSet, updateSet, deleteSet, startWorkout, finishWorkout, endMission, active, history, goals, plan, startMission, conversation } = app;
   const { snapshot: liveCamera, clear: clearCamera } = useLiveCamera();
   const { messages, busy: thinking, source, reason, error } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot);
   const [text, setText] = useState('');
   const [talk, setTalk] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [focused, setFocused] = useState(false);
   const { width } = useWindowDimensions();
   const desktop = width >= 1000;
   const compact = width < 400;
@@ -73,7 +75,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const [proxy, setProxy] = useState(PROXY_URL ? 'checking' : 'offline');
   const health = healthSummary({ history, active, goals, plan });
   const aiOn = source === 'ai' || (proxy === 'ok' && source !== 'offline');
-  const status = thinking ? 'Working on it…' : aiOn ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : proxy === 'checking' ? 'Connecting to Jim AI…' : 'Offline coach · AI service not connected';
+  const status = thinking ? 'Working on it…' : source === 'ai' ? 'Connected to Jim AI' : source === 'local' ? 'Answered from your workout data' : proxyStatusLine({ configured: Boolean(PROXY_URL), state: proxy }, source);
 
   useEffect(() => {
     if (!PROXY_URL) return undefined;
@@ -91,15 +93,17 @@ export function HomeScreen({ openLog, openActivity }) {
     voice.say(line, { force: true, onDone: () => talkRef.current && input.current?.focus() });
   };
   const closePanel = index => { if (conversation.getSnapshot().messages[index]?.panel === 'camera') clearCamera(); conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `${PANEL_LABELS[m.panel] ?? 'Tool'} closed.` } : m)); };
-  const openPanel = (panel, exercise) => {
+  const openPanel = (panel, exercise, options = {}) => {
     // Keep just one live camera mounted. Closing it releases the camera stream.
-    conversation.update(cur => [...cur.map(m => m.kind === 'panel' && m.panel === panel ? { kind: 'notice', text: `${PANEL_LABELS[panel]} reopened below.` } : m), { kind: 'panel', panel, ...(exercise ? { exercise } : {}) }]);
+    conversation.update(cur => [...cur.map(m => m.kind === 'panel' && m.panel === panel ? { kind: 'notice', text: `${PANEL_LABELS[panel]} reopened below.` } : m), { kind: 'panel', panel, ...options, ...(exercise ? { exercise } : {}) }]);
     setMenu(false);
   };
   const go = screen => openPanel({ Coach: 'camera', Progress: 'progress', Muscles: 'muscles' }[screen] ?? 'progress');
 
   const confirmIntent = (index) => {
-    const intent = conversation.claimConfirmation(index, p => Boolean(validateProposal(p, { history, active })));
+    const card = conversation.getSnapshot().messages[index];
+    if (card?.intent?.type === 'log' && !active) return;
+    const intent = conversation.claimConfirmation(index, p => Boolean(validateProposal(p, { history, active })) && (p.type !== 'log' || card.workoutId === active?.id));
     if (!intent) return;
     if (intent.type === 'log') intent.sets.forEach(x => logSet({ ...x, rpe: x.rpe ?? null, source: 'voice', reps_detail: [] }, 'Logged with Jim'));
     else if (intent.type === 'correct') updateSet(intent.target.setId, intent.changes);
@@ -114,13 +118,14 @@ export function HomeScreen({ openLog, openActivity }) {
       push({ me: false, text: 'No completed camera reps to save yet. You can also tell me your exercise, reps and weight to log a set manually.' });
       return;
     }
-    push({ kind: 'camera-confirm', camera });
+    push({ kind: 'camera-confirm', camera, workoutId: active?.id ?? null });
   };
   const confirmCamera = (index, reported) => {
-    const captured = conversation.claimConfirmation(index, m => m.camera?.reps.length > 0);
+    const captured = conversation.claimConfirmation(index, m => m.camera?.reps.length > 0 && Boolean(active) && m.workoutId === active.id);
     if (!captured) return;
     const c = captured.camera;
-    logSet({ exercise: c.movement, reps: c.reps.length, weight: reported.weight, unit: settings.unit, rpe: reported.rpe, source: 'camera', reps_detail: c.reps, camera_quality: c.quality, target: c.target, clips: c.clips }, 'Camera workout');
+    const saved = logSet({ exercise: c.movement, reps: c.reps.length, weight: reported.weight, unit: settings.unit, rpe: reported.rpe, source: 'camera', reps_detail: c.reps, camera_quality: c.quality, target: c.target, clips: c.clips });
+    if (!saved) return;
     conversation.update(cur => cur.map((m, i) => i === index ? { kind: 'notice', text: `Saved ${c.reps.length} measured reps of ${exerciseName(c.movement)}. Added weight and effort are user-reported.` } : m));
   };
 
@@ -151,7 +156,7 @@ export function HomeScreen({ openLog, openActivity }) {
         return { source: 'local', reply: 'Stopped. Your saved sets are safe. Tell me when you want to continue.', proposals: [] };
       }
       if (/^(finish|end|complete) (my |the )?(workout|session)[.!]?$/i.test(message)) {
-        finishWorkout(); clearCamera();
+        finishWorkout(); endMission(); clearCamera();
         conversation.update(cur => cur.map(m => m.kind === 'panel' && m.panel === 'camera' ? { kind: 'notice', text: 'Camera stopped.' } : m));
         return { source: 'local', reply: active?.sets.length ? `Workout finished. ${active.sets.length} saved sets are in your history.` : 'Workout finished. No sets were saved.', actions: [{ type: 'show_panel', panel: 'progress' }] };
       }
@@ -172,7 +177,8 @@ export function HomeScreen({ openLog, openActivity }) {
       const mutation = /\b(log|save|correct|change|delete|remove|fix)\b/i.test(message);
       const answer = mutation ? null : answerPerformance(message, { history, active }) ?? answerContext(message, { history, active, plan, settings, profile: settings.profile ?? {} });
       if (answer) return { source: 'local', reply: answer, proposals: [], toolCalls: [{ name: 'get_workout_context', status: 'completed' }] };
-      return askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY });
+      const response = await askJim({ message, history: historyFor(prior), state, url: PROXY_URL, key: PROXY_KEY });
+      return { ...response, workoutId: active?.id ?? null };
     });
     // Model-triggered panels use the same renderer and camera lifecycle as local actions.
     if (result?.actions?.some(a => a.panel === 'camera')) {
@@ -197,9 +203,9 @@ export function HomeScreen({ openLog, openActivity }) {
   const renderPanel = (m, index) => <View key={index} testID={`chat-panel-${m.panel}`} style={st.panel}>
     <View style={st.panelHeader}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={m.panel === 'camera' ? 'camera-outline' : 'view-dashboard-outline'} size={18} color={T.accent} /><Text style={st.panelTitle}>{PANEL_LABELS[m.panel]}</Text></View><SmallButton icon="close" label={`Close ${m.panel}`} onPress={() => closePanel(index)} /></View>
     {m.panel === 'camera' ? <View style={{ height: 620, maxHeight: 740 }}><CoachScreen openLog={captureSet} initialExercise={m.exercise} /></View>
-      : m.panel === 'progress' ? <View style={{ height: 540 }}><ProgressScreen go={go} /></View>
-      : m.panel === 'muscles' ? <View style={{ height: 550 }}><MusclesScreen openLog={openLog} openHistory={() => go?.('Progress')} /></View>
-      : m.panel === 'plan' ? <View style={{ padding: 16 }}><PlanCard onStart={() => openPanel('camera')} /><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>
+      : m.panel === 'progress' ? <View style={{ height: 540 }}><ProgressScreen go={go} muscleGroup={m.muscleGroup} onClearMuscle={() => conversation.update(cur => cur.map((item, i) => i === index ? { ...item, muscleGroup: null } : item))} /></View>
+      : m.panel === 'muscles' ? <View style={{ height: 550 }}><MusclesScreen openProgress={group => openPanel('progress', undefined, { muscleGroup: group })} openHistory={() => go?.('Progress')} /></View>
+      : m.panel === 'plan' ? <View style={{ padding: 16 }}><PlanCard proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onStart={() => openPanel('camera')} /><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>
       : <View style={{ padding: 16 }}><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>}
   </View>;
 
@@ -237,7 +243,7 @@ export function HomeScreen({ openLog, openActivity }) {
       </View>
       <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={[st.thread, { paddingHorizontal: compact ? 16 : 28 }, !messages.length && { justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
         {!messages.length ? <View style={st.welcome}>
-          <View style={st.heroMark}><JimBars height={40} /><View style={st.heroSpark}><Icon name="star-four-points" color={T.accentText} size={17} /></View></View>
+          <Image source={require('../../assets/jim-mascot.png')} accessibilityLabel="Blue Jim holding a barbell" resizeMode="contain" style={st.mascot} />
           <Text style={st.eyebrow}>YOUR SPACE TO GET STRONGER</Text>
           <Text style={[st.heroTitle, { fontSize: compact ? 34 : desktop ? 52 : 40, lineHeight: compact ? 42 : desktop ? 62 : 50 }]}>Big goals.{"\n"}<Text style={{ color: T.accentText }}>One conversation.</Text></Text>
           <Text style={st.heroSubtitle}>A coach, a workout partner, a little accountability.{"\n"}Tell me what you’re working toward. We’ll take it from here.</Text>
@@ -249,7 +255,7 @@ export function HomeScreen({ openLog, openActivity }) {
           if (m.kind === 'notice') return <View key={index} style={st.notice}><Icon name="check-circle-outline" color={T.accent} size={16} /><Text style={{ color: T.textDim, fontSize: 13, lineHeight: 20, flex: 1 }}>{m.text}</Text></View>;
           if (m.kind === 'camera-confirm') return <CameraConfirm key={m.confirmationId} message={m} onConfirm={reported => confirmCamera(index, reported)} onCancel={() => cancelCard(index)} />;
           if (m.kind === 'mission') return <MissionCard key={index} mission={m.mission} onStart={() => { if (conversation.getSnapshot().messages[index]?.kind !== 'mission') return; startMission(m.mission); conversation.update(cur => cur.map((item, i) => i === index ? { kind: 'notice', text: 'Mission started. Your workout studio is ready below.' } : item)); openPanel('camera'); }} onCancel={() => cancelCard(index)} />;
-          if (m.kind === 'confirm') return <Card key={m.confirmationId} style={st.confirmCard}><Text style={st.eyebrow}>YOUR CALL</Text><Text style={[type.title, { marginTop: 10 }]}>{m.intent.type === 'delete' ? 'Delete this set?' : m.intent.type === 'correct' ? 'Update your set?' : 'Add to your workout?'}</Text><Text style={[type.body, { marginTop: 8 }]}>{m.intent.summary}</Text><Text style={[type.small, { marginTop: 8 }]}>Nothing changes until you confirm. This proposal expires in 5 minutes.</Text><View style={{ flexDirection: 'row', gap: 10 }}><PrimaryButton style={{ flex: 1 }} onPress={() => confirmIntent(index)}>Confirm</PrimaryButton><PrimaryButton secondary style={{ flex: 1 }} onPress={() => cancelCard(index)}>Cancel</PrimaryButton></View></Card>;
+          if (m.kind === 'confirm') return <Card key={m.confirmationId} style={st.confirmCard}><Text style={st.eyebrow}>YOUR CALL</Text><Text style={[type.title, { marginTop: 10 }]}>{m.intent.type === 'delete' ? 'Delete this set?' : m.intent.type === 'correct' ? 'Update your set?' : 'Add to your workout?'}</Text><Text style={[type.body, { marginTop: 8 }]}>{m.intent.summary}</Text><Text style={[type.small, { marginTop: 8 }]}>{m.intent.type === 'log' && !active ? 'Start a workout, then ask Jim to log these sets again. ' : ''}Nothing changes until you confirm. This proposal expires in 5 minutes.</Text><View style={{ flexDirection: 'row', gap: 10 }}><PrimaryButton style={{ flex: 1 }} disabled={m.intent.type === 'log' && !active} onPress={() => confirmIntent(index)}>Confirm</PrimaryButton><PrimaryButton secondary style={{ flex: 1 }} onPress={() => cancelCard(index)}>Cancel</PrimaryButton></View></Card>;
           return <View key={index} style={[st.message, m.me && st.userMessage]}>
             {!m.me ? <View style={st.messageAvatar}><JimBars height={18} /></View> : null}
             <View style={[st.messageBody, m.me && st.userBubble, m.safety && { borderLeftColor: T.amber, borderLeftWidth: 2, paddingLeft: 16 }]}>{!m.me ? <Text style={st.messageName}>Jim <Text style={{ color: T.textMute, fontWeight: '400' }}>· your training partner</Text></Text> : null}<Text selectable style={st.messageText}>{m.text}</Text>{m.suggestion ? <TouchableOpacity accessibilityRole="button" onPress={() => send(`Log ${m.suggestion.reps} ${exerciseName(m.suggestion.exercise)} at ${m.suggestion.weight} ${m.suggestion.unit}`)}><Text style={{ color: T.accentText, marginTop: 8 }}>Review suggested set →</Text></TouchableOpacity> : null}</View>
@@ -260,10 +266,11 @@ export function HomeScreen({ openLog, openActivity }) {
         {error ? <Text accessibilityRole="alert" style={{ color: T.amber, marginVertical: 10 }}>{error}</Text> : null}
       </ScrollView>
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
-        <View style={st.composer}>
-          <TextInput ref={input} value={text} onChangeText={setText} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
+        <View style={[st.composer, focused && { borderColor: T.accent }]}>
+          <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={setText} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder={talk ? 'Use your keyboard microphone to talk…' : 'Ask anything about your training…'} placeholderTextColor={T.textMute} style={st.input} />
           <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><SmallButton icon={talk ? 'volume-high' : 'microphone-outline'} label={talk ? 'Stop talk mode' : 'Dictate (use the keyboard microphone)'} active={talk} onPress={toggleTalk} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{talk ? 'Talk mode' : aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
         </View>
+        <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
         <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>
       </View>
     </View>
@@ -272,63 +279,65 @@ export function HomeScreen({ openLog, openActivity }) {
 }
 
 const st = StyleSheet.create({
-  workspace: { flex: 1, flexDirection: 'row', backgroundColor: '#151a18' },
-  sidebar: { width: 252, backgroundColor: '#101512', paddingHorizontal: 18, paddingTop: 28, borderRightWidth: 1, borderRightColor: '#28302b', flexShrink: 0 },
+  workspace: { flex: 1, flexDirection: 'row', backgroundColor: T.chat.background },
+  sidebar: { width: 252, backgroundColor: T.chat.sidebar, paddingHorizontal: 18, paddingTop: 28, borderRightWidth: 1, borderRightColor: T.border, flexShrink: 0 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, marginBottom: 32 },
-  brandMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#253e34', alignItems: 'center', justifyContent: 'center' },
+  brandMark: { width: 34, height: 34, borderRadius: 11, backgroundColor: T.chat.tinted, alignItems: 'center', justifyContent: 'center' },
   brandName: { color: T.text, fontSize: 25, fontWeight: '700', letterSpacing: -1, flex: 1 },
-  newChat: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 46, borderWidth: 1, borderColor: '#365647', backgroundColor: '#1b2e25', borderRadius: 10, paddingHorizontal: 12, marginBottom: 32 },
-  sideLabel: { color: '#80958a', fontSize: 10, fontWeight: '600', letterSpacing: 1.5, marginLeft: 12, marginBottom: 14 },
+  newChat: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 46, borderWidth: 1, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted, borderRadius: 10, paddingHorizontal: 12, marginBottom: 32 },
+  sideLabel: { color: T.textMute, fontSize: 10, fontWeight: '600', letterSpacing: 1.5, marginLeft: 12, marginBottom: 14 },
   navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, paddingHorizontal: 12, borderRadius: 8, marginBottom: 4 },
-  navActive: { backgroundColor: '#232e27' },
-  navText: { color: '#a9b7ae', fontSize: 13, flex: 1 },
+  navActive: { backgroundColor: T.chat.selected },
+  navText: { color: T.textDim, fontSize: 13, flex: 1 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent },
-  sideDivider: { height: 1, backgroundColor: '#29312c', marginHorizontal: 10, marginTop: 24, marginBottom: 26 },
-  sideInfo: { color: '#83998b', fontSize: 12, paddingHorizontal: 12 },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: '#29312c', paddingVertical: 22, marginTop: 16 },
-  avatar: { width: 34, height: 34, borderRadius: 18, backgroundColor: '#2c3a30', alignItems: 'center', justifyContent: 'center' },
-  activeSession: { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, backgroundColor: '#20382c', borderRadius: 10 },
+  sideDivider: { height: 1, backgroundColor: T.border, marginHorizontal: 10, marginTop: 24, marginBottom: 26 },
+  sideInfo: { color: T.textMute, fontSize: 12, paddingHorizontal: 12 },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: T.border, paddingVertical: 22, marginTop: 16 },
+  avatar: { width: 34, height: 34, borderRadius: 18, backgroundColor: T.chat.selected, alignItems: 'center', justifyContent: 'center' },
+  activeSession: { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, backgroundColor: T.chat.tinted, borderRadius: 10 },
   main: { flex: 1, minWidth: 0 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 30, minHeight: 79, borderBottomWidth: 1, borderBottomColor: '#29312c' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 30, minHeight: 79, borderBottomWidth: 1, borderBottomColor: T.border },
   headerDot: { width: 7, height: 7, backgroundColor: T.accent, borderRadius: 4 },
-  headerTitle: { color: '#f3f5ee', fontWeight: '600', fontSize: 14 },
-  status: { color: '#9aaca1', fontSize: 11, marginTop: 5 },
+  headerTitle: { color: T.text, fontWeight: '600', fontSize: 14 },
+  status: { color: T.textMute, fontSize: 11, marginTop: 5 },
   smallButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexShrink: 0 },
   thread: { flexGrow: 1, width: '100%', maxWidth: 870, alignSelf: 'center', paddingTop: 28, paddingBottom: 30 },
   welcome: { alignItems: 'center', paddingVertical: 22 },
-  heroMark: { width: 78, height: 78, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: '#3c5949', backgroundColor: '#243d30', marginBottom: 28, transform: [{ rotate: '-5deg' }] },
-  heroSpark: { position: 'absolute', right: -8, top: -8, width: 26, height: 26, backgroundColor: '#151a18', borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#9caf9e', fontSize: 10, letterSpacing: 2, fontWeight: '600' },
-  heroTitle: { color: '#f2f3e9', textAlign: 'center', fontFamily: Platform.OS === 'web' ? 'Georgia, serif' : undefined, fontWeight: '400', letterSpacing: -1.5, marginTop: 16 },
-  heroSubtitle: { color: '#a5b4a9', fontSize: 14, lineHeight: 23, textAlign: 'center', marginTop: 18, maxWidth: 480 },
+  mascot: { width: 194, height: 130, marginBottom: 20 },
+  heroMark: { width: 78, height: 78, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted, marginBottom: 28, transform: [{ rotate: '-5deg' }] },
+  heroSpark: { position: 'absolute', right: -8, top: -8, width: 26, height: 26, backgroundColor: T.chat.background, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: T.highlight, fontSize: 10, letterSpacing: 2, fontWeight: '600' },
+  heroTitle: { color: T.text, textAlign: 'center', fontFamily: Platform.OS === 'web' ? 'Georgia, serif' : undefined, fontWeight: '400', letterSpacing: -1.5, marginTop: 16 },
+  heroSubtitle: { color: T.textDim, fontSize: 14, lineHeight: 23, textAlign: 'center', marginTop: 18, maxWidth: 480 },
   quickGrid: { width: '100%', maxWidth: 660, flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 34 },
-  quickCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1, borderColor: '#354136', borderRadius: 13, backgroundColor: '#1d2620', minHeight: 86 },
-  quickIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#2a3a2e', alignItems: 'center', justifyContent: 'center' },
-  quickTitle: { color: '#e5ece3', fontSize: 13, fontWeight: '600' },
-  quickDetail: { color: '#9aab9c', fontSize: 11, marginTop: 6, lineHeight: 15 },
+  quickCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderWidth: 1, borderColor: T.border, borderRadius: 13, backgroundColor: T.chat.raised, minHeight: 86 },
+  quickIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: T.chat.selected, alignItems: 'center', justifyContent: 'center' },
+  quickTitle: { color: T.text, fontSize: 13, fontWeight: '600' },
+  quickDetail: { color: T.textMute, fontSize: 11, marginTop: 6, lineHeight: 15 },
   health: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, marginTop: 18, minHeight: 44 },
   message: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 25 },
   userMessage: { justifyContent: 'flex-end', marginTop: 16 },
-  messageAvatar: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#2a4031' },
+  messageAvatar: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: T.chat.tinted },
   messageBody: { flexShrink: 1, paddingTop: 3, maxWidth: '93%' },
   messageName: { color: T.text, fontSize: 12, fontWeight: '700', marginBottom: 10 },
-  messageText: { color: '#e0e7df', fontSize: 15, lineHeight: 25 },
-  userBubble: { backgroundColor: '#2a382d', borderRadius: 16, paddingVertical: 11, paddingHorizontal: 18, maxWidth: '86%' },
+  messageText: { color: T.text, fontSize: 15, lineHeight: 25 },
+  userBubble: { backgroundColor: T.chat.selected, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 18, maxWidth: '86%' },
   receipts: { marginTop: 20, gap: 6, alignItems: 'flex-start' },
-  receipt: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: '#1d2a21', borderWidth: 1, borderColor: '#344438', borderRadius: 8, maxWidth: '100%' },
-  receiptText: { color: '#b9cbbb', fontSize: 11, flexShrink: 1, lineHeight: 17 },
-  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18, padding: 12, backgroundColor: '#1e2d23', borderRadius: 10 },
-  confirmCard: { marginTop: 18, borderColor: '#53775e', backgroundColor: '#202f24' },
-  panel: { marginTop: 20, borderWidth: 1, borderColor: '#3a4c3f', borderRadius: 16, overflow: 'hidden', backgroundColor: T.bg },
-  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 16, paddingRight: 7, minHeight: 49, borderBottomWidth: 1, borderBottomColor: '#344438', backgroundColor: '#223128' },
-  panelTitle: { color: '#d1e6d4', fontSize: 13, fontWeight: '600' },
+  receipt: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 8, backgroundColor: T.chat.tinted, borderWidth: 1, borderColor: T.border, borderRadius: 8, maxWidth: '100%' },
+  receiptText: { color: T.accentText, fontSize: 11, flexShrink: 1, lineHeight: 17 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18, padding: 12, backgroundColor: T.chat.tinted, borderRadius: 10 },
+  confirmCard: { marginTop: 18, borderColor: T.chat.accentBorder, backgroundColor: T.chat.tinted },
+  panel: { marginTop: 20, borderWidth: 1, borderColor: T.border, borderRadius: 16, overflow: 'hidden', backgroundColor: T.bg },
+  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 16, paddingRight: 7, minHeight: 49, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.chat.tinted },
+  panelTitle: { color: T.accentText, fontSize: 13, fontWeight: '600' },
   thinking: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20 },
   composerArea: { width: '100%', maxWidth: 870, alignSelf: 'center', paddingTop: 8, paddingBottom: 12 },
-  composer: { backgroundColor: '#202a22', borderWidth: 1, borderColor: '#465647', borderRadius: 20, padding: 10 },
-  input: { color: '#edf3e9', fontSize: 14, lineHeight: 22, padding: 9, minHeight: 48, maxHeight: 120, outlineStyle: 'none' },
+  composer: { backgroundColor: T.chat.composer, borderWidth: 1, borderColor: T.chat.composerBorder, borderRadius: 20, padding: 10 },
+  input: { color: T.text, fontSize: 14, lineHeight: 22, padding: 9, minHeight: 48, maxHeight: 120, outlineStyle: 'none' },
   composerTools: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  toolDivider: { width: 1, height: 14, backgroundColor: '#485548', marginHorizontal: 7 },
+  toolDivider: { width: 1, height: 14, backgroundColor: T.borderStrong, marginHorizontal: 7 },
   send: { width: 36, height: 36, borderRadius: 12, backgroundColor: T.accent, alignItems: 'center', justifyContent: 'center', marginRight: 3 },
-  footer: { color: '#899b8b', fontSize: 10, textAlign: 'center', marginTop: 10, lineHeight: 16 },
-  mobileMenu: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 270, backgroundColor: '#101512', zIndex: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 30, elevation: 10 },
+  reviewLabel: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 9, lineHeight: 14 },
+  footer: { color: T.textMute, fontSize: 10, textAlign: 'center', marginTop: 10, lineHeight: 16 },
+  mobileMenu: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 270, backgroundColor: T.chat.sidebar, zIndex: 10, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 30, elevation: 10 },
 });

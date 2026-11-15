@@ -45,7 +45,7 @@ export function createConversation({ now = Date.now } = {}) {
         const output = result.messages ?? [
           ...(calls.length ? [{ kind: 'tools', calls }] : []),
           ...(result.reply ? [{ me: false, text: result.reply, safety: result.safety, suggestion: result.suggestion }] : []),
-          ...(result.proposals ?? []).map(intent => ({ kind: 'confirm', intent })),
+          ...(result.proposals ?? []).map(intent => ({ kind: 'confirm', intent, workoutId: result.workoutId ?? null })),
           ...actions.map(a => ({ kind: 'panel', panel: a.panel, exercise: a.exercise })),
         ];
         update([...snapshot.messages, ...output]);

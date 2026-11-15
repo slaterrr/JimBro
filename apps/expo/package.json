@@ -12,7 +12,8 @@
     "test:ui": "npm run test:chat",
     "test:e2e": "expo export --platform web --output-dir dist-web && playwright test",
     "test:e2e:only": "playwright test",
-    "test:chat": "node scripts/test-chat.mjs"
+    "test:chat": "node scripts/test-chat.mjs",
+    "preview:review": "expo start --web --port 8081"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
