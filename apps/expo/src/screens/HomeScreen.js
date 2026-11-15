@@ -10,6 +10,7 @@ import { Card, Chips, Icon, IconButton, JimBars, PrimaryButton } from '../compon
 import { exerciseName } from '../lib/exercises.js';
 import { askJim, checkProxy, historyFor, proxyKey, proxyUrl, validateProposal } from '../lib/jimAI.js';
 import { confirmedText, missionIntro, planIntro, staleText } from '../lib/homeReplies.js';
+import { proxyStatusLine } from '../lib/aiStatus.js';
 import { healthSummary } from '../lib/healthSummary.js';
 import { HOME_OPTIONS, HOME_SUBTITLE, nextWorkout } from '../lib/homeActions.js';
 import { FOCUS_LABEL, parseMission, planMission } from '../lib/mission.js';
@@ -24,15 +25,6 @@ const GOALS = [['hypertrophy', 'Build muscle'], ['general', 'Endurance'], ['stre
 const PROXY_URL = proxyUrl({ EXPO_PUBLIC_JIM_PROXY_URL: process.env.EXPO_PUBLIC_JIM_PROXY_URL }, Constants.expoConfig?.extra);
 const PROXY_KEY = proxyKey({ EXPO_PUBLIC_JIM_PROXY_KEY: process.env.EXPO_PUBLIC_JIM_PROXY_KEY }, Constants.expoConfig?.extra);
 
-// Honest one-liner for the header: why Jim is (or isn't) using the AI service.
-function proxyStatusLine(proxy, source) {
-  if (source === 'offline') return 'Offline coach · Jim AI did not answer the last message';
-  if (proxy.state === 'ok') return 'Connected to Jim AI';
-  if (proxy.state === 'checking') return 'Connecting to Jim AI… the server may be waking up';
-  if (proxy.reason === 'timeout') return 'Offline coach · Jim AI server is taking too long to wake up';
-  if (proxy.reason === 'unreachable') return 'Offline coach · Jim AI server unreachable';
-  return 'Offline coach · AI service not connected';
-}
 const TALK_SEND_MS = 1800; // Talk mode: send dictated text after this long without changes.
 const EQUIPMENT = [['barbell', 'Barbell'], ['dumbbells', 'Dumbbells'], ['pullup_bar', 'Pull-up bar'], ['bodyweight', 'Bodyweight']];
 
@@ -95,12 +87,12 @@ export function HomeScreen({ openLog, openActivity, go }) {
   const setMessages = conversation.update;
   const [talk, setTalk] = useState(false);
   // One /health ping on mount wakes a sleeping host (free tier) before the first chat.
-  const [proxy, setProxy] = useState(() => (PROXY_URL ? { state: 'checking' } : { state: 'down', reason: 'not configured' }));
+  const [proxy, setProxy] = useState(() => (PROXY_URL ? { configured: true, state: 'checking' } : { configured: false, state: 'down', reason: 'not configured' }));
   useEffect(() => {
     if (!PROXY_URL) return undefined;
     let live = true;
     checkProxy({ url: PROXY_URL, key: PROXY_KEY }).then((r) => {
-      if (live) setProxy(r.ok ? { state: 'ok', ms: r.ms } : { state: 'down', reason: r.reason });
+      if (live) setProxy(r.ok ? { configured: true, state: 'ok', ms: r.ms } : { configured: true, state: 'down', reason: r.reason });
     });
     return () => { live = false; };
   }, []);
