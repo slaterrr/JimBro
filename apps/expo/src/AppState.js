@@ -16,9 +16,8 @@ import { mergeHistory, parseImport } from './lib/tools.js';
 import { createConversation } from './lib/conversation.js';
 import { chronologicalHistory } from './lib/historyOrder.js';
 import { withSavedPlan } from './lib/planVersions.js';
+import { LEGACY_WORKOUT_KEY, loadWorkoutData } from './lib/auth.js';
 
-// Everything lives on this phone: no server, no account.
-const KEY = 'jimbro.data.v2';
 export const DEFAULT_SETTINGS = { persona: 'coach', speak: true, voiceVersion: VOICE_SETTINGS_VERSION, unit: 'lb', weeklyGoal: 3, onboarded: false, ...DEFAULT_GOAL_SETTINGS }; // rest is curated per set (lib/rest.js); old saves may still carry restSeconds, which is ignored
 const EMPTY = { settings: DEFAULT_SETTINGS, active: null, history: [], plan: null, planVersions: [], goals: [] };
 
@@ -60,7 +59,7 @@ function LiveCameraProvider({ activeId, children }) {
   return <LiveCameraCtx.Provider value={value}>{children}</LiveCameraCtx.Provider>;
 }
 
-export function AppProvider({ children, storageKey = KEY, account = null, onSignOut = null }) {
+export function AppProvider({ children, storageKey = LEGACY_WORKOUT_KEY, account = null, onSignOut = null }) {
   const conversationRef = useRef(null);
   if (!conversationRef.current) conversationRef.current = createConversation();
   const [data, setData] = useState(EMPTY);
@@ -71,7 +70,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
   const [canSave, setCanSave] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(storageKey)
+    loadWorkoutData(AsyncStorage, storageKey)
       .then((raw) => {
         if (raw) {
           const saved = JSON.parse(raw);

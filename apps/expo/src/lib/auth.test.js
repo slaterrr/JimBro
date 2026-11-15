@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { describe, it } from 'node:test';
 
-import { createAuth, dataKeyFor, validateCredentials } from './auth.js';
+import { createAuth, dataKeyFor, loadWorkoutData, validateCredentials } from './auth.js';
 
 // In-memory AsyncStorage stand-in and a real SHA-256, like expo-crypto gives the app.
 const memory = () => { const m = new Map(); return { getItem: async (k) => m.get(k) ?? null, setItem: async (k, v) => { m.set(k, v); }, removeItem: async (k) => { m.delete(k); }, dump: () => m }; };
@@ -54,5 +54,28 @@ describe('dataKeyFor', () => {
   it('gives each account its own workout data', () => {
     assert.equal(dataKeyFor('a@b.co'), 'jimbro.data.v2:a@b.co');
     assert.notEqual(dataKeyFor('a@b.co'), dataKeyFor('c@d.co'));
+  });
+});
+
+describe('loadWorkoutData', () => {
+  const legacy = JSON.stringify({ history: [{ id: 'old-workout' }], active: { id: 'ongoing' } });
+
+  it('recovers pre-login history and an active workout for the sole local account', async () => {
+    const { auth, store } = make();
+    await store.setItem('jimbro.data.v2', legacy);
+    await auth.signUp('a@b.co', 'secret1');
+    assert.equal(await loadWorkoutData(store, dataKeyFor('a@b.co')), legacy);
+    assert.equal(await store.getItem(dataKeyFor('a@b.co')), legacy);
+    assert.equal(await store.getItem('jimbro.data.v2'), legacy);
+  });
+
+  it('preserves an existing account save and isolates legacy data on shared devices', async () => {
+    const { auth, store } = make();
+    await store.setItem('jimbro.data.v2', legacy);
+    await auth.signUp('a@b.co', 'secret1');
+    await store.setItem(dataKeyFor('a@b.co'), '{"history":[{"id":"new"}]}');
+    await auth.signUp('c@d.co', 'secret2');
+    assert.equal(await loadWorkoutData(store, dataKeyFor('a@b.co')), '{"history":[{"id":"new"}]}');
+    assert.equal(await loadWorkoutData(store, dataKeyFor('c@d.co')), null);
   });
 });

@@ -39,6 +39,20 @@ const say = async (page, text) => {
   await page.getByLabel('Message Jim').press('Enter');
 };
 
+test('update: recovers the pre-login snapshot and keeps it on reload', async ({ page }) => {
+  const legacy = { history: [], active: { id: 'before-login', name: 'Workout before login', sets: [] }, settings: READY };
+  await page.addInitScript(([user, snapshot]) => {
+    if (sessionStorage.getItem('legacy-seeded')) return;
+    localStorage.setItem('jimbro.accounts.v1', JSON.stringify({ [user]: {} }));
+    localStorage.setItem('jimbro.data.v2', JSON.stringify(snapshot));
+    sessionStorage.setItem('legacy-seeded', '1');
+  }, [USER, legacy]);
+  await open(page);
+  await expect.poll(async () => (await saved(page)).active?.id).toBe('before-login');
+  await page.reload();
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await expect.poll(async () => (await saved(page)).active?.id).toBe('before-login');
+});
 test('first run: beginner setup picks a goal, skips the optional question, lands on Home', async ({ page }) => {
   const errors = await open(page);
   await tap(page, "I'm new to this");
