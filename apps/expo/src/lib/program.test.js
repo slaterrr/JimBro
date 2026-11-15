@@ -248,3 +248,24 @@ describe('saving, position, swaps and shorter sessions', () => {
     assert.ok(short.items.length <= s.items.length);
   });
 });
+
+describe('every combination produces a valid program', () => {
+  it('goals × experience × days × minutes × equipment × limitations', () => {
+    const gear = [FULL_GYM, ['dumbbells', 'bench'], [], ['barbell', 'bench'], ['cable', 'machine'], ['kettlebell', 'pullup_bar']];
+    const avoids = [[], ['squat', 'lunge'], ['hinge'], ['vertical_push', 'dip']];
+    let n = 0;
+    for (const goal of ['powerbuilding', 'strength', 'muscle', 'general', 'endurance', 'fat_loss'])
+      for (const experience of ['new', 'returning', 'experienced'])
+        for (const daysPerWeek of [2, 3, 4, 5])
+          for (const minutes of [30, 40, 45, 60, 90])
+            for (const equipment of gear)
+              for (const avoid of avoids) {
+                const intake = { goal, experience, daysPerWeek, minutes, equipment, avoid, weeks: 8 };
+                const p = buildProgram(intake, opts);
+                assert.deepEqual(validateProgram(p, intake), [], JSON.stringify(intake));
+                assert.ok(p.weeks.every((w) => w.sessions.every((s) => s.items.length >= 1)), JSON.stringify(intake));
+                n += 1;
+              }
+    assert.equal(n, 6 * 3 * 4 * 5 * 6 * 4);
+  });
+});
