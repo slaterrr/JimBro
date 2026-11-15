@@ -44,7 +44,7 @@ export function ComparisonResults({ comparison, onBack }) {
           source={require('../../assets/jim-mascot.png')}
           accessibilityLabel="Jim holding a barbell"
           resizeMode="contain"
-          style={{ width: 88, height: 64 }}
+          style={{ width: 112, height: 82 }}
         />
       </View>
       <Text style={type.body}>From: {from}</Text>
