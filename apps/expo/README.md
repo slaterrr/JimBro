@@ -21,6 +21,16 @@ If local networking fails, try `npx expo start --tunnel`. In the browser, the Co
 in Chrome after you allow camera access. The first run needs internet to download the pose model.
 The layout fits screens from 320 px phones to desktop, where the app sits in a centered column.
 
+### Temporary Expo Go tunnel
+
+The current development server is available at [`exps://mgyqsb4-anonymous-8081.exp.direct`](exps://mgyqsb4-anonymous-8081.exp.direct):
+
+![Scan this QR code with Expo Go](docs/expo-go-tunnel.svg)
+
+This development QR serves code from a maintainer's computer. It works only while that computer
+and its Expo server are running, and the address can change on restart. It is not a production
+build. To create a fresh QR, run `npx expo start --tunnel` and scan the QR printed by Expo.
+
 ## Screens
 - **Home (Jim):** "Hey, I'm Jim" with **Start a Workout** (the next day of your plan, opened on
   Coach), **Create a New Plan** (pick a goal and tune days, minutes and equipment, or import past
