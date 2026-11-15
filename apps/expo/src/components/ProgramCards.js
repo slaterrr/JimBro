@@ -18,7 +18,7 @@ export function IntakeCard({ field, onAnswer, onCancel }) {
   const toggle = (v) => setPicked((p) => (v === 'none' || v === 'full_gym' ? [v] : p.includes(v) ? p.filter((x) => x !== v) : [...p.filter((x) => x !== 'none' && x !== 'full_gym'), v]));
   return (
     <Card testID={`program-intake-${field.id}`} style={cardStyle}>
-      <Text style={eyebrow}>BUILDING YOUR PROGRAM</Text>
+      <Text style={eyebrow}>{field.id === 'goal' ? 'YOUR PROGRAM' : 'BUILDING YOUR PROGRAM'}</Text>
       <Text style={[type.title, { marginTop: 10, marginBottom: 10 }]}>{field.question}</Text>
       {field.multi
         ? <Chips multi options={field.options} value={picked} onChange={toggle} />

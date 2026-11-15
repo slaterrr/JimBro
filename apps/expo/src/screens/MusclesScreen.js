@@ -28,9 +28,6 @@ export function MusclesScreen({ openProgress, openHistory }) {
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
       <View style={st.header}>
         <Text style={type.h1}>Muscles</Text>
-        <TouchableOpacity accessibilityLabel="Workout history" onPress={openHistory} style={st.cal}>
-          <Icon name="calendar-blank-outline" size={22} color={T.text} />
-        </TouchableOpacity>
       </View>
 
       <Text style={[type.title, { textAlign: 'center', fontWeight: '500', marginTop: 16 }]}>Tap a muscle group</Text>

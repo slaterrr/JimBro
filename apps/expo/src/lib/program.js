@@ -20,7 +20,7 @@ const LIMITS = { days: [2, 5], minutes: [30, 120], weeks: [4, 16] };
 const MAX_WEEKLY_SETS_PER_MUSCLE = 20;
 
 export const INTAKE_FIELDS = [
-  { id: 'goal', question: 'What is the main goal for this block?', options: Object.entries(GOALS) },
+  { id: 'goal', question: 'What is your goal?', options: Object.entries(GOALS) },
   { id: 'experience', question: 'How much lifting experience do you have?', options: Object.entries(EXPERIENCE) },
   { id: 'daysPerWeek', question: 'How many days a week can you train? Four days gives the upper/lower powerbuilding split.', options: [[2, '2 days'], [3, '3 days'], [4, '4 days'], [5, '5 days']] },
   { id: 'minutes', question: 'How long can each session be, including the warm-up?', options: [[30, '30 min'], [45, '45 min'], [60, '60 min'], [75, '75 min'], [90, '90 min']] },

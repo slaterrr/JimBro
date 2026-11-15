@@ -12,6 +12,7 @@ Last updated: 2026-11-14 evening. All PRs are on `main` (#47 engines, #55 = #41 
 - Team positioning: "Jimbro is an adaptive AI training system that turns ordinary smartphone video into measurable exercise data, then uses that data to personalize future workloads." Pain point: anxiety about judgement from coaches/public.
 
 ## Team requests (tracking doc) → status
+UI simplification: two-column Home actions, silent page navigation with compact previous-page arrows, simpler Goals split labels, session-only History with per-exercise previous-session reps/load comparisons. Device check pending.
 Workout navigation PR: Start workout offers camera/manual choice; Progress and Muscles open full original pages; Training program opens saved split in Program. Device validation pending.
 | Request | Status |
 |---|---|
