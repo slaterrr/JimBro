@@ -8,6 +8,37 @@ const fakeEngine = () => {
   return { calls, speak: (text, opts) => calls.push(['speak', text, opts]), stop: () => calls.push(['stop']) };
 };
 
+test('CV playback waits for audio setup and native stop before speaking', async () => {
+  const calls = [];
+  let ready;
+  const engine = {
+    setAudioMode: () => new Promise(resolve => { ready = resolve; }),
+    stop: async () => { calls.push('stop'); },
+    speak: (text, options) => { calls.push(text); assert.equal(options.useApplicationAudioSession, true); },
+  };
+  const voice = createVoice(engine, () => ({}), { prepareBeforeSpeak: true });
+  voice.say('Keep your back straight.', { force: true });
+  await Promise.resolve();
+  assert.deepEqual(calls, []);
+  ready();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ['stop', 'Keep your back straight.']);
+});
+
+test('CV audio setup failure is reported and can be retried', async () => {
+  let fail = true;
+  const errors = [];
+  const engine = { ...fakeEngine(), setAudioMode: async () => { if (fail) throw Error('audio unavailable'); } };
+  const voice = createVoice(engine, () => ({}), { prepareBeforeSpeak: true, onPlaybackError: e => errors.push(e.message) });
+  voice.say('First try', { force: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(errors, ['audio unavailable']);
+  fail = false;
+  voice.say('Retry', { force: true });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(engine.calls.at(-1)[1], 'Retry');
+});
+
 test('disabled app voice blocks saved preferences and forced replies', async () => {
   const engine = fakeEngine();
   engine.setAudioMode = () => engine.calls.push(['audio']);
