@@ -44,7 +44,12 @@ async function startManualWorkoutAndReturnToChat(page) {
   await say(page, 'Start a workout');
   await expect(page.getByRole('button', { name: 'Without camera', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Without camera', exact: true }).click();
-  await expect.poll(async () => Boolean((await saved(page)).active?.id)).toBe(true);
+  // Read the currently signed-in account, not the seeded demo account's fixed storage key.
+  await expect.poll(async () => page.evaluate(() => {
+    const account = localStorage.getItem('jimbro.session.v1');
+    const data = JSON.parse(localStorage.getItem(`jimbro.data.v2:${account}`) ?? '{}');
+    return Boolean(data.active?.id);
+  })).toBe(true);
   await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
   await page.getByRole('button', { name: 'Back to previous page', exact: true }).click();
   await expect(page.getByLabel('Message Jim')).toBeVisible();
@@ -161,7 +166,8 @@ test('progress: tabs and time-frame dropdowns work, comparison shows real number
   await expect(page.getByText('Best estimated 1RM', { exact: true })).toBeVisible();
   await expect(page.getByText('Total reps', { exact: true })).toBeVisible();
   await tap(page, 'Back to comparison');
-  for (const tab of ['strength', 'history', 'goals', 'overview']) {
+  // Current Progression navigation exposes three tabs; strength is part of Overview.
+  for (const tab of ['history', 'goals', 'overview']) {
     await page.getByTestId(`seg-${tab}`).click();
     await expect(page.getByTestId(`seg-${tab}`)).toHaveAttribute('aria-selected', 'true');
   }
