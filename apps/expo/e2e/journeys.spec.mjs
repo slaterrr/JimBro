@@ -11,6 +11,45 @@ const KEY = `jimbro.data.v2:${USER}`;
 const SESSION = 'jimbro.session.v1';
 const READY = { onboarded: true, speak: false };
 
+test('persistent navigation: mobile menu switches directly between every page and preserves the workout', async ({ page }) => {
+  const plan = { name: 'Test split', days: [{ day: 1, items: [{ exercise: 'squat', sets: 3, reps_low: 8, reps_high: 10 }] }] };
+  const errors = await open(page, { history: [], settings: READY, plan });
+  const navigate = async (label) => {
+    await page.getByRole('button', { name: 'Open menu', exact: true }).click();
+    await page.getByRole('button', { name: label, exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Close menu', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Open menu', exact: true })).toBeVisible();
+  };
+  for (const label of ['Progress & history', 'Muscle & recovery', 'Training program', 'Calendar & analytics', 'Workout studio']) await navigate(label);
+  await page.getByRole('button', { name: 'Without camera', exact: true }).click();
+  const workoutId = (await saved(page)).active.id;
+  await navigate('Progress & history');
+  expect((await saved(page)).active.id).toBe(workoutId);
+  await navigate('Chat with Jim');
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await navigate('Progress & history');
+  await navigate('Import workouts');
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+  await expect(page.getByTestId('chat-panel-import')).toBeVisible();
+  expect((await saved(page)).active.id).toBe(workoutId);
+  expect(errors).toEqual([]);
+});
+
+test('persistent navigation: desktop sidebar stays available after opening a subpage', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, { history: [], settings: READY });
+  await page.getByRole('button', { name: 'Progress & history', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Muscle & recovery', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Muscle & recovery', exact: true }).click();
+  await page.getByRole('button', { name: 'Chat with Jim', exact: true }).click();
+  await expect(page.getByLabel('Message Jim')).toBeVisible();
+});
+
+test('homepage hides the offline AI notice under Jim', async ({ page }) => {
+  await open(page, { history: [], settings: READY });
+  await expect(page.getByText(/Offline coach ·/)).toHaveCount(0);
+});
+
 // Signed in as the demo user (login is covered by its own journeys below).
 async function open(page, seed, { signedIn = true } = {}) {
   const errors = [];

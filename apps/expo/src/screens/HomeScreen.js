@@ -73,6 +73,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const [page, updatePage] = useState(null);
   const pageTrail = useRef([]);
   const setPage = next => {
+    setMenu(false);
     voice.stop();
     if (next === null) { updatePage(pageTrail.current.pop() ?? null); return; }
     if (next !== page) pageTrail.current.push(page);
@@ -83,6 +84,7 @@ export function HomeScreen({ openLog, openActivity }) {
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraExercise, setCameraExercise] = useState(null);
   const [menu, setMenu] = useState(false);
+  const openChat = () => { voice.stop(); setMenu(false); pageTrail.current = []; updatePage(null); };
   const [focused, setFocused] = useState(false);
   const { width } = useWindowDimensions();
   const desktop = width >= 1000;
@@ -299,7 +301,9 @@ export function HomeScreen({ openLog, openActivity }) {
       conversation.update(cur => cur.map((m, i) => m.kind === 'panel' && m.panel === 'camera' && i !== latest ? { kind: 'notice', text: 'Camera reopened below.' } : m));
     }
   };
-  const newChat = () => { conversation.clear(); clearCamera(); voice.stop(); setText(''); setMenu(false); };
+
+  const newChat = () => { openChat(); conversation.clear(); clearCamera(); voice.stop(); setText(''); setMenu(false); };
+
 
   const renderPanel = (m, index) => <View key={index} testID={`chat-panel-${m.panel}`} style={st.panel}>
     <View style={st.panelHeader}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name={m.panel === 'camera' ? 'camera-outline' : 'view-dashboard-outline'} size={18} color={T.accent} /><Text style={st.panelTitle}>{PANEL_LABELS[m.panel]}</Text></View><SmallButton icon="close" label={`Close ${m.panel}`} onPress={() => closePanel(index)} /></View>
@@ -310,19 +314,20 @@ export function HomeScreen({ openLog, openActivity }) {
       : <View style={{ padding: 16 }}><ImportSheet proxyUrl={PROXY_URL} proxyKey={PROXY_KEY} onDone={line => push({ kind: 'notice', text: line })} /></View>}
   </View>;
 
+  const selectedNav = { 'workout-choice': 1, workout: 1, progress: 2, muscles: 3, program: 4, training: 5 }[page] ?? 0;
   const sidebar = <View style={st.sidebar}>
     <View style={st.brand}><View style={st.brandMark}><JimBars height={23} /></View><Text style={st.brandName}>jim<Text style={{ color: T.accent }}>bro</Text><Text style={{ color: T.textMute }}>.</Text></Text>{!desktop ? <SmallButton icon="close" label="Close menu" onPress={() => setMenu(false)} /> : null}</View>
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="New chat" onPress={newChat} style={st.newChat}><Icon name="plus" size={19} color={T.accentText} /><Text style={{ color: T.accentText, fontWeight: '600', fontSize: 14 }}>New conversation</Text><Icon name="square-edit-outline" size={17} color={T.accentText} /></TouchableOpacity>
     <Text style={st.sideLabel}>YOUR WORKSPACE</Text>
     {[
-      ['message-outline', 'Chat with Jim', () => { setMenu(false); input.current?.focus(); }],
+      ['message-outline', 'Chat with Jim', () => { openChat(); }],
       ['camera-outline', 'Workout studio', () => send('Start a workout')],
       ['chart-line', 'Progress & history', () => send('Review my progress')],
       ['human-handsup', 'Muscle & recovery', () => send('Show my muscles')],
-      ['calendar-outline', 'Training program', () => plan ? setPage('program') : send('Build me a training program')],
+      ['calendar-outline', 'Training program', () => { if (plan) setPage('program'); else { openChat(); send('Build me a training program'); } }],
       ['calendar-check-outline', 'Calendar & analytics', () => { setMenu(false); setPage('training'); }],
-      ['tray-arrow-up', 'Import workouts', () => send('Import my workouts')],
-    ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} key={label} onPress={action} style={[st.navItem, i === 0 && st.navActive]}><Icon name={icon} size={19} color={i === 0 ? T.accentText : T.textMute} /><Text style={[st.navText, i === 0 && { color: T.text }]}>{label}</Text>{i === 0 ? <View style={st.dot} /> : null}</TouchableOpacity>)}
+      ['tray-arrow-up', 'Import workouts', () => { openChat(); send('Import my workouts'); }],
+    ].map(([icon, label, action], i) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: i === selectedNav }} key={label} onPress={() => { setMenu(false); action(); }} style={[st.navItem, i === selectedNav && st.navActive]}><Icon name={icon} size={19} color={i === selectedNav ? T.accentText : T.textMute} /><Text style={[st.navText, i === selectedNav && { color: T.text }]}>{label}</Text>{i === selectedNav ? <View style={st.dot} /> : null}</TouchableOpacity>)}
     <View style={st.sideDivider} />
     <Text style={st.sideLabel}>ON YOUR DEVICE</Text>
     <Text style={st.sideInfo}>{history.length} saved workouts{active ? ` · ${active.sets.length} sets today` : ''}</Text>
@@ -332,18 +337,30 @@ export function HomeScreen({ openLog, openActivity }) {
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Activity and settings" onPress={openActivity} style={st.profile}><View style={st.avatar}><Icon name="account-outline" color={T.accentText} size={21} /></View><View style={{ flex: 1 }}><Text style={{ color: T.text, fontWeight: '600', fontSize: 13 }}>Your training space</Text><Text style={{ color: T.textMute, fontSize: 11, marginTop: 3 }}>Local storage · {settings.unit}</Text></View><Icon name="cog-outline" size={18} color={T.textMute} /></TouchableOpacity>
   </View>;
 
-  if (page === 'training') return <TrainingScreen onBack={() => setPage(null)} />;
-  if (page === 'program') return <ProgramScreen plan={plan} onBack={() => setPage(null)} />;
-  if (page === 'progress') return <View style={{ flex: 1 }}>{backArrow}<ProgressScreen go={() => setPage(null)} muscleGroup={progressGroup} onClearMuscle={() => setProgressGroup(null)} /></View>;
-  if (page === 'muscles') return <View style={{ flex: 1 }}>{backArrow}<MusclesScreen openHistory={() => { setProgressGroup(null); setPage('progress'); }} openProgress={group => { setProgressGroup(group); setPage('progress'); }} /></View>;
-  if (page === 'workout-choice') return <ScrollView contentContainerStyle={{ padding: 20 }}>
+  const pageWorkspace = content => <View style={st.workspace}>
+    {desktop ? sidebar : null}
+    <View style={st.main}>
+      {!desktop ? <View style={st.header}>
+        <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} />
+        <Text style={st.headerTitle}>Jim</Text>
+      </View> : null}
+      {content}
+    </View>
+    {!desktop && menu ? <View style={st.mobileMenu}>{sidebar}</View> : null}
+  </View>;
+
+  if (page === 'training') return pageWorkspace(<TrainingScreen onBack={() => setPage(null)} />);
+  if (page === 'program') return pageWorkspace(<ProgramScreen plan={plan} onBack={() => setPage(null)} />);
+  if (page === 'progress') return pageWorkspace(<View style={{ flex: 1 }}>{backArrow}<ProgressScreen go={() => setPage(null)} muscleGroup={progressGroup} onClearMuscle={() => setProgressGroup(null)} /></View>);
+  if (page === 'muscles') return pageWorkspace(<View style={{ flex: 1 }}>{backArrow}<MusclesScreen openHistory={() => { setProgressGroup(null); setPage('progress'); }} openProgress={group => { setProgressGroup(group); setPage('progress'); }} /></View>);
+  if (page === 'workout-choice') return pageWorkspace(<ScrollView contentContainerStyle={{ padding: 20 }}>
     {backArrow}
     <Text style={[type.h1, { marginTop: 20 }]}>Start workout</Text>
     <Text style={type.body}>Choose how you want to record your sets.</Text>
     <PrimaryButton onPress={() => { if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); } setCameraEnabled(true); setPage('workout'); }}>Use camera</PrimaryButton>
     <PrimaryButton secondary onPress={() => { if (!active) { const next = nextWorkout(plan, history); startWorkout(next.name, next.planned); } setCameraEnabled(false); setPage('workout'); }}>Without camera</PrimaryButton>
-  </ScrollView>;
-  if (page === 'workout') return <View style={{ flex: 1 }}>
+  </ScrollView>);
+  if (page === 'workout') return pageWorkspace(<View style={{ flex: 1 }}>
     {backArrow}
     {cameraEnabled ? <CoachScreen openLog={openLog} initialExercise={cameraExercise} /> : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 48, maxWidth: 760, width: "100%", alignSelf: "center" }}>
       <Text style={type.h1}>{active?.name ?? 'Workout'}</Text>
@@ -353,14 +370,14 @@ export function HomeScreen({ openLog, openActivity }) {
       <PrimaryButton secondary onPress={() => setCameraEnabled(true)}>Use camera instead</PrimaryButton>
       <PrimaryButton secondary onPress={() => { finishWorkout(); endMission(); setPage(null); }}>Finish workout</PrimaryButton>
     </ScrollView>}
-  </View>;
+  </View>);
   return <KeyboardAvoidingView style={st.workspace} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {desktop ? sidebar : null}
     <View style={st.main}>
       <View style={[st.header, compact && { paddingHorizontal: 12 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
           {!desktop ? <SmallButton icon="menu" label="Open menu" onPress={() => setMenu(!menu)} /> : <View style={st.headerDot} />}
-          <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim </Text><Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text></View>
+          <View style={{ flexShrink: 1 }}><Text style={st.headerTitle}>Jim </Text>{!status.startsWith('Offline coach') ? <Text numberOfLines={1} accessibilityLiveRegion="polite" style={st.status}>{status}</Text> : null}</View>
         </View>
                 {!desktop ? <SmallButton icon="square-edit-outline" label="New chat" onPress={newChat} /> : <SmallButton icon="cog-outline" label="Activity and settings" onPress={openActivity} />}
       </View>
@@ -396,8 +413,10 @@ export function HomeScreen({ openLog, openActivity }) {
       </ScrollView>
       <View style={[st.composerArea, { paddingHorizontal: compact ? 12 : 28 }]}>
         <View style={[st.composer, focused && { borderColor: T.accent }]}>
+
           <TextInput ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} value={text} onChangeText={v => { if (!text && v) voice.stop(); setText(v); }} onSubmitEditing={() => send(text)} onKeyPress={e => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.shiftKey && !e.nativeEvent.shiftKey) { e.preventDefault(); send(text); } }} accessibilityLabel="Message Jim" maxLength={2000} multiline blurOnSubmit={false} placeholder="Ask anything about your training…" placeholderTextColor={T.textMute} style={st.input} />
-          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => send('Import my workouts')} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
+          <View style={st.composerTools}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}><SmallButton icon="plus" label="Import workouts or reference photo" onPress={() => { openChat(); send('Import my workouts'); }} /><SmallButton icon="camera-outline" label="Open camera in chat" onPress={() => send('Start a workout')} /><View style={st.toolDivider} /><Text style={{ color: T.textMute, fontSize: 11 }}>{aiOn ? 'Jim AI' : 'On-device coach'}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel={thinking && !text.trim() ? 'Stop reply' : 'Send'} disabled={!thinking && !text.trim()} onPress={() => thinking && !text.trim() ? conversation.cancel() : send(text)} style={[st.send, !thinking && !text.trim() && { opacity: 0.4 }]}><Icon name={thinking && !text.trim() ? 'stop' : 'arrow-up'} size={22} color={T.onAccent} /></TouchableOpacity></View>
+
         </View>
         <Text style={st.reviewLabel}>Review prototype · Muse-inspired layout interpretation</Text>
         <Text style={st.footer}>Video stays on your device. {desktop ? 'Changes to your workout always need your confirmation.' : 'You’re in control.'}</Text>
