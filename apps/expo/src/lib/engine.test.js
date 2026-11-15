@@ -97,19 +97,18 @@ describe('RepCounter (port of reps.py)', () => {
 const set = (weight, reps, rpe, unit = 'kg', exercise = 'curl') => ({ exercise, weight, reps, rpe, unit });
 
 describe('suggestNext (port of coach.suggest_next)', () => {
-  it('follows bounded double progression', () => {
+  it('holds recorded weighted targets, retains cautious reductions and allows bodyweight progression', () => {
     assert.equal(suggestNext([]), null);
     const easy = suggestNext([set(20, 10, 6)]);
-    assert.ok(easy.weight > 20 && easy.weight <= 21 && easy.reps === 10);
+    assert.deepEqual([easy.weight, easy.reps], [20, 10]);
     assert.match(easy.rationale, /RPE 6/);
     const hard = suggestNext([set(20, 6, 9.5)]);
     assert.ok(hard.weight < 20 && hard.weight >= 18);
-    assert.deepEqual([suggestNext([set(20, 8, 8)]).weight, suggestNext([set(20, 8, 8)]).reps], [20, 9]);
+    assert.deepEqual([suggestNext([set(20, 8, 8)]).weight, suggestNext([set(20, 8, 8)]).reps], [20, 8]);
     assert.deepEqual([suggestNext([set(20, 8, null)]).weight, suggestNext([set(20, 8, null)]).reps], [20, 8]);
     assert.deepEqual([suggestNext([set(0, 5, 6)]).weight, suggestNext([set(0, 5, 6)]).reps], [0, 6]);
     const lb = suggestNext([set(45, 10, 6, 'lb')]);
-    assert.ok(lb.unit === 'lb' && lb.weight > 45);
-    assert.equal(suggestNext([set(21, 10, 6)]).weight * 2 % 1, 0); // 0.5 kg steps
+    assert.ok(lb.unit === 'lb' && lb.weight === 45);
   });
 });
 
@@ -183,6 +182,16 @@ describe('progress', () => {
     assert.equal(t.kg.top_weight_change_pct, Math.round(((14 - 12) / 12) * 1000) / 10);
     assert.equal(t.lb.top_weight_change_pct, null);
   });
+  it('shows a historical high from completed sets even after a lighter workout', () => {
+    const t = trend([
+      ...history,
+      workout('2026-11-10', [set(9, 10, null), set(99, 0, null)]),
+    ], 'curl');
+    assert.deepEqual(t.kg.points.map((p) => p.top_weight), [12, 14, 9]);
+    assert.equal(t.kg.best_logged_weight, 14);
+    assert.equal(t.lb.best_logged_weight, 30);
+  });
+
   it('finds personal records per exercise and unit (heaviest, most reps, best volume set)', () => {
     const pr = personalRecords(history);
     const kg = pr.find((r) => r.exercise === 'curl' && r.unit === 'kg');

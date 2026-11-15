@@ -17,18 +17,20 @@ describe('recommendNext', () => {
     assert.ok(r.reasons.length > 0);
   });
 
-  it('all reps at manageable effort with steady reps: a small increase', () => {
+  it('a completed weighted set keeps the actual load even at easy effort', () => {
     const r = recommendNext({ ...base, rpe: 7, fatigue: fatigue('normal') });
-    assert.equal(r.action, 'increase');
-    assert.ok(r.weight > 135 && r.weight <= 135 * 1.05 + 2.5, `→ ${r.weight}`);
+    assert.equal(r.action, 'same');
+    assert.equal(r.weight, 135);
+    assert.equal(r.reps, 8);
   });
 
   it('never increases just because the reps looked clean (no effort reported)', () => {
     const r = recommendNext({ ...base, rpe: null, fatigue: fatigue('normal') });
     assert.notEqual(r.action, 'increase');
     assert.ok(r.reasons.some((x) => /how hard|rate/i.test(x)));
-    // ...unless reps clearly beat the target
-    assert.equal(recommendNext({ ...base, completed: 11, rpe: null, fatigue: fatigue('normal') }).action, 'increase');
+    const extraReps = recommendNext({ ...base, completed: 11, rpe: null, fatigue: fatigue('normal') });
+    assert.equal(extraReps.action, 'same');
+    assert.equal(extraReps.weight, 135);
   });
 
   it('hard but complete: same weight', () => {
@@ -67,10 +69,10 @@ describe('recommendNext', () => {
     assert.equal(r.reps, 9);
   });
 
-  it('kg uses kg steps', () => {
+  it('keeps the logged load in kilograms', () => {
     const r = recommendNext({ ...base, unit: 'kg', weight: 60, rpe: 6.5, fatigue: fatigue('normal') });
-    assert.equal(r.action, 'increase');
-    assert.ok(r.weight > 60 && r.weight <= 63);
+    assert.equal(r.action, 'same');
+    assert.equal(r.weight, 60);
   });
 
   it('history: after an accepted increase that turned out too hard, hold instead of increasing again', () => {
@@ -109,7 +111,7 @@ describe('measured speed vs reported effort', () => {
 
   it('agreeing evidence: cites both sources and is more confident', () => {
     const r = recommendNext({ ...easy, fatigue: fatigue('normal'), metrics: metrics(5) });
-    assert.equal(r.action, 'increase');
+    assert.equal(r.action, 'same');
     assert.equal(r.agreement, 'agree');
     assert.equal(r.confidence, 'higher');
     assert.deepEqual(r.evidence.map((e) => e.source).sort(), ['measured', 'reported']);
