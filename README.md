@@ -45,7 +45,7 @@ Then tap **"I have 20 minutes, help me finish chest day"** on Home.
   and ends when you stop, a quick effort check follows, and rest is counted down with the next
   set's adjustment. If the camera can't track a lift, he offers a lift it can count. At the end he
   checks the result against the plan.
-- **Camera rep counting** for curl, squat, shoulder press and push-ups (standard, knee and
+- **Camera rep counting** for squat, shoulder press and push-ups (standard, knee and
   incline), using MediaPipe pose on the phone or in the browser. Only real reps count. Arm swing,
   joints that jump, leaving the frame and gesturing are not counted, and Jim says why
   (**"Caught it"**). He notices when you switch lifts and offers to switch the set.

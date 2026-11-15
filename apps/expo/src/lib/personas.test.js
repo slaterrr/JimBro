@@ -11,7 +11,7 @@ import { loggedText, restText } from './voice.js';
 
 const BANNED = /\b(lazy|weak|pathetic|fat|stupid|loser|useless|cheat\w*|shame\w*|disgrac\w*|excuses?)\b/i;
 const nums = (s) => (s.match(/\d+(\.\d+)?/g) ?? []).sort().join(',');
-const set = (weight, reps, rpe, unit = 'kg', exercise = 'curl') => ({ exercise, weight, unit, reps, rpe });
+const set = (weight, reps, rpe, unit = 'kg', exercise = 'shoulder_press') => ({ exercise, weight, unit, reps, rpe });
 const rep = (ms) => ({ concentric_ms: ms / 2, peak_pause_ms: 0, eccentric_ms: ms / 2 });
 
 function samePersonaContract(make) {
@@ -60,21 +60,21 @@ describe('persona voice', () => {
   it('live cues share facts across personas', () => {
     const r = (c, e) => ({ concentric_ms: c, eccentric_ms: e });
     for (const [count, lastRep] of [[8, r(900, 1500)], [3, r(300, 1500)], [3, r(900, 400)], [12, r(900, 1500)], [0, null]]) {
-      samePersonaContract((persona) => liveCue({ movement: 'curl', count, target: 12, lastRep, tracking: 'ok', persona }));
+      samePersonaContract((persona) => liveCue({ movement: 'shoulder_press', count, target: 12, lastRep, tracking: 'ok', persona }));
     }
-    const lost = new Set(PERSONA_IDS.map((persona) => liveCue({ movement: 'curl', count: 0, target: 12, lastRep: null, tracking: 'lost', persona })));
+    const lost = new Set(PERSONA_IDS.map((persona) => liveCue({ movement: 'shoulder_press', count: 0, target: 12, lastRep: null, tracking: 'lost', persona })));
     assert.equal(lost.size, 1);
   });
   it('spoken reports share facts across personas and stay short', () => {
     const reps = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1200, 1200, 1200].map(rep);
-    const report = setReport({ movement: 'curl', reps, target: 12, quality: { frames: 100, okFrames: 95, issues: { arm_swing: 2 }, partials: 0 } });
+    const report = setReport({ movement: 'shoulder_press', reps, target: 12, quality: { frames: 100, okFrames: 95, issues: { arm_swing: 2 }, partials: 0 } });
     const outs = samePersonaContract((p) => spokenReport(report, p));
     for (const s of outs) assert.ok(s.split(/\s+/).length < 30, s);
     samePersonaContract((p) => spokenReport(setReport({ movement: 'squat', reps: [rep(2000), rep(2000)] }), p));
   });
   it('set-logged and rest lines go through the persona', () => {
     for (const isPR of [false, true]) {
-      samePersonaContract((p) => loggedText(p, { exercise: 'curl', reps: 10, weight: 20, unit: 'kg', isPR }, 1));
+      samePersonaContract((p) => loggedText(p, { exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'kg', isPR }, 1));
     }
     samePersonaContract((p) => restText(p, 90, 2));
   });

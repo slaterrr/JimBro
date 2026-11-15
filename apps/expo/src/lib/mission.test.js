@@ -186,7 +186,7 @@ describe('cameraSwap', () => {
     const { cameraSwap } = await import('./mission.js');
     assert.equal(cameraSwap('bench'), 'push_up');
     assert.equal(cameraSwap('deadlift'), 'squat');
-    assert.equal(cameraSwap('pull_up'), 'curl');
+    assert.equal(cameraSwap('pull_up'), null);
     assert.equal(cameraSwap('lunge'), 'squat');
     assert.equal(cameraSwap('curl'), null); // already camera-counted
   });

@@ -28,6 +28,12 @@ Workout navigation PR: Start workout offers camera/manual choice; Progress and M
 | Compare your training → Submit → dedicated comparison results page | 🧪 codex/compare-submit-page; distinct-period validation, back action; device check pending |
 
 ## Rules for agents
+## Bicep curl retirement (codex/remove-bicep-curl)
+- Removed the `curl` exercise from the Expo catalog, new plans, missions, chat logging and spreadsheet imports. Camera defaults use squat and ignore retired switch suggestions.
+- Saved plan items and retired exercise goals are migrated; an interrupted retired mission is stopped. Completed workout records and JSON backup restore remain readable. Repeat-workout and next-set suggestions cannot reintroduce it.
+- Low-level curl landmark analyzers and recorded regression fixtures remain for historical validation; they are not offered through the app. Hammer curl remains a distinct manual exercise.
+- Validation: Expo helper suite and native/web exports; physical-device verification remains pending.
+
 Home chat frontend: `codex/agentic-home` integrates existing PR #47 engines with an AppProvider-owned in-memory conversation, retained turns across tabs, serialized sends, stop/new-chat handling, explicit local/offline/AI status and revalidated confirmation cards. See `docs/engines/HOME_CHAT.md`. Live service remains unconfigured: `CLAUD_TOKEN` is a GitHub smoke-test secret, not a deployed proxy URL. No earlier on-device model integration is used.
 
 - **Never push to `main` or merge PRs without human approval.** Work on a branch off `main`, open a draft PR. Full audit: `docs/AUDIT.md`; Devpost draft: `docs/DEVPOST.md`.

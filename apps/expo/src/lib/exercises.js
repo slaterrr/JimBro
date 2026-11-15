@@ -9,7 +9,6 @@
 import { countsWithCamera } from './analyzers.js';
 
 const LIBRARY = [
-  { id: 'curl', name: 'Bicep curl', pattern: 'elbow_flexion', needs: [['barbell', 'dumbbells', 'cable']], level: 1 },
   { id: 'squat', name: 'Squat', pattern: 'squat', needs: [['barbell', 'bodyweight']], level: 2 },
   { id: 'bench', name: 'Bench press', pattern: 'horizontal_push', needs: [['barbell'], ['bench']], level: 2 },
   { id: 'deadlift', name: 'Deadlift', pattern: 'hinge', needs: [['barbell']], level: 3 },
@@ -44,4 +43,4 @@ export const canDo = (id, equipment = []) => {
   return info.needs.every((group) => group.some((x) => have.has(x)));
 };
 
-export const exerciseName = (id) => EXERCISES.find((e) => e.id === id)?.name ?? id;
+export const exerciseName = (id) => id === 'curl' || id === 'bicep_curl' ? 'Bicep curl' : EXERCISES.find((e) => e.id === id)?.name ?? id;

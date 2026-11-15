@@ -2,14 +2,14 @@
 // (muscle groups AI Jim suggested from a reference photo) and logged/imported history. Works
 // fully offline; the photo path only changes which muscles come first. Output has the same
 // shape as plans.js buildPlan, so savePlan / nextWorkout / the plan card use it unchanged.
-import { exerciseName } from './exercises.js';
+import { EXERCISES, exerciseName } from './exercises.js';
 import { EXERCISE_MUSCLES, MUSCLE_GROUPS } from './muscles.js';
 
 // [sets, reps_low, reps_high, rest_min]
 const SCHEME = { strength: [4, 3, 5, 3], muscle: [4, 8, 12, 1.5], endurance: [3, 12, 20, 1], general: [3, 6, 10, 1.5] };
 const LABEL = { strength: 'strength', muscle: 'muscle', endurance: 'endurance', general: 'general' };
-const CATEGORIES = [['squat', 'deadlift', 'lunge'], ['bench', 'shoulder_press'], ['pull_up', 'curl']];
-const ORDER = Object.keys(EXERCISE_MUSCLES);
+const CATEGORIES = [['squat', 'deadlift', 'lunge'], ['bench', 'shoulder_press'], ['pull_up']];
+const ORDER = EXERCISES.map((e) => e.id).filter((id) => EXERCISE_MUSCLES[id]);
 const MUSCLE_IDS = new Set(MUSCLE_GROUPS.map((m) => m.id));
 const MAX_FOCUS = 4;
 const MAX_ITEMS = 4;

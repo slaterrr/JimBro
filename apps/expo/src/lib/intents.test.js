@@ -6,16 +6,16 @@ import { applyDelete, applyUpdate, parseIntent } from './intents.js';
 
 const s = (id, exercise, reps, weight, unit = 'lb') => ({ id, exercise, reps, weight, unit, rpe: null });
 const history = [{ id: 'w1', sets: [s('h1', 'squat', 5, 225), s('h2', 'bench', 8, 135)] }];
-const active = { id: 'w2', sets: [s('a1', 'curl', 10, 20), s('a2', 'squat', 5, 225)] };
+const active = { id: 'w2', sets: [s('a1', 'shoulder_press', 10, 20), s('a2', 'squat', 5, 225)] };
 const ctx = { history, active, unit: 'lb' };
 
 describe('parseIntent: log', () => {
   it('logs a single set with a summary', () => {
-    const r = parseIntent('10 curls at 20 pounds', ctx);
+    const r = parseIntent('10 shoulder presses at 20 pounds', ctx);
     assert.equal(r.type, 'log');
-    assert.deepEqual(r.sets, [{ exercise: 'curl', reps: 10, weight: 20, unit: 'lb' }]);
+    assert.deepEqual(r.sets, [{ exercise: 'shoulder_press', reps: 10, weight: 20, unit: 'lb' }]);
     assert.deepEqual(r.set, r.sets[0]);
-    assert.equal(r.summary, 'Log 10 × bicep curl at 20 lb?');
+    assert.equal(r.summary, 'Log 10 × shoulder press at 20 lb?');
   });
   it('expands "3 sets of 5"', () => {
     const r = parseIntent('did 3 sets of 5 squats at 225', ctx);

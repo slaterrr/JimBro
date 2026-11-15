@@ -10,7 +10,9 @@ export function withoutRetiredExercises(value) {
 export function migrateRetiredExercises(data) {
   const active = data.active ? { ...data.active, planned: withoutRetiredExercises(data.active.planned) } : data.active;
   // An in-flight retired mission cannot safely resume at a changed item index.
-  const hasRetiredMission = JSON.stringify(data.mission ?? {}).includes('"curl"') || JSON.stringify(data.mission ?? {}).includes('"bicep_curl"');
+  const containsRetired = (v) => v && typeof v === 'object'
+    && (isRetiredExercise(v.exercise) || Object.values(v).some(containsRetired));
+  const hasRetiredMission = containsRetired(data.mission);
   return { ...data, active, plan: withoutRetiredExercises(data.plan), planVersions: withoutRetiredExercises(data.planVersions),
     goals: data.goals?.filter((g) => !isRetiredExercise(g.exercise)), mission: hasRetiredMission ? null : data.mission };
 }

@@ -3,6 +3,7 @@
 import { exerciseName } from './exercises.js';
 import { personaFor } from './personas.js';
 import { pick } from './voice.js';
+import { isRetiredExercise } from './retiredExercises.js';
 
 /** Legacy tone ids (old saves); each maps to a persona via personaFor(). */
 export const TONES = ['direct', 'friendly', 'silly', 'hard'];
@@ -13,6 +14,7 @@ const fmt = (n) => String(Math.round(n * 100) / 100);
 export function suggestNext(history) {
   if (!history.length) return null;
   const last = history[history.length - 1];
+  if (isRetiredExercise(last.exercise)) return null;
   const inc = INCREMENT[last.unit];
   const rpe = last.rpe ?? null;
   let { weight, reps } = last;
@@ -49,7 +51,7 @@ export const SAFETY_TEXT =
 // Wording per persona (see personas.js). Every variant states the same numbers and rationale;
 // only emphasis changes. Legacy tone ids map through personaFor().
 const CUE = {
-  curl: 'keep your elbows pinned.', squat: 'hips back, chest up.', shoulder_press: 'brace your core.',
+  squat: 'hips back, chest up.', shoulder_press: 'brace your core.',
   bench: 'shoulder blades tight.', deadlift: 'bar close, back flat.', pull_up: 'full hang, chest to bar.',
 };
 const TEMPLATES = {
@@ -88,7 +90,7 @@ const EMPTY = {
 };
 const MENTIONS = [
   ['shoulder_press', /(shoulder|overhead) press/i], ['bench', /bench/i], ['deadlift', /dead\s?lift/i],
-  ['pull_up', /pull[\s-]?ups?|chin[\s-]?ups?/i], ['squat', /squat/i], ['lunge', /lunge/i], ['curl', /curl/i],
+  ['pull_up', /pull[\s-]?ups?|chin[\s-]?ups?/i], ['squat', /squat/i], ['lunge', /lunge/i],
 ];
 
 /**

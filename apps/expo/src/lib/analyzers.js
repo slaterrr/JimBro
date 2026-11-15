@@ -7,6 +7,7 @@
 // To add an exercise: give it a joint triple (landmarks), an anchor that must also be visible,
 // a rep config in reps.js, which phase is the lifting effort, and honest limits.
 import { ARM, HIP, LEG } from './angles.js';
+import { isRetiredExercise } from './retiredExercises.js';
 import { CURL, DEADLIFT, LUNGE, PULL_UP, PUSH_UP, SHOULDER_PRESS, SQUAT } from './reps.js';
 
 export const CAMERA_STATUS = ['tested_real', 'tested_sim', 'experimental', 'manual'];
@@ -73,7 +74,8 @@ for (const id of ['dumbbell_bench', 'goblet_squat', 'romanian_deadlift', 'bent_o
 Object.freeze(ANALYZERS);
 
 export const analyzerFor = (id) => ANALYZERS[id] ?? null;
-export const countsWithCamera = (id) => Boolean(ANALYZERS[id] && ANALYZERS[id].status !== 'manual');
+// Legacy analyzer data is retained for recorded-landmark regressions, not offered in the app.
+export const countsWithCamera = (id) => !isRetiredExercise(id) && Boolean(ANALYZERS[id] && ANALYZERS[id].status !== 'manual');
 
 const LABEL = {
   tested_real: 'Camera counts it (tested on real video)',

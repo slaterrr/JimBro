@@ -94,7 +94,7 @@ describe('RepCounter (port of reps.py)', () => {
 
 // --- coach -----------------------------------------------------------------------------
 
-const set = (weight, reps, rpe, unit = 'kg', exercise = 'curl') => ({ exercise, weight, reps, rpe, unit });
+const set = (weight, reps, rpe, unit = 'kg', exercise = 'shoulder_press') => ({ exercise, weight, reps, rpe, unit });
 
 describe('suggestNext (port of coach.suggest_next)', () => {
   it('follows bounded double progression', () => {
@@ -120,7 +120,7 @@ describe('coachReply', () => {
     assert.equal(new Set(texts.map((r) => r.text)).size, 4);
     for (const r of texts) {
       assert.match(r.text, /21/);
-      assert.equal(r.suggestion.exercise, 'curl');
+      assert.equal(r.suggestion.exercise, 'shoulder_press');
     }
   });
   it('gives the same safety reply in every tone and asks for a first set when empty', () => {
@@ -178,14 +178,14 @@ describe('progress', () => {
     workout('2026-11-05', [set(14, 8, null), set(30, 8, null, 'lb')]),
   ];
   it('trends per unit with first-session denominator', () => {
-    const t = trend(history, 'curl');
+    const t = trend(history, 'shoulder_press');
     assert.deepEqual(t.kg.points.map((p) => p.top_weight), [12, 14]);
     assert.equal(t.kg.top_weight_change_pct, Math.round(((14 - 12) / 12) * 1000) / 10);
     assert.equal(t.lb.top_weight_change_pct, null);
   });
   it('finds personal records per exercise and unit (heaviest, most reps, best volume set)', () => {
     const pr = personalRecords(history);
-    const kg = pr.find((r) => r.exercise === 'curl' && r.unit === 'kg');
+    const kg = pr.find((r) => r.exercise === 'shoulder_press' && r.unit === 'kg');
     assert.deepEqual([kg.heaviest.weight, kg.most_reps.reps, kg.best_set_volume], [14, 10, 112]);
     assert.ok(pr.some((r) => r.unit === 'lb'));
   });

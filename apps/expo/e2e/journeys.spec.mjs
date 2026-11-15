@@ -100,13 +100,13 @@ test('workout: start, log a set by hand, finish, and it shows in history after r
 test('chat: tell Jim a set in plain words, he asks to confirm, nothing changes until Confirm', async ({ page }) => {
   await open(page, { history: [], settings: READY });
   await startManualWorkoutAndReturnToChat(page);
-  await say(page, 'log 3 sets of 10 curls at 25 lb');
+  await say(page, 'log 3 sets of 10 shoulder presses at 25 lb');
   const confirm = page.getByText('Confirm', { exact: true }).locator('visible=true').last();
   await expect(confirm).toBeVisible();
   expect((await saved(page)).active?.sets ?? []).toHaveLength(0); // proposal only
   await confirm.click();
   await expect.poll(async () => (await saved(page)).active?.sets?.length).toBe(3);
-  expect((await saved(page)).active.sets[0]).toMatchObject({ exercise: 'curl', reps: 10, weight: 25 });
+  expect((await saved(page)).active.sets[0]).toMatchObject({ exercise: 'shoulder_press', reps: 10, weight: 25 });
 });
 
 test('chat: Cancel on a proposal leaves the log untouched', async ({ page }) => {

@@ -6,7 +6,7 @@ import { askPhysique, MAX_PHOTO_BASE64 } from './jimAI.js';
 
 const state = {
   settings: { fitnessGoal: 'muscle', physiqueGoal: 'Bigger shoulders', focusMuscles: ['biceps'], unit: 'lb' },
-  history: [{ id: 'w1', startedAt: '2026-11-01T12:00:00.000Z', sets: [{ id: 's1', exercise: 'curl', reps: 10, weight: 30, unit: 'lb' }] }],
+  history: [{ id: 'w1', startedAt: '2026-11-01T12:00:00.000Z', sets: [{ id: 's1', exercise: 'shoulder_press', reps: 10, weight: 30, unit: 'lb' }] }],
 };
 const image = { base64: 'aGVsbG8=', mediaType: 'image/jpeg' };
 
@@ -39,7 +39,7 @@ describe('askPhysique', () => {
     assert.deepEqual(r.emphasis, [{ muscle: 'shoulders', reason: 'Round delts stand out.' }]);
     assert.equal(r.proposal.plan.source, 'photo');
     assert.deepEqual(r.proposal.plan.focus, ['shoulders', 'biceps']);
-    const curl = r.proposal.plan.days.flatMap((d) => d.items).find((i) => i.exercise === 'curl');
+    const curl = r.proposal.plan.days.flatMap((d) => d.items).find((i) => i.exercise === 'shoulder_press');
     assert.deepEqual(curl.start, { weight: 30, unit: 'lb' });
   });
   it('falls back to the rule plan when the photo is not a physique, the proxy fails or is missing', async () => {

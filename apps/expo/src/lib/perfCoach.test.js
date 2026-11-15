@@ -62,7 +62,7 @@ describe('chat answers about performance', () => {
   });
 
   it('answers "should I go heavier" with the recommendation and its reason', () => {
-    const a = answerPerformance('should I go heavier on curls?', { history: [], active: { sets: [last] } });
+    const a = answerPerformance('should I go heavier?', { history: [], active: { sets: [last] } });
     assert.match(a, /keep|same|30 lb/i);
   });
 
