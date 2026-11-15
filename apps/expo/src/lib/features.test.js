@@ -110,6 +110,7 @@ const WIRING = {
   'components/kit.js': [
     [/export function Dropdown\(/, 'scrollable dropdown picker'],
     [/horizontal/, 'segmented control scrolls when it has many options'],
+    [/role="tab"[^>]*aria-selected={on}/, 'selected tab announced on web (accessibilityState alone is dropped by react-native-web)'],
   ],
   'components/Comparisons.js': [
     [/<Dropdown[\s\S]*label="Compare by"/, 'time frame chosen from a dropdown'],
