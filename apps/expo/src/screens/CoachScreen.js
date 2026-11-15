@@ -39,7 +39,7 @@ function plannedFor(active, movement) {
 }
 
 export function CoachScreen({ openLog, initialExercise }) {
-  const { active, settings, voice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
+  const { active, settings, coachVoice: jim, mission, stepMission, startWorkout, saveCoachSet, clearCoachRest } = useApp();
   const mt = mission ? currentTarget(mission.state) : null; // the mission's current set, when one is running
   const [lastRepAt, setLastRepAt] = useState(0);
   // The Studio is embedded in a bounded chat panel. Keep the camera and composer visible together.
@@ -53,7 +53,8 @@ export function CoachScreen({ openLog, initialExercise }) {
   const [sets, setSets] = useState(workoutTarget('sets', planned?.sets));
   const [setup, setSetup] = useState(false);
   const [howTo, setHowTo] = useState(false);
-  const voice = false;
+  const voice = true;
+  useEffect(() => () => jim.stop(), [jim]);
   const [paused, setPaused] = useState(false);
   const [clockMs, setClockMs] = useState(Date.now);
   const restDeadline = mission ? null : active?.coachRest?.until;

@@ -99,7 +99,12 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     () => settingsRef.current,
     { enabled: false },
   ), []);
-  useEffect(() => { voice.enableAudio(); }, [voice]);
+  // Spoken output is reserved for the live CV workout coach. Chat remains silent.
+  const coachVoice = useMemo(() => createVoice(
+    { speak: (t, o) => Speech.speak(t, o), stop: () => Speech.stop(), setAudioMode: setAudioModeAsync },
+    () => settingsRef.current,
+  ), []);
+  useEffect(() => { coachVoice.enableAudio(); }, [coachVoice]);
   // Device voices for the picker; until they load Jim uses the device default (lib/voices.js).
   const [voices, setVoices] = useState([]);
   useEffect(() => {
@@ -210,7 +215,7 @@ export function AppProvider({ children, storageKey = KEY, account = null, onSign
     conversation: conversationRef.current,
     goals: data.goals ?? [], addGoal, removeGoal,
     mission: data.mission ?? null, startMission, stepMission, endMission,
-    ready, notice, setNotice, settings, update, say, voice, voices,
+    ready, notice, setNotice, settings, update, say, voice, coachVoice, voices,
     active: data.active, history: data.history, plan: data.plan, planVersions: data.planVersions ?? [], allSets,
     startWorkout, logSet, saveCoachSet, clearCoachRest, deleteSet, updateSet, finishWorkout, deleteWorkout, importData, savePlan, saveSchedule, createDefaultSchedule, exportJSON, eraseAll,
   };
